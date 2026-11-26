@@ -143,17 +143,17 @@
 ### Phase 4. 에디터 선택·Undo 아키텍처 & 3D 썸네일
 **목표**: 다중 액터 프로퍼티 편집, 커맨드 패턴 Undo/Redo, 콘텐츠 드로어 3D 썸네일 렌더러.
 
-- [ ] **선택 시스템 델리게이트 & `DetailsPanel` 다중 선택 편집**
+- [x] **선택 시스템 델리게이트 & `DetailsPanel` 다중 선택 편집**
   - 참조: `Kurisu\Source\Editor\KurisuEd\EditorSelection.{h,cpp}`, `Kurisu\Source\Editor\Details\DetailsPanel.{h,cpp}`
   - 대상: `Hitori\Source\Editor\Selection.h` (14주차 `USelection` 유지 + `OnChanged`/배치 가드 보강 또는 `UEditorEngine::NoteSelectionChange` 연동), `Hitori\Source\Editor\Details\DetailsPanel.{h,cpp}` (`SetTargets` 다중 선택 공통 프로퍼티 편집)
-- [ ] **커맨드 기반 Undo/Redo (`FEditorUndoHistory`) 전환**
+- [x] **커맨드 기반 Undo/Redo (`FEditorUndoHistory`) 전환**
   - 참조: `Kurisu\Source\Editor\KurisuEd\EditorUndo.{h,cpp}`
   - 대상: `Hitori\Source\Editor\HitoriEd\EditorUndo.{h,cpp}`(신규), `EditorEngine.{h,cpp}`, `DetailsPanel.{h,cpp}`, `OutlinerPanel.{h,cpp}`, `Gizmo`
   - 전략: Transform / Property / Spawn·Delete·Duplicate / Component 편집은 `IEditorUndoCommand`(`FName` 기반)로 처리하고, 미지원 복합 편집용 범용 스냅샷 폴백 커맨드를 함께 두어 `FLevelUndoHistory`를 안전하게 대체. `SavedStateId` 기반 Dirty 추적 포함.
-- [ ] **콘텐츠 드로어 3D 오프스크린 썸네일 (`FMeshThumbnailRenderer`)**
+- [x] **콘텐츠 드로어 3D 오프스크린 썸네일 (`FMeshThumbnailRenderer`)**
   - 참조: `Kurisu\Source\Editor\ContentDrawer\MeshThumbnailRenderer.{h,cpp}`, `Kurisu\EngineResources\Shaders\ThumbnailCheckerShader.hlsl`, `Kurisu\Source\Editor\ContentDrawer\ContentDrawerPanel.cpp`
   - 대상: `Hitori\Source\Editor\ContentDrawer\MeshThumbnailRenderer.{h,cpp}`(신규), `ContentDrawerPanel.{h,cpp}`, `EditorEngine.cpp` (`RenderPending` 프레임당 1개 렌더)
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + 다중 선택 편집, Undo/Redo(삭제 후 복원 포함), 3D 썸네일 렌더링 확인
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + 다중 선택 편집, Undo/Redo(삭제 후 복원 포함), 3D 썸네일 렌더링 확인
 
 ---
 

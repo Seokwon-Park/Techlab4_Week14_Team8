@@ -989,6 +989,14 @@ void FContentDrawerPanel::DrawAssetGrid()
 				Rounding, ImDrawFlags_RoundCornersBottom);
 			DrawList->AddRectFilled(ImVec2(Min.x, InfoTop - 2.0f * S), ImVec2(Max.x, InfoTop), Info.Color);
 
+			ImTextureID MeshThumbId = ImTextureID_Invalid;
+			if (!Thumbnail && FMeshThumbnailRenderer::IsSupportedFile(Entry.Path, Entry.PathString))
+			{
+				std::error_code TimeEc;
+				const fs::file_time_type LastWrite = fs::last_write_time(Entry.Path, TimeEc);
+				MeshThumbId = MeshThumbnails.GetOrRequestThumbnail(Entry.Path, Entry.PathString, TimeEc ? fs::file_time_type{} : LastWrite);
+			}
+
 			if (Thumbnail && Thumbnail->GetResource() && Thumbnail->GetResource()->GetSRV())
 			{
 				// 가로세로 비율을 지켜 썸네일 칸에 맞춘다.
@@ -1004,6 +1012,13 @@ void FContentDrawerPanel::DrawAssetGrid()
 				}
 				const ImVec2 ImgMin(std::floor(Min.x + (CardWidth - W) * 0.5f), std::floor(Min.y + Pad + (Box - Hgt) * 0.5f));
 				DrawList->AddImage((ImTextureID)Thumbnail->GetResource()->GetSRV(), ImgMin, ImVec2(ImgMin.x + W, ImgMin.y + Hgt));
+			}
+			else if (MeshThumbId != ImTextureID_Invalid)
+			{
+				const ImVec2 ImgMin(std::floor(Min.x), std::floor(Min.y));
+				const ImVec2 ImgMax(std::floor(Max.x), std::floor(InfoTop - 2.0f * S));
+				DrawList->AddImageRounded(MeshThumbId, ImgMin, ImgMax, ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+					IM_COL32_WHITE, Rounding, ImDrawFlags_RoundCornersTop);
 			}
 			else
 			{

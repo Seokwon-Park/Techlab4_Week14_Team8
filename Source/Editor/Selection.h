@@ -4,6 +4,7 @@
 #include "UObject/Class.h"
 #include "UObject/Casts.h"
 #include "Containers/Array.h"
+#include "Core/Delegate/Delegate.h"
 #include "Selection.generated.h"
 
 // 선택된 오브젝트의 집합. 에디터 엔진이 액터용과 컴포넌트용을 하나씩 갖는다.
@@ -79,6 +80,10 @@ public:
 		}
 		return nullptr;
 	}
+
+	// 선택 변경 알림 델리게이트. NoteSelectionChange 또는 명시적 호출로 브로드캐스트된다.
+	TDelegate<> OnChanged;
+	void NotifyChanged() { OnChanged.Broadcast(); }
 
 private:
 	TArray<UObject*> SelectedObjects;

@@ -3,6 +3,7 @@
 #include "Editor/EditorUI/EditorPanel.h"
 #include "Editor/BlendSpaceEditor/BlendSpaceAssetCreator.h"
 #include "Editor/AnimBlueprintEditor/AnimBlueprintAssetCreator.h"
+#include "Editor/ContentDrawer/MeshThumbnailRenderer.h"
 
 #include <filesystem>
 
@@ -37,6 +38,13 @@ public:
 	bool IsDocked() const { return bDocked; }
 	// 드로어가 덮을 영역 (레벨 에디터 탭이 매 프레임 넘긴다).
 	void SetDrawerRect(const ImVec2& Pos, const ImVec2& Size, ImGuiID ViewportId);
+
+	// 대기 중인 3D 메시/머티리얼 썸네일을 프레임당 1개씩 렌더한다.
+	void RenderPendingThumbnails(UEditorEngine& Engine, FRenderer* Renderer)
+	{
+		MeshThumbnails.RenderPending(Engine, Renderer);
+	}
+	void ReleaseThumbnails() { MeshThumbnails.Release(); }
 
 	// .widget 파일을 더블클릭하면 불린다 (UI 에디터가 연다).
 	void SetOpenWidgetCallback(std::function<void(const FString&)> InCallback) { OnOpenWidget = std::move(InCallback); }
@@ -142,4 +150,5 @@ private:
 
 	FBlendSpaceAssetCreator BlendSpaceCreator;
     FAnimBlueprintAssetCreator AnimBlueprintCreator;
+	FMeshThumbnailRenderer MeshThumbnails;
 };

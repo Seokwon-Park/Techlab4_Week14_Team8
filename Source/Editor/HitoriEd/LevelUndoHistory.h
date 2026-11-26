@@ -29,6 +29,8 @@ public:
 
 	// 표시된 편집이 있으면 지금 월드를 기준 상태와 비교해 다르면 한 단계를 쌓는다. 쌓았으면 true.
 	bool Commit(UWorld* World);
+	// FEditorUndoHistory와 통합할 때 사용: 변경이 있으면 Before/After 스냅샷 쌍을 꺼내고 기준을 갱신한다.
+	bool CaptureDiff(UWorld* World, TArray<uint8>& OutBefore, TArray<uint8>& OutAfter);
 
 	// 기준 상태를 바꿀 스냅샷을 돌려준다. 꺼낼 것이 없으면 nullptr. 반환값은 다음 호출까지 유효하다.
 	const TArray<uint8>* Undo();

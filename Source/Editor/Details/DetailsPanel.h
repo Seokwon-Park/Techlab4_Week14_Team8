@@ -29,8 +29,16 @@ public:
 
 	void SetTarget(AActor* InTargetActor) 
 	{ 
+		TargetActors.Empty();
+		if (InTargetActor) TargetActors.Add(InTargetActor);
 		TargetActor = InTargetActor;
 		TargetComponent = InTargetActor ? InTargetActor->GetRootComponent() : nullptr;
+	}
+	void SetTargets(const TArray<AActor*>& InTargetActors)
+	{
+		TargetActors = InTargetActors;
+		TargetActor = TargetActors.IsEmpty() ? nullptr : TargetActors.Last();
+		TargetComponent = TargetActor ? TargetActor->GetRootComponent() : nullptr;
 	}
 	void SetTargetComponent(UActorComponent* InTargetComponent) { TargetComponent = InTargetComponent; }
 
@@ -55,6 +63,7 @@ private:
 	UWorld* World = nullptr;
 	ImFont* CustomFont = nullptr;
 
+	TArray<AActor*> TargetActors;
 	AActor* TargetActor = nullptr;
 	UActorComponent* TargetComponent = nullptr;
 	DetailsSelectionCallback Callback;

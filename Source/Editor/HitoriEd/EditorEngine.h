@@ -44,6 +44,7 @@
 
 #include "Editor/HitoriEd/GamePackager.h"
 #include "Editor/HitoriEd/LevelUndoHistory.h"
+#include "Editor/HitoriEd/EditorUndo.h"
 
 #include <Engine\GameViewportClient.h>
 
@@ -152,6 +153,14 @@ public:
 
 	// 에디터 월드가 들어 있는 월드 컨텍스트. UE에서도 public이라 GEditor->GetEditorWorldContext().World()로 에디터 월드를 얻는다.
 	FWorldContext& GetEditorWorldContext();
+	UWorld* GetEditorWorld() const { return EditorWorld; }
+
+	// 커맨드 기반 Undo/Redo 히스토리 및 씬 Dirty 추적
+	FEditorUndoHistory& GetUndoHistory() { return UndoHistory; }
+	const FEditorUndoHistory& GetUndoHistory() const { return UndoHistory; }
+	bool IsSceneDirty() const { return UndoHistory.IsDirty(); }
+	// 스냅샷으로 에디터 월드를 되돌린다. FSnapshotUndoCommand에서도 호출한다.
+	void ApplyLevelSnapshot(const TArray<uint8>& Snapshot);
 
 	bool IsPlaying() const { return PlayWorld != nullptr; }
 	EPIEState GetPIEState() const
@@ -313,8 +322,6 @@ private:
 	bool CanEditLevelHistory() const;
 	// 프레임 끝에 조작이 모두 끝났으면 표시된 편집을 한 단계로 확정한다.
 	void TickLevelUndo();
-	// 스냅샷으로 에디터 월드를 되돌린다. 액터가 모두 새로 만들어지므로 선택은 이름으로 다시 잡는다.
-	void ApplyLevelSnapshot(const TArray<uint8>& Snapshot);
 
 	// 레벨 에디터 탭에 포커스가 있는가. 에셋 에디터 탭도 같은 단축키(Ctrl+Z, Ctrl+C, F)를 쓰므로 이것으로 가른다.
 	bool IsLevelEditorFocused() const;
@@ -323,6 +330,12 @@ private:
 	void OnActorPasted(AActor* NewActor);
 
 	FLevelUndoHistory LevelUndo;
+	FEditorUndoHistory UndoHistory;
+	// 기즈모 드래그 경량 트랜스폼 커맨드 추적
+	bool bGizmoDragTracking = false;
+	FName GizmoDragActorName = NAME_None;
+	FName GizmoDragComponentName = NAME_None;
+	FTransform GizmoDragStartTransform;
 	// 메뉴와 단축키는 요청만 남기고, 패널을 다 그린 뒤 TickLevelUndo가 처리한다.
 	// UI를 그리는 도중에 월드를 지우면 뒤에 그릴 패널이 지워진 액터를 읽기 때문이다. -1 Undo, 1 Redo.
 	int32 PendingLevelHistoryStep = 0;

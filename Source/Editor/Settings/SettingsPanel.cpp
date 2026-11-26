@@ -23,6 +23,8 @@ FSettingsPanel::~FSettingsPanel()
 bool FSettingsPanel::Init()
 {
 	LoadSettings();
+	// 기본은 상단 툴바 톱니바퀴(Settings) 팝업으로 열고, 도킹 창은 닫아 둔다.
+	SetOpen(false);
 	return true;
 }
 
@@ -37,7 +39,23 @@ void FSettingsPanel::OnRender()
 {
 	ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
 	EditorPanelUI::BeginPanel("Settings", GetOpenFlag());
+	DrawContents();
+	ImGui::End();
+}
 
+void FSettingsPanel::DrawPopupContents()
+{
+	const float S = EditorStyle::Scale(1.0f);
+	const float MaxHeight = std::min(560.0f * S, ImGui::GetMainViewport()->WorkSize.y * 0.72f);
+	if (ImGui::BeginChild("##ToolbarSettingsScroll", ImVec2(380.0f * S, MaxHeight), ImGuiChildFlags_None))
+	{
+		DrawContents();
+	}
+	ImGui::EndChild();
+}
+
+void FSettingsPanel::DrawContents()
+{
 	//////////////////////////////////////////////////////////
 
 	// 렌더링 옵션 (Toggles)
@@ -234,8 +252,6 @@ void FSettingsPanel::OnRender()
 	}
 
 	//////////////////////////////////////////////////////////
-
-	ImGui::End();
 }
 
 // 알려진 설정 섹션을 editor.ini에 함께 기록해 뷰포트 값 유실을 막는다.

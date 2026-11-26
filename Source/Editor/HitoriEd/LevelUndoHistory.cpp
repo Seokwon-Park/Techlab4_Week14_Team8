@@ -57,6 +57,31 @@ bool FLevelUndoHistory::Commit(UWorld* World)
 	return true;
 }
 
+bool FLevelUndoHistory::CaptureDiff(UWorld* World, TArray<uint8>& OutBefore, TArray<uint8>& OutAfter)
+{
+	if (!World)
+		return false;
+
+	if (!bHasBaseline)
+	{
+		Reset(World);
+		return false;
+	}
+
+	if (!bDirty)
+		return false;
+	bDirty = false;
+
+	TArray<uint8> Current;
+	if (!FJsonArchive::SaveWorldToBytes(World, Current) || Current == Committed)
+		return false;
+
+	OutBefore = std::move(Committed);
+	OutAfter = Current;
+	Committed = std::move(Current);
+	return true;
+}
+
 const TArray<uint8>* FLevelUndoHistory::Undo()
 {
 	if (UndoStack.IsEmpty())

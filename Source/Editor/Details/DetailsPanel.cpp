@@ -1219,6 +1219,7 @@ namespace
 				Value.Roll = Euler[0];
 				Value.Pitch = Euler[1];
 				Value.Yaw = Euler[2];
+				return true;
 			}
 			return false;
 		}
@@ -1536,6 +1537,204 @@ namespace
 					if (bReadOnly) ImGui::BeginDisabled();
 					DrawProperty(Object, *Property, CustomFont);
 					if (bReadOnly) ImGui::EndDisabled();
+				}
+			}
+			ImGui::PopID();
+		}
+	}
+
+	// ---------------- 다중 선택 일괄 편집 도우미 ----------------
+	UClass* FindCommonBaseClass(const TArray<UObject*>& Objects)
+	{
+		if (Objects.IsEmpty() || !Objects[0]) return nullptr;
+		UClass* Common = Objects[0]->GetClass();
+		for (int32 i = 1; i < Objects.Num() && Common; ++i)
+		{
+			if (!Objects[i]) return nullptr;
+			UClass* Other = Objects[i]->GetClass();
+			while (Common)
+			{
+				bool bMatches = false;
+				for (UClass* C = Other; C; C = C->Super)
+				{
+					if (C == Common) { bMatches = true; break; }
+				}
+				if (bMatches) break;
+				Common = Common->Super;
+			}
+		}
+		return Common;
+	}
+
+	bool ArePropertyValuesEqual(const FProperty& Property, const void* ContainerA, const void* ContainerB)
+	{
+		const void* PtrA = Property.ContainerPtrToValuePtr(ContainerA);
+		const void* PtrB = Property.ContainerPtrToValuePtr(ContainerB);
+		if (const FFloatProperty* P = CastField<FFloatProperty>(&Property))
+			return std::fabs(P->GetPropertyValue(const_cast<void*>(PtrA)) - P->GetPropertyValue(const_cast<void*>(PtrB))) <= 1e-4f;
+		if (const FIntProperty* P = CastField<FIntProperty>(&Property))
+			return P->GetPropertyValue(const_cast<void*>(PtrA)) == P->GetPropertyValue(const_cast<void*>(PtrB));
+		if (const FUInt32Property* P = CastField<FUInt32Property>(&Property))
+			return P->GetPropertyValue(const_cast<void*>(PtrA)) == P->GetPropertyValue(const_cast<void*>(PtrB));
+		if (const FBoolProperty* P = CastField<FBoolProperty>(&Property))
+			return P->GetPropertyValue(const_cast<void*>(PtrA)) == P->GetPropertyValue(const_cast<void*>(PtrB));
+		if (const FEnumProperty* P = CastField<FEnumProperty>(&Property))
+			return P->GetValue(const_cast<void*>(PtrA)) == P->GetValue(const_cast<void*>(PtrB));
+		if (const FStrProperty* P = CastField<FStrProperty>(&Property))
+			return P->GetPropertyValue(const_cast<void*>(PtrA)) == P->GetPropertyValue(const_cast<void*>(PtrB));
+		if (const FVectorProperty* P = CastField<FVectorProperty>(&Property))
+		{
+			const FVector& A = P->GetPropertyValue(const_cast<void*>(PtrA));
+			const FVector& B = P->GetPropertyValue(const_cast<void*>(PtrB));
+			return std::fabs(A.X - B.X) <= 1e-4f && std::fabs(A.Y - B.Y) <= 1e-4f && std::fabs(A.Z - B.Z) <= 1e-4f;
+		}
+		if (const FRotatorProperty* P = CastField<FRotatorProperty>(&Property))
+		{
+			const FRotator& A = P->GetPropertyValue(const_cast<void*>(PtrA));
+			const FRotator& B = P->GetPropertyValue(const_cast<void*>(PtrB));
+			return std::fabs(A.Roll - B.Roll) <= 1e-3f && std::fabs(A.Pitch - B.Pitch) <= 1e-3f && std::fabs(A.Yaw - B.Yaw) <= 1e-3f;
+		}
+		if (const FVector4Property* P = CastField<FVector4Property>(&Property))
+		{
+			const FVector4& A = P->GetPropertyValue(const_cast<void*>(PtrA));
+			const FVector4& B = P->GetPropertyValue(const_cast<void*>(PtrB));
+			return std::fabs(A.X - B.X) <= 1e-4f && std::fabs(A.Y - B.Y) <= 1e-4f && std::fabs(A.Z - B.Z) <= 1e-4f && std::fabs(A.W - B.W) <= 1e-4f;
+		}
+		if (const FVector2Property* P = CastField<FVector2Property>(&Property))
+		{
+			const FVector2& A = P->GetPropertyValue(const_cast<void*>(PtrA));
+			const FVector2& B = P->GetPropertyValue(const_cast<void*>(PtrB));
+			return std::fabs(A.X - B.X) <= 1e-4f && std::fabs(A.Y - B.Y) <= 1e-4f;
+		}
+		if (const FColorProperty* P = CastField<FColorProperty>(&Property))
+		{
+			const FColor& A = P->GetPropertyValue(const_cast<void*>(PtrA));
+			const FColor& B = P->GetPropertyValue(const_cast<void*>(PtrB));
+			return A.R == B.R && A.G == B.G && A.B == B.B && A.A == B.A;
+		}
+		if (const FLinearColorProperty* P = CastField<FLinearColorProperty>(&Property))
+		{
+			const FLinearColor& A = P->GetPropertyValue(const_cast<void*>(PtrA));
+			const FLinearColor& B = P->GetPropertyValue(const_cast<void*>(PtrB));
+			return std::fabs(A.R - B.R) <= 1e-4f && std::fabs(A.G - B.G) <= 1e-4f && std::fabs(A.B - B.B) <= 1e-4f && std::fabs(A.A - B.A) <= 1e-4f;
+		}
+		if (const FStructProperty* P = CastField<FStructProperty>(&Property); P && P->Struct)
+		{
+			for (const FProperty* Member : P->Struct->GetProperties())
+			{
+				if (!ArePropertyValuesEqual(*Member, PtrA, PtrB))
+					return false;
+			}
+			return true;
+		}
+		return Property.ElementSize > 0 ? (std::memcmp(PtrA, PtrB, Property.ElementSize) == 0) : true;
+	}
+
+	void CopyPropertyValue(const FProperty& Property, const void* SrcContainer, void* DstContainer)
+	{
+		void* SrcPtr = const_cast<void*>(Property.ContainerPtrToValuePtr(SrcContainer));
+		void* DstPtr = Property.ContainerPtrToValuePtr(DstContainer);
+		if (const FFloatProperty* P = CastField<FFloatProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FIntProperty* P = CastField<FIntProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FUInt32Property* P = CastField<FUInt32Property>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FBoolProperty* P = CastField<FBoolProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FEnumProperty* P = CastField<FEnumProperty>(&Property))
+			P->SetValue(DstPtr, P->GetValue(SrcPtr));
+		else if (const FStrProperty* P = CastField<FStrProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FVectorProperty* P = CastField<FVectorProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FRotatorProperty* P = CastField<FRotatorProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FVector4Property* P = CastField<FVector4Property>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FVector2Property* P = CastField<FVector2Property>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FColorProperty* P = CastField<FColorProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FLinearColorProperty* P = CastField<FLinearColorProperty>(&Property))
+			P->GetPropertyValue(DstPtr) = P->GetPropertyValue(SrcPtr);
+		else if (const FStructProperty* P = CastField<FStructProperty>(&Property); P && P->Struct)
+		{
+			for (const FProperty* Member : P->Struct->GetProperties())
+				CopyPropertyValue(*Member, SrcPtr, DstPtr);
+		}
+		else if (Property.ElementSize > 0)
+		{
+			std::memcpy(DstPtr, SrcPtr, Property.ElementSize);
+		}
+	}
+
+	void DrawMultiObjectProperties(const TArray<UObject*>& Objects, ImFont* CustomFont)
+	{
+		if (Objects.IsEmpty()) return;
+		UClass* CommonClass = FindCommonBaseClass(Objects);
+		if (!CommonClass) return;
+
+		TArray<UClass*> ClassChain;
+		for (UClass* Class = CommonClass; Class; Class = Class->Super)
+			ClassChain.Add(Class);
+
+		for (auto It = ClassChain.rbegin(); It != ClassChain.rend(); ++It)
+		{
+			UClass* Class = *It;
+			auto IsShown = [](const FProperty* Property)
+			{
+				return Property->HasAnyFlags(CPF_Edit) && EditorIcons::MatchesFilter(Property->Name.c_str(), GPropertyFilter);
+			};
+			bool bHasVisibleProperty = false;
+			for (const FProperty* Property : Class->GetProperties())
+			{
+				if (IsShown(Property)) { bHasVisibleProperty = true; break; }
+			}
+			if (!bHasVisibleProperty) continue;
+
+			ImGui::PushID(Class->Name.c_str());
+			const bool bFiltering = GPropertyFilter && GPropertyFilter[0];
+			if (bFiltering) ImGui::SetNextItemOpen(true);
+			if (CategoryHeader(Class->Name.c_str()))
+			{
+				for (const FProperty* Property : Class->GetProperties())
+				{
+					if (!IsShown(Property)) continue;
+
+					bool bAllEqual = true;
+					for (int32 i = 1; i < Objects.Num(); ++i)
+					{
+						if (!ArePropertyValuesEqual(*Property, Objects[0], Objects[i]))
+						{
+							bAllEqual = false;
+							break;
+						}
+					}
+
+					const bool bReadOnly = Property->HasAnyFlags(CPF_EditConst);
+					if (bReadOnly) ImGui::BeginDisabled();
+					if (!bAllEqual) ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, true);
+
+					const bool bChanged = DrawPropertyRow(Objects[0], Objects[0], *Property, CustomFont);
+
+					if (!bAllEqual)
+					{
+						ImGui::PopItemFlag();
+						if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+							ImGui::SetTooltip("Multiple Values (editing applies to all %d selected objects)", Objects.Num());
+					}
+					if (bReadOnly) ImGui::EndDisabled();
+
+					if (bChanged)
+					{
+						Objects[0]->PostEditChangeProperty(*Property);
+						for (int32 i = 1; i < Objects.Num(); ++i)
+						{
+							CopyPropertyValue(*Property, Objects[0], Objects[i]);
+							Objects[i]->PostEditChangeProperty(*Property);
+						}
+					}
 				}
 			}
 			ImGui::PopID();
@@ -1938,6 +2137,55 @@ void FDetailsPanel::OnRender()
 	ImGui::SetNextWindowSize(ImVec2(400, 200), ImGuiCond_FirstUseEver);
 
 	EditorPanelUI::BeginPanel("Details", GetOpenFlag());
+
+	// 다중 액터 선택 시 공통 클래스·공통 루트 컴포넌트의 프로퍼티를 일괄 편집한다.
+	if (TargetActors.Num() > 1)
+	{
+		TArray<UObject*> ActorObjects;
+		TArray<UObject*> RootObjects;
+		for (AActor* Each : TargetActors)
+		{
+			if (!Each) continue;
+			ActorObjects.Add(Each);
+			if (USceneComponent* Root = Each->GetRootComponent())
+				RootObjects.Add(Root);
+		}
+		if (ActorObjects.Num() > 1)
+		{
+			UClass* CommonActorClass = FindCommonBaseClass(ActorObjects);
+			ImGui::Text("%d Actors Selected", ActorObjects.Num());
+			if (CommonActorClass)
+			{
+				ImGui::SameLine();
+				ImGui::TextDisabled("(%s)", CommonActorClass->Name.c_str());
+			}
+			ImGui::Separator();
+
+			EditorIcons::SearchBox("##DetailsSearch", PropertySearch, sizeof(PropertySearch));
+			GPropertyFilter = PropertySearch;
+
+			ImGui::PushID("MultiActors");
+			DrawMultiObjectProperties(ActorObjects, CustomFont);
+			ImGui::PopID();
+
+			if (RootObjects.Num() == ActorObjects.Num())
+			{
+				UClass* CommonRootClass = FindCommonBaseClass(RootObjects);
+				ImGui::PushID("MultiRoots");
+				if (CommonRootClass)
+					ImGui::SeparatorText(std::format("Component Properties ({})", CommonRootClass->Name).c_str());
+				else
+					ImGui::SeparatorText("Component Properties");
+				DrawMultiObjectProperties(RootObjects, CustomFont);
+				ImGui::PopID();
+			}
+
+			GPropertyFilter = nullptr;
+			FLevelUndoHistory::NotePanelInteraction();
+			ImGui::End();
+			return;
+		}
+	}
 
 	if (TargetActor)
 	{

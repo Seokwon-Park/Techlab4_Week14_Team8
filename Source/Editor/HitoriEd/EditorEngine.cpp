@@ -423,11 +423,11 @@ void UEditorEngine::InitCommands()
 
 	// UE: Undo = Ctrl+Z, Redo = Ctrl+Y
 	UndoCommand = { "Undo", "Undo the last level edit", nullptr, White, { EKeyCode::Z, true } };
-	UndoCommand.CanExecute = [this]() { return CanEditLevelHistory() && LevelUndo.CanUndo(); };
+	UndoCommand.CanExecute = [this]() { return CanEditLevelHistory() && UndoHistory.CanUndo(); };
 	UndoCommand.Execute = [this]() { PendingLevelHistoryStep = -1; };
 
 	RedoCommand = { "Redo", "Redo the last undone level edit", nullptr, White, { EKeyCode::Y, true } };
-	RedoCommand.CanExecute = [this]() { return CanEditLevelHistory() && LevelUndo.CanRedo(); };
+	RedoCommand.CanExecute = [this]() { return CanEditLevelHistory() && UndoHistory.CanRedo(); };
 	RedoCommand.Execute = [this]() { PendingLevelHistoryStep = 1; };
 
 	// UE: Copy = Ctrl+C, Paste = Ctrl+V, Duplicate = Ctrl+D
@@ -576,11 +576,23 @@ void UEditorEngine::InitCommands()
 		FocusPanelEntry("Level Sequence", "Open Sequencer", SequencerPanel, EEditorIcon::Cinematics),
 	};
 
+	FToolbarMenu SettingsMenu;
+	SettingsMenu.Icon = EEditorIcon::Settings;
+	SettingsMenu.Label = "Settings";
+	SettingsMenu.Tooltip = "Editor & Rendering Settings";
+	SettingsMenu.bShowLabel = true;
+	SettingsMenu.DrawContents = [this]()
+	{
+		if (SettingsPanel)
+			SettingsPanel->DrawPopupContents();
+	};
+
 	FLevelEditorToolbar& LevelEditorToolbar = *LevelEditorTab->GetToolbar();
 	LevelEditorToolbar.SetSaveCommand(Save);
 	LevelEditorToolbar.SetModeTools(&GLevelEditorModeTools());
 	LevelEditorToolbar.SetCreateMenus({ AddMenu, BlueprintsMenu, CinematicsMenu });
 	LevelEditorToolbar.SetCommands({ Play, Resume, Pause, StepFrame, Stop, Simulate, Eject, Possess });
+	LevelEditorToolbar.SetRightMenus({ SettingsMenu });
 	LevelEditorToolbar.SetPlayModeBinding(
 		[this]() { return PlayMode; },
 		[this](EPlayModeType Mode) { PlayMode = Mode; },
@@ -868,6 +880,10 @@ void UEditorEngine::Tick(const float DeltaTime)
 	// 열려 있는 에셋 에디터의 미리보기를 그린다.
 	EditorManager->RenderPreview();
 
+	// 콘텐츠 드로어의 대기 중인 3D 메시/머티리얼 썸네일을 프레임당 1개씩 렌더한다.
+	if (ContentDrawerPanel)
+		ContentDrawerPanel->RenderPendingThumbnails(*this, Renderer);
+
 	// 네 View의 결과 텍스처와 ImGui를 메인 창의 백버퍼에 합성한다. Present는 FEngineLoop가 한다.
 	// Swapchain 렌더링
 	RenderCommand::BeginRenderPass(MainWindowSC->GetBackbuffer(), nullptr,
@@ -1150,6 +1166,7 @@ void UEditorEngine::ClickSelectActor(AActor* Actor, bool bCtrl, bool bShift)
 void UEditorEngine::PreExit()
 {
 	EndPlayMap();
+	if (ContentDrawerPanel) ContentDrawerPanel->ReleaseThumbnails();
 	// 시퀀서는 에디터 월드 액터를 가리키므로 월드보다 먼저 정리한다
 	if (SequencerPanel) SequencerPanel->Shutdown();
 	EditorWorld->ClearWorld();
@@ -1335,11 +1352,13 @@ void UEditorEngine::NoteSelectionChange()
 		}
 	}
 
+	SelectedActors->NotifyChanged();
+
 	// 외곽선은 선택된 액터마다 그 메시에 그린다. 루트가 메시가 아니면 액터의 첫 번째 메시 컴포넌트를 쓴다.
+	TArray<AActor*> Selected;
+	SelectedActors->GetSelectedObjects(Selected);
 	if (Outline)
 	{
-		TArray<AActor*> Selected;
-		SelectedActors->GetSelectedObjects(Selected);
 		TArray<UPrimitiveComponent*> Primitives;
 		for (AActor* Each : Selected)
 		{
@@ -1355,10 +1374,9 @@ void UEditorEngine::NoteSelectionChange()
 		Outline->SetTargets(Primitives);
 	}
 
-	// 디테일 패널은 선택된 액터를 보여 준다. 컴포넌트를 고른 경우에는 패널이 이미 그 컴포넌트를 보여 주고 있으므로 건드리지 않는다.
-	// SetTarget은 패널이 보여 주는 컴포넌트를 루트로 되돌리기 때문이다.
+	// 디테일 패널은 선택된 액터(다중 선택 포함)를 보여 준다. 컴포넌트를 고른 경우에는 패널이 이미 그 컴포넌트를 보여 주고 있으므로 건드리지 않는다.
 	if (DetailsPanel && !Component)
-		DetailsPanel->SetTarget(Actor);
+		DetailsPanel->SetTargets(Selected);
 }
 
 // 새 씬 생성이 성공하면 에디터 선택 상태를 초기화한다.
@@ -1374,6 +1392,8 @@ void UEditorEngine::CreateNewScene()
 
 	ResetSceneSelection();
 	LevelUndo.Reset(EditorWorld);
+	UndoHistory.Clear();
+	UndoHistory.MarkSaved();
 	LevelUndoScenePath = FEditorFileUtils::CurrentScenePath;
 	LevelEditorTab->OnLevelLoaded.Broadcast(FEditorFileUtils::CurrentScenePath);
 }
@@ -1636,22 +1656,65 @@ void UEditorEngine::TickLevelUndo()
 	{
 		LevelUndoScenePath = FEditorFileUtils::CurrentScenePath;
 		LevelUndo.Reset(EditorWorld);
+		UndoHistory.Clear();
+		UndoHistory.MarkSaved();
+		bGizmoDragTracking = false;
 		PendingLevelHistoryStep = 0;
 		return;
 	}
 
-	// 기즈모를 드래그하는 동안은 매 프레임 바뀌므로 놓을 때까지 기다렸다가 한 단계로 만든다.
+	// 기즈모 드래그는 경량 FTransformUndoCommand로 기록해 월드 전체 직렬화를 피한다.
 	if (Gizmo && Gizmo->IsUsing())
 	{
-		FLevelUndoHistory::MarkDirty();
+		if (!bGizmoDragTracking)
+		{
+			if (USceneComponent* Target = Gizmo->GetTarget())
+			{
+				if (AActor* Owner = Target->GetOwner())
+				{
+					bGizmoDragTracking = true;
+					GizmoDragActorName = FName(Owner->GetName());
+					GizmoDragComponentName = FName(Target->GetName());
+					GizmoDragStartTransform = Target->GetTransform();
+				}
+			}
+		}
 		return;
 	}
+	if (bGizmoDragTracking)
+	{
+		bGizmoDragTracking = false;
+		if (USceneComponent* Target = Cast<USceneComponent>(
+			EditorUndoUtils::FindComponentByNames(EditorWorld, GizmoDragActorName, GizmoDragComponentName)))
+		{
+			const FTransform EndTransform = Target->GetTransform();
+			const bool bChanged =
+				(EndTransform.Location - GizmoDragStartTransform.Location).SizeSquared() > 1e-8f ||
+				(EndTransform.Scale - GizmoDragStartTransform.Scale).SizeSquared() > 1e-8f ||
+				std::fabs(EndTransform.Rotation.X - GizmoDragStartTransform.Rotation.X) > 1e-5f ||
+				std::fabs(EndTransform.Rotation.Y - GizmoDragStartTransform.Rotation.Y) > 1e-5f ||
+				std::fabs(EndTransform.Rotation.Z - GizmoDragStartTransform.Rotation.Z) > 1e-5f ||
+				std::fabs(EndTransform.Rotation.W - GizmoDragStartTransform.Rotation.W) > 1e-5f;
+			if (bChanged)
+			{
+				UndoHistory.Push(EditorUndoUtils::MakeTransformCommand(
+					GizmoDragActorName, GizmoDragComponentName, GizmoDragStartTransform, EndTransform, "Transform"));
+				LevelUndo.Reset(EditorWorld);
+			}
+		}
+	}
+
 	// 드래그나 글자 입력이 끝나지 않았으면 미룬다.
 	if (ImGui::IsAnyItemActive() || ImGui::IsMouseDown(ImGuiMouseButton_Left))
 		return;
 
-	// 확정되지 않은 편집이 있으면 먼저 한 단계로 만든 뒤 되돌린다.
-	LevelUndo.Commit(EditorWorld);
+	// 미지원 복합 편집(Details/Outliner/Delete/Duplicate 등)은 스냅샷 폴백 커맨드로 UndoHistory에 쌓는다.
+	TArray<uint8> BeforeSnapshot, AfterSnapshot;
+	if (LevelUndo.CaptureDiff(EditorWorld, BeforeSnapshot, AfterSnapshot))
+	{
+		UndoHistory.Push(EditorUndoUtils::MakeSnapshotCommand(
+			std::move(BeforeSnapshot), std::move(AfterSnapshot), "Level Edit"));
+	}
 
 	const int32 Step = PendingLevelHistoryStep;
 	PendingLevelHistoryStep = 0;
@@ -1661,16 +1724,16 @@ void UEditorEngine::TickLevelUndo()
 
 void UEditorEngine::UndoLevelEdit()
 {
-	if (!CanEditLevelHistory()) return;
-	if (const TArray<uint8>* Snapshot = LevelUndo.Undo())
-		ApplyLevelSnapshot(*Snapshot);
+	if (!CanEditLevelHistory() || !UndoHistory.CanUndo()) return;
+	UndoHistory.Undo(*this);
+	LevelUndo.Reset(EditorWorld);
 }
 
 void UEditorEngine::RedoLevelEdit()
 {
-	if (!CanEditLevelHistory()) return;
-	if (const TArray<uint8>* Snapshot = LevelUndo.Redo())
-		ApplyLevelSnapshot(*Snapshot);
+	if (!CanEditLevelHistory() || !UndoHistory.CanRedo()) return;
+	UndoHistory.Redo(*this);
+	LevelUndo.Reset(EditorWorld);
 }
 
 void UEditorEngine::ApplyLevelSnapshot(const TArray<uint8>& Snapshot)
@@ -1752,6 +1815,7 @@ void UEditorEngine::SaveCurrentScene()
 	if (FEditorFileUtils::SaveScene(EditorWorld))
 	{
 		LevelUndoScenePath = FEditorFileUtils::CurrentScenePath;
+		UndoHistory.MarkSaved();
 		CaptureProjectThumbnail(false);
 	}
 }
@@ -1792,6 +1856,7 @@ void UEditorEngine::SaveSceneAs()
 	if (FEditorFileUtils::SaveSceneAs(EditorWorld))
 	{
 		LevelUndoScenePath = FEditorFileUtils::CurrentScenePath;
+		UndoHistory.MarkSaved();
 		CaptureProjectThumbnail(false);
 	}
 }
