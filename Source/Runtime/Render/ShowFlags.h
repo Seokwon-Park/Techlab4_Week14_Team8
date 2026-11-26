@@ -1,40 +1,68 @@
 #pragma once
 
+#include "Core/Types.h"
+#include <span>
+#include <string_view>
+
 // 뷰포트에 무엇을 보여 줄지 켜고 끄는 스위치 묶음. 품질이나 방식이 아니라 "보이느냐"만 담는다.
-// UE의 FEngineShowFlags와 같은 자리이고, UE도 ShowFlags.h에 둔다.
-// CameraOverlay를 뺀 이름은 UE의 쇼 플래그 이름과 같다. UE는 비트 필드로 수십 개를 갖고 이 엔진은 쓰는 것만 둔다.
+// 플래그 목록은 Render/ShowFlagsValues.h 한 곳에서 정의한다.
+
+enum class EShowFlagInitMode : uint8
+{
+	Game,
+	Editor,
+};
+
+enum class EShowFlagCategory : uint8
+{
+	Common,
+	Physics,
+	PostProcess,
+	Developer,
+	Render,
+	Hidden,
+};
+
+struct FEngineShowFlags;
+
+// 플래그 하나의 메타데이터. 메뉴·ini·콘솔 명령처럼 플래그를 이름으로 다루는 코드가 쓴다.
+struct FShowFlagInfo
+{
+	const char* Name;
+	const char* DisplayName;
+	const char* Icon;
+	EShowFlagCategory Category;
+	bool bGameDefault;
+	bool bEditorDefault;
+	bool FEngineShowFlags::* Member;
+};
+
 struct FEngineShowFlags
 {
-	// 물체를 그릴지. 끄면 하늘과 에디터 요소만 남는다.
-	bool Rendering = true;
-	// 높이 안개
-	bool Fog = true;
-	// 안티에일리어싱(FXAA)
-	bool AntiAliasing = false;
-	// 데칼
-	bool Decals = true;
-	// 피사계 심도
-	bool DepthOfField = true;
-	// 피사계 심도(CoC) 레이어 디버그 시각화. UE의 FEngineShowFlags::VisualizeDOF와 같은 자리다.
-	bool VisualizeDOF = false;
-	// 화면 가장자리를 어둡게 하는 비네트
-	bool Vignette = true;
-	// 카메라 페이드와 레터박스. UE에는 없는 이 엔진 고유의 플래그다.
-	bool CameraOverlay = true;
-	// 스켈레탈 메시
-	bool SkeletalMeshes = true;
-	// 파티클 시스템 컴포넌트 (Sprite, Mesh, Beam, Ribbon 이미터 전부). UE의 Particles 쇼 플래그
-	bool Particles = true;
-	// 물리 바디(BodySetup Shape) 와이어프레임. 디버그 표시라 기본은 끈다
-	bool PhysicsBodies = false;
-	// 물리 조인트 제한 (Swing 콘, Twist 부채꼴)
-	bool Constraints = false;
+#define SHOWFLAG(Name, bGameDefault, bEditorDefault, Category, Icon, DisplayName) bool Name = bGameDefault;
+#include "Render/ShowFlagsValues.h"
+#undef SHOWFLAG
+
+	FEngineShowFlags() = default;
+	explicit FEngineShowFlags(EShowFlagInitMode Mode) { Init(Mode); }
+
+	// 모든 플래그를 해당 모드의 기본값으로 되돌린다.
+	void Init(EShowFlagInitMode Mode);
+
+	// 전체 플래그 목록. 선언 순서와 같다.
+	static std::span<const FShowFlagInfo> GetAll();
+	// 이름으로 찾는다. 대소문자를 구분하지 않는다. 없으면 nullptr.
+	static const FShowFlagInfo* Find(std::string_view Name);
+
+	bool Get(const FShowFlagInfo& Info) const { return this->*Info.Member; }
+	void Set(const FShowFlagInfo& Info, bool bValue) { this->*Info.Member = bValue; }
+	// 이름으로 설정한다. 이름이 없으면 false.
+	bool SetByName(std::string_view Name, bool bValue);
+
+	bool operator==(const FEngineShowFlags&) const = default;
 };
 
 // 뷰포트가 씬을 어떤 방식으로 보여 줄지. 한 번에 하나만 고른다.
-// UE의 EViewModeIndex와 같은 자리다. UE는 EngineBaseTypes.h에 둔다.
-// VMI_Lit, VMI_Wireframe은 UE에 있는 값이다. 나머지는 이 엔진 고유의 값이다.
-// UE는 깊이나 노멀 같은 버퍼 보기를 VMI_VisualizeBuffer 하나와 버퍼 이름으로 고른다.
 // 값의 순서를 바꾸면 안 된다. 에디터가 이 값을 정수로 설정 파일에 저장하고, 뷰 모드 콤보 상자의 항목 순서로도 쓴다.
 enum EViewModeIndex
 {

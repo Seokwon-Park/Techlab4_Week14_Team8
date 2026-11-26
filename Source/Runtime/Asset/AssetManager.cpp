@@ -399,7 +399,8 @@ void UAssetManager::CreateDefaultMeshes()
 	RegisterAsset("GizmoSphere", CreateStaticMesh(GizmoSphereData));
 
 	for (const char* GizmoMeshName : { "GizmoArrow", "GizmoScaleHandle", "GizmoRing", "GizmoScreenRing",
-		"GizmoCenterSphere", "GizmoCenterCube", "GizmoDisc", "GizmoQuad" })
+		"GizmoCenterSphere", "GizmoCenterCube", "GizmoDisc", "GizmoQuad",
+		"UnitSphere", "PhysicsHemisphere", "PhysicsCylinder", "PhysicsFan" })
 	{
 		RegisterAsset(GizmoMeshName, CreateStaticMesh(FGeometryGenerator::GetMeshData(GizmoMeshName)));
 	}

@@ -1,8 +1,12 @@
 #include "EnginePCH.h"
 #include "Editor/OutputLog/OutputLogPanel.h"
+#include "Editor/EditorUI/EditorStyle.h"
+#include "Editor/EditorUI/EditorIcons.h"
 
 #include "Core/StatOverlay.h"
+#include "Core/Misc/Paths.h"
 #include "Render/SceneRenderer.h"
+#include "Render/ShowFlags.h"
 
 #include "Editor/Settings/SettingsPanel.h"
 
@@ -10,11 +14,62 @@
 
 #include "Launch/Windows/WindowsPlatformCrashContext.h"
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
+#include <chrono>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 
 namespace
 {
+	FString TrimLeftCopy(const char* Text)
+	{
+		if (!Text)
+			return {};
+		while (*Text && std::isspace(static_cast<unsigned char>(*Text)))
+			++Text;
+		return FString(Text);
+	}
+
+	bool StartsWithIgnoreCase(const FString& Text, const FString& Prefix)
+	{
+		if (Prefix.size() > Text.size())
+			return false;
+		for (size_t i = 0; i < Prefix.size(); ++i)
+		{
+			if (std::tolower(static_cast<unsigned char>(Text[i])) != std::tolower(static_cast<unsigned char>(Prefix[i])))
+				return false;
+		}
+		return true;
+	}
+
+	bool ContainsIgnoreCase(const FString& Text, const FString& Needle)
+	{
+		if (Needle.empty())
+			return true;
+		if (Needle.size() > Text.size())
+			return false;
+
+		for (size_t i = 0; i <= Text.size() - Needle.size(); ++i)
+		{
+			bool bMatch = true;
+			for (size_t j = 0; j < Needle.size(); ++j)
+			{
+				if (std::tolower(static_cast<unsigned char>(Text[i + j])) != std::tolower(static_cast<unsigned char>(Needle[j])))
+				{
+					bMatch = false;
+					break;
+				}
+			}
+			if (bMatch)
+				return true;
+		}
+		return false;
+	}
+
 	TArray<FString> TokenizeCommand(const FString& Line)
 	{
 		TArray<FString> Tokens;
@@ -28,7 +83,6 @@ namespace
 	bool ParseNumber(const FString& Text, T& Out)
 	{
 		const auto [End, Error] = std::from_chars(Text.data(), Text.data() + Text.size(), Out);
-
 		return Error == std::errc{} && End == Text.data() + Text.size();
 	}
 
@@ -46,9 +100,13 @@ static int TextEditCallbackStub(ImGuiInputTextCallbackData* data)
 	return OutputLog->TextEditCallback(data);
 }
 
-static int   Strnicmp(const char* s1, const char* s2, int n) { int d = 0; while (n > 0 && (d = toupper(*s2) - toupper(*s1)) == 0 && *s1) { s1++; s2++; n--; } return d; }
+static int Strnicmp(const char* s1, const char* s2, int n)
+{
+	int d = 0;
+	while (n > 0 && (d = toupper(*s2) - toupper(*s1)) == 0 && *s1) { s1++; s2++; n--; }
+	return d;
+}
 
-// 콘솔 명령은 입력 대소문자를 가리지 않는다. "stat fps"와 "STAT FPS"가 같아야 한다.
 static bool EqualsIgnoreCase(const FString& A, const char* B)
 {
 	return Strnicmp(A.c_str(), B, static_cast<int>(A.size()) + 1) == 0;
@@ -57,8 +115,7 @@ static bool EqualsIgnoreCase(const FString& A, const char* B)
 bool FOutputLogPanel::Init()
 {
 	ClearLog();
-	RegisterCommands();   
-	
+	RegisterCommands();
 
 	HistoryPos = -1;
 	InputBuf[0] = '\0';
@@ -69,6 +126,35 @@ bool FOutputLogPanel::Init()
 	return true;
 }
 
+void FOutputLogPanel::LoadLogFont()
+{
+	if (LogFont || !ImGui::GetCurrentContext())
+		return;
+
+	ImGuiIO& IO = ImGui::GetIO();
+	wchar_t WindowsDir[MAX_PATH]{};
+	if (::GetWindowsDirectoryW(WindowsDir, MAX_PATH) > 0)
+	{
+		const std::filesystem::path MonoPath = std::filesystem::path(WindowsDir) / L"Fonts" / L"consola.ttf";
+		std::error_code Error;
+		if (std::filesystem::exists(MonoPath, Error))
+		{
+			LogFont = IO.Fonts->AddFontFromFileTTF(FPaths::ToUtf8(MonoPath).c_str(), 14.0f);
+			if (LogFont)
+			{
+				const std::filesystem::path KoreanFont = FPaths::EngineFile("EngineResources/Fonts/NanumSquareR.ttf");
+				if (std::filesystem::exists(KoreanFont, Error))
+				{
+					ImFontConfig Merge;
+					Merge.MergeMode = true;
+					IO.Fonts->AddFontFromFileTTF(FPaths::ToUtf8(KoreanFont).c_str(), 14.0f,
+						&Merge, IO.Fonts->GetGlyphRangesKorean());
+				}
+			}
+		}
+	}
+}
+
 void FOutputLogPanel::Tick(float DeltaTime)
 {
 }
@@ -76,64 +162,110 @@ void FOutputLogPanel::Tick(float DeltaTime)
 void FOutputLogPanel::OnRender()
 {
 	ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
+	if (EditorPanelUI::BeginPanel("Output Log", GetOpenFlag()))
+	{
+		RenderContents();
+	}
+	ImGui::End();
+}
 
-	EditorPanelUI::BeginPanel("Output Log", GetOpenFlag());
+void FOutputLogPanel::RenderContents()
+{
+	const ImGuiStyle& Style = ImGui::GetStyle();
+	const float S = EditorIcons::GetScale();
+	const float BtnH = ImGui::GetFrameHeight();
+	const ImU32 IconCol = ImGui::GetColorU32(ImGuiCol_Text, 0.85f);
+	bool CopyToClipboard = false;
 
-	//////////////////////////////////////////////////////////
+	// 상단 바: [Search Log] [Filters v] ......... [Settings v]
+	const float FiltersW = EditorIcons::CalcButtonWidth(true, "Filters", true, BtnH);
+	const float SettingsW = EditorIcons::CalcButtonWidth(true, "Settings", true, BtnH);
+	const float SearchRoom = ImGui::GetContentRegionAvail().x - FiltersW - SettingsW - Style.ItemSpacing.x * 2.0f - 12.0f * S;
+	const float SearchWidth = std::clamp(SearchRoom, 120.0f * S, 320.0f * S);
 
-	ImGui::TextDisabled("Filter");
-	ImGui::SameLine();
-
-	Filter.Draw("##Filter", 180.0f);
-
-	ImGui::SameLine();
-	ImGui::TextDisabled("[?]");
-
-	if (ImGui::IsItemHovered())
+	if (EditorIcons::SearchBox("##SearchLog", Filter.InputBuf, IM_COUNTOF(Filter.InputBuf), "Search Log...", SearchWidth))
+	{
+		Filter.Build();
+	}
+	if (ImGui::IsItemHovered() && !ImGui::IsItemActive())
 	{
 		ImGui::SetTooltip(
 			"Filter syntax:\n"
 			"error        Include matching lines\n"
 			"-warning     Exclude matching lines\n"
-			"error,-warn  Combine filters"
-		);
+			"error,-warn  Combine filters");
 	}
 
 	ImGui::SameLine();
-	ImGui::Checkbox("Auto-scroll", &AutoScroll);
+	if (EditorIcons::Button("##LogFilters", EEditorIcon::Filter, IconCol, "Filters", true,
+		ImGui::IsPopupOpen("##LogFiltersPopup"), BtnH))
+	{
+		ImGui::OpenPopup("##LogFiltersPopup");
+	}
 
 	ImGui::SameLine();
-	if (ImGui::SmallButton("Clear"))
-		ClearLog();
+	const float RightPad = std::max(0.0f, ImGui::GetContentRegionAvail().x - SettingsW);
+	ImGui::SetCursorPosX(ImGui::GetCursorPosX() + RightPad);
+	if (EditorIcons::Button("##LogSettings", EEditorIcon::Settings, IconCol, "Settings", true,
+		ImGui::IsPopupOpen("##LogSettingsPopup"), BtnH))
+	{
+		ImGui::OpenPopup("##LogSettingsPopup");
+	}
 
-	ImGui::SameLine();
-	bool CopyToClipboard = ImGui::SmallButton("Copy");
+	if (ImGui::BeginPopup("##LogFiltersPopup"))
+	{
+		EditorIcons::MenuSection("Verbosity");
+		ImGui::Checkbox("Messages", &bShowMessages);
+		ImGui::Checkbox("Warnings", &bShowWarnings);
+		ImGui::Checkbox("Errors", &bShowErrors);
+		ImGui::Checkbox("Commands", &bShowCommands);
+		ImGui::Separator();
+		if (ImGui::MenuItem("Show All"))
+		{
+			bShowMessages = bShowWarnings = bShowErrors = bShowCommands = true;
+		}
+		ImGui::EndPopup();
+	}
+
+	if (ImGui::BeginPopup("##LogSettingsPopup"))
+	{
+		ImGui::Checkbox("Auto-scroll", &AutoScroll);
+		ImGui::Separator();
+		if (ImGui::MenuItem("Copy")) CopyToClipboard = true;
+		if (ImGui::MenuItem("Clear Log")) ClearLog();
+		if (ImGui::MenuItem("Save Filtered Log")) SaveFilteredLog();
+		ImGui::SetItemTooltip("Save visible filtered output into Project/Logs.");
+		ImGui::EndPopup();
+	}
 
 	ImGui::Separator();
 
-	//////////////////////////////////////////////////////////
-
-	ImGuiStyle& style = ImGui::GetStyle();
-	const float footer_height_to_reserve = style.SeparatorSize + style.ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-	if (ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height_to_reserve), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_HorizontalScrollbar)) // ImGui Window 안에 Child Window를 생성
+	// 로그 본문
+	const float FooterHeight = Style.SeparatorSize + Style.ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
+	ImGui::PushStyleColor(ImGuiCol_ChildBg, EditorColor::BgDeepest);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f * S, 4.0f * S));
+	if (ImGui::BeginChild("ScrollingRegion", ImVec2(0, -FooterHeight),
+		ImGuiChildFlags_NavFlattened | ImGuiChildFlags_AlwaysUseWindowPadding,
+		ImGuiWindowFlags_HorizontalScrollbar))
 	{
 		if (ImGui::BeginPopupContextWindow())
 		{
-			if (ImGui::Selectable("Clear"))
-				ClearLog();
+			if (ImGui::Selectable("Copy")) CopyToClipboard = true;
+			if (ImGui::Selectable("Clear Log")) ClearLog();
+			if (ImGui::Selectable("Save Filtered Log")) SaveFilteredLog();
 			ImGui::EndPopup();
 		}
 
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); // Tighten spacing
+		if (LogFont) ImGui::PushFont(LogFont, 0.0f);
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 1.0f));
 		if (CopyToClipboard)
 			ImGui::LogToClipboard();
 		for (const FLogData& item : Items)
 		{
-			if (!Filter.PassFilter(item.message.c_str()))
+			if (!PassVerbosity(item.Verbosity) || !Filter.PassFilter(item.message.c_str()))
 				continue;
 
-			ImVec4 color = item.Color;
-			ImGui::PushStyleColor(ImGuiCol_Text, color);
+			ImGui::PushStyleColor(ImGuiCol_Text, item.Color);
 			ImGui::TextUnformatted(item.message.c_str());
 			ImGui::PopStyleColor();
 		}
@@ -144,38 +276,154 @@ void FOutputLogPanel::OnRender()
 		ScrollToBottom = false;
 
 		ImGui::PopStyleVar();
+		if (LogFont) ImGui::PopFont();
 	}
 	ImGui::EndChild();
+	ImGui::PopStyleVar();
+	ImGui::PopStyleColor();
+
 	ImGui::Separator();
 
-	//////////////////////////////////////////////////////////
-
-	bool reclaim_focus = false;
-	ImGuiInputTextFlags input_text_flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory;
-	ImGui::TextDisabled(">");
-
-	ImGui::SameLine();
-
-	ImGui::SetNextItemWidth(-1.0f);
-
-	if (ImGui::InputTextWithHint("##OutputLogInput", "Enter command...  (HELP for commands)", InputBuf, IM_COUNTOF(InputBuf), input_text_flags, &TextEditCallbackStub, this))
+	// 하단 명령 입력줄
+	if (EditorIcons::Button("##LogCmdBtn", EEditorIcon::OutputLog, IconCol, "Cmd", true,
+		ImGui::IsPopupOpen("##LogCmdPopup"), BtnH))
 	{
-		char* s = InputBuf;
-		if (s[0])
-		{
-			ExecCommand(s);
-		}
-		s[0] = 0;
-		reclaim_focus = true;
+		ImGui::OpenPopup("##LogCmdPopup");
+	}
+	if (ImGui::BeginPopup("##LogCmdPopup"))
+	{
+		ImGui::MenuItem("Console Command", nullptr, true);
+		ImGui::Separator();
+		if (ImGui::MenuItem("Show Commands (HELP)"))
+			ExecCommand("HELP");
+		if (ImGui::MenuItem("Clear Log"))
+			ClearLog();
+		ImGui::EndPopup();
 	}
 
-	ImGui::SetItemDefaultFocus();
+	ImGui::SameLine();
+	RenderCommandInput("##OutputLogInput", InputBuf, IM_COUNTOF(InputBuf), -1.0f, true, true);
+}
+
+void FOutputLogPanel::RenderCommandInput(const char* InputId, char* Buffer, size_t BufferSize, float Width, bool bUseLogFont, bool bReclaimFocusOnSubmit)
+{
+	if (!InputId || !Buffer || BufferSize == 0)
+		return;
+
+	CurrentInputRenderId = InputId;
+	const bool bMatchesActiveInput = (ActiveSuggestionInputId == InputId);
+
+	if (bApplySuggestionCompletion && bMatchesActiveInput)
+	{
+		std::snprintf(Buffer, BufferSize, "%s", PendingSuggestionText.c_str());
+		LastSuggestionQuery = PendingSuggestionText;
+		bApplySuggestionCompletion = false;
+	}
+	if (bReclaimInputFocusNextFrame && bMatchesActiveInput)
+	{
+		ImGui::SetKeyboardFocusHere();
+		bReclaimInputFocusNextFrame = false;
+	}
+
+	bool reclaim_focus = false;
+	const ImGuiInputTextFlags input_text_flags =
+		ImGuiInputTextFlags_EnterReturnsTrue |
+		ImGuiInputTextFlags_EscapeClearsAll |
+		ImGuiInputTextFlags_CallbackCompletion |
+		ImGuiInputTextFlags_CallbackHistory |
+		ImGuiInputTextFlags_CallbackEdit |
+		ImGuiInputTextFlags_CallbackAlways;
+
+	ImGui::SetNextItemWidth(Width);
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, EditorColor::BgDeepest);
+	if (bUseLogFont && LogFont) ImGui::PushFont(LogFont, 0.0f);
+	if (ImGui::InputTextWithHint(InputId, "Enter Console Command... (Tab to complete)", Buffer, BufferSize, input_text_flags, &TextEditCallbackStub, this))
+	{
+		if (Buffer[0] != '\0')
+		{
+			ExecCommand(Buffer);
+		}
+		Buffer[0] = '\0';
+		HistoryPos = -1;
+		FilteredSuggestionIndices.Reset();
+		SelectedSuggestion = 0;
+		bSuppressSuggestions = false;
+		LastSuggestionQuery.clear();
+		reclaim_focus = bReclaimFocusOnSubmit;
+	}
+	if (bUseLogFont && LogFont) ImGui::PopFont();
+	ImGui::PopStyleColor();
+
+	const ImVec2 InputMin = ImGui::GetItemRectMin();
+	const ImVec2 InputMax = ImGui::GetItemRectMax();
+	const bool bInputActive = ImGui::IsItemActive();
+
+	if (bInputActive)
+	{
+		ActiveSuggestionInputId = InputId;
+	}
+
+	if ((bInputActive || bMatchesActiveInput) && Buffer[0] == '\0')
+	{
+		FilteredSuggestionIndices.Reset();
+		SelectedSuggestion = 0;
+		bSuppressSuggestions = false;
+		LastSuggestionQuery.clear();
+	}
+
+	if (bReclaimFocusOnSubmit)
+	{
+		ImGui::SetItemDefaultFocus();
+	}
 	if (reclaim_focus)
-		ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
+		ImGui::SetKeyboardFocusHere(-1);
 
-	//////////////////////////////////////////////////////////
+	const bool bPopupTarget = (ActiveSuggestionInputId == InputId);
+	const bool bShowSuggestions =
+		(bInputActive || (bSuggestionPopupHovered && bPopupTarget)) &&
+		!bSuppressSuggestions &&
+		!FilteredSuggestionIndices.IsEmpty();
+	if (bPopupTarget)
+	{
+		bSuggestionPopupHovered = false;
+	}
+	if (bShowSuggestions)
+	{
+		RenderAutocompletePopup(InputMin, InputMax);
+	}
+	CurrentInputRenderId.clear();
+}
 
-	ImGui::End();
+bool FOutputLogPanel::PassVerbosity(ELogVerbosity Verbosity) const
+{
+	switch (Verbosity)
+	{
+	case ELogVerbosity::Input:   return bShowCommands;
+	case ELogVerbosity::Warning: return bShowWarnings;
+	case ELogVerbosity::Error:   return bShowErrors;
+	default:                     return bShowMessages;
+	}
+}
+
+void FOutputLogPanel::SaveFilteredLog()
+{
+	const auto Directory = FPaths::ProjectDir() / "Logs";
+	std::error_code Error;
+	std::filesystem::create_directories(Directory, Error);
+	const auto Stamp = std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::system_clock::now().time_since_epoch()).count();
+	const auto Path = Directory / ("Output-" + std::to_string(Stamp) + ".log");
+	std::ofstream File(Path, std::ios::out);
+	for (const auto& Item : Items)
+	{
+		if (PassVerbosity(Item.Verbosity) && Filter.PassFilter(Item.message.c_str()))
+			File << Item.message << '\n';
+	}
+	File.flush();
+	const bool bSaved = !Error && File.good();
+	File.close();
+	if (bSaved) HTR_LOG(Info, "Output saved to {}", FPaths::ToUtf8(Path));
+	else        HTR_LOG(Error, "Could not save output to {}", FPaths::ToUtf8(Path));
 }
 
 void FOutputLogPanel::ClearLog()
@@ -195,7 +443,7 @@ void FOutputLogPanel::ExecCommand(const FString& CommandLine)
 	for (const FConsoleCommand& Cmd : ConsoleCommands)
 	{
 		if (!EqualsIgnoreCase(Args[0], Cmd.Name.c_str())) continue;
-		if(!Cmd.Handler(Args, CommandLine))
+		if (!Cmd.Handler(Args, CommandLine))
 			FLog::Log(ELogVerbosity::Info, "Usage: {}", Cmd.Usage);
 		return;
 	}
@@ -204,14 +452,47 @@ void FOutputLogPanel::ExecCommand(const FString& CommandLine)
 
 int FOutputLogPanel::TextEditCallback(ImGuiInputTextCallbackData* data)
 {
-	//AddLog("cursor: %d, selection: %d-%d", data->CursorPos, data->SelectionStart, data->SelectionEnd);
 	switch (data->EventFlag)
 	{
+	case ImGuiInputTextFlags_CallbackAlways:
+	{
+		if (bMoveCursorToEndOnFocus)
+		{
+			data->CursorPos = data->BufTextLen;
+			data->SelectionStart = data->BufTextLen;
+			data->SelectionEnd = data->BufTextLen;
+			bMoveCursorToEndOnFocus = false;
+		}
+		if (LastSuggestionQuery != data->Buf || ActiveSuggestionInputId != CurrentInputRenderId)
+		{
+			ActiveSuggestionInputId = CurrentInputRenderId;
+			bSuppressSuggestions = false;
+			HistoryPos = -1;
+			UpdateSuggestions(data->Buf);
+		}
+		break;
+	}
+	case ImGuiInputTextFlags_CallbackEdit:
+	{
+		ActiveSuggestionInputId = CurrentInputRenderId;
+		bSuppressSuggestions = false;
+		HistoryPos = -1;
+		UpdateSuggestions(data->Buf);
+		break;
+	}
 	case ImGuiInputTextFlags_CallbackCompletion:
 	{
-		// Example of TEXT COMPLETION
+		if (!bSuppressSuggestions && !FilteredSuggestionIndices.IsEmpty())
+		{
+			const int32 ClampedIndex = std::clamp(SelectedSuggestion, 0, FilteredSuggestionIndices.Num() - 1);
+			const FConsoleSuggestion& Choice = AllSuggestions[FilteredSuggestionIndices[ClampedIndex]];
+			data->DeleteChars(0, data->BufTextLen);
+			data->InsertChars(0, Choice.InsertText.c_str());
+			LastSuggestionQuery = Choice.InsertText;
+			bSuppressSuggestions = true;
+			break;
+		}
 
-		// Locate beginning of current word
 		const char* word_end = data->Buf + data->CursorPos;
 		const char* word_start = word_end;
 		while (word_start > data->Buf)
@@ -222,60 +503,32 @@ int FOutputLogPanel::TextEditCallback(ImGuiInputTextCallbackData* data)
 			word_start--;
 		}
 
-		// Build a list of candidates
 		ImVector<FString> candidates;
 		for (int i = 0; i < Commands.Num(); i++)
 			if (Strnicmp(Commands[i].c_str(), word_start, (int)(word_end - word_start)) == 0)
 				candidates.push_back(Commands[i]);
 
-		if (candidates.Size == 0)
+		if (candidates.Size == 1)
 		{
-			// No match
-			FLog::Log(ELogVerbosity::Input, "No match for \"{}\"!\n", word_start);
-		}
-		else if (candidates.Size == 1)
-		{
-			// Single match. Delete the beginning of the word and replace it entirely so we've got nice casing.
 			data->DeleteChars((int)(word_start - data->Buf), (int)(word_end - word_start));
 			data->InsertChars(data->CursorPos, candidates[0].c_str());
 			data->InsertChars(data->CursorPos, " ");
 		}
-		else
-		{
-			// Multiple matches. Complete as much as we can..
-			// So inputting "C"+Tab will complete to "CL" then display "CLEAR" and "CLASSIFY" as matches.
-			int match_len = (int)(word_end - word_start);
-			for (;;)
-			{
-				int c = 0;
-				bool all_candidates_matches = true;
-				for (int i = 0; i < candidates.Size && all_candidates_matches; i++)
-					if (i == 0)
-						c = toupper(candidates[i][match_len]);
-					else if (c == 0 || c != toupper(candidates[i][match_len]))
-						all_candidates_matches = false;
-				if (!all_candidates_matches)
-					break;
-				match_len++;
-			}
-
-			if (match_len > 0)
-			{
-				data->DeleteChars((int)(word_start - data->Buf), (int)(word_end - word_start));
-				data->InsertChars(data->CursorPos, candidates[0].c_str(), candidates[0].c_str() + match_len);
-			}
-
-			// List matches
-			FLog::Log(ELogVerbosity::Info, "Possible matches:\n");
-			for (int i = 0; i < candidates.Size; i++)
-				FLog::Log(ELogVerbosity::Info, "- {}\n", candidates[i]);
-		}
-
 		break;
 	}
 	case ImGuiInputTextFlags_CallbackHistory:
 	{
-		// Example of HISTORY
+		if (!bSuppressSuggestions && !FilteredSuggestionIndices.IsEmpty())
+		{
+			const int32 Count = FilteredSuggestionIndices.Num();
+			if (data->EventKey == ImGuiKey_DownArrow)
+				SelectedSuggestion = (SelectedSuggestion + 1) % Count;
+			else if (data->EventKey == ImGuiKey_UpArrow)
+				SelectedSuggestion = (SelectedSuggestion - 1 + Count) % Count;
+			bScrollSuggestionToSelection = true;
+			break;
+		}
+
 		const int prev_history_pos = HistoryPos;
 		if (data->EventKey == ImGuiKey_UpArrow)
 		{
@@ -291,24 +544,232 @@ int FOutputLogPanel::TextEditCallback(ImGuiInputTextCallbackData* data)
 					HistoryPos = -1;
 		}
 
-		// A better implementation would preserve the data on the current input line along with cursor position.
 		if (prev_history_pos != HistoryPos)
 		{
 			const char* history_str = (HistoryPos >= 0) ? History[HistoryPos].c_str() : "";
 			data->DeleteChars(0, data->BufTextLen);
 			data->InsertChars(0, history_str);
+			LastSuggestionQuery = history_str;
+			bSuppressSuggestions = true;
 		}
+		break;
 	}
 	}
 	return 0;
 }
 
+void FOutputLogPanel::RegisterSuggestion(const char* Badge, const char* DisplayText, const char* InsertText, const char* Hint, bool bIsCVar)
+{
+	FConsoleSuggestion Item;
+	Item.Badge = Badge ? Badge : "";
+	Item.DisplayText = DisplayText ? DisplayText : "";
+	Item.InsertText = InsertText ? InsertText : "";
+	Item.Hint = Hint ? Hint : "";
+	Item.bIsCVar = bIsCVar;
+	AllSuggestions.Add(std::move(Item));
+}
+
+void FOutputLogPanel::UpdateSuggestions(const char* Query)
+{
+	LastSuggestionQuery = Query ? Query : "";
+	const FString Trimmed = TrimLeftCopy(Query);
+	FilteredSuggestionIndices.Reset();
+	SelectedSuggestion = 0;
+
+	if (Trimmed.empty())
+		return;
+
+	TArray<int32> PrefixMatches;
+	TArray<int32> SubstringMatches;
+	const TArray<FString> QueryTokens = TokenizeCommand(Trimmed);
+
+	for (int32 i = 0; i < AllSuggestions.Num(); ++i)
+	{
+		const FConsoleSuggestion& Item = AllSuggestions[i];
+		if (StartsWithIgnoreCase(Item.InsertText, Trimmed) || StartsWithIgnoreCase(Item.DisplayText, Trimmed))
+		{
+			PrefixMatches.Add(i);
+			continue;
+		}
+
+		if (ContainsIgnoreCase(Item.InsertText, Trimmed) || ContainsIgnoreCase(Item.DisplayText, Trimmed))
+		{
+			SubstringMatches.Add(i);
+			continue;
+		}
+
+		if (QueryTokens.Num() > 1)
+		{
+			bool bAllTokensMatch = true;
+			for (const FString& Token : QueryTokens)
+			{
+				if (!ContainsIgnoreCase(Item.InsertText, Token) && !ContainsIgnoreCase(Item.Badge, Token))
+				{
+					bAllTokensMatch = false;
+					break;
+				}
+			}
+			if (bAllTokensMatch)
+				SubstringMatches.Add(i);
+		}
+	}
+
+	for (int32 Index : PrefixMatches)
+		FilteredSuggestionIndices.Add(Index);
+	for (int32 Index : SubstringMatches)
+		FilteredSuggestionIndices.Add(Index);
+
+	bScrollSuggestionToSelection = !FilteredSuggestionIndices.IsEmpty();
+}
+
+void FOutputLogPanel::RenderAutocompletePopup(const ImVec2& InputMin, const ImVec2& InputMax)
+{
+	if (FilteredSuggestionIndices.IsEmpty())
+		return;
+
+	SelectedSuggestion = std::clamp(SelectedSuggestion, 0, FilteredSuggestionIndices.Num() - 1);
+
+	const float S = EditorIcons::GetScale();
+	const float RowHeight = 18.0f * S;
+	const float BadgeWidth = 42.0f * S;
+	const float PopupBorderPad = 2.0f * S;
+	const int32 MaxVisibleRows = 14;
+	const int32 VisibleRows = std::min(FilteredSuggestionIndices.Num(), MaxVisibleRows);
+	const float PopupHeight = VisibleRows * RowHeight + PopupBorderPad * 2.0f;
+	const float PopupWidth = std::max(380.0f * S, InputMax.x - InputMin.x);
+
+	ImGuiViewport* HostViewport = ImGui::GetWindowViewport();
+	ImVec2 PopupPos(InputMin.x, InputMin.y - PopupHeight - 2.0f * S);
+	if (HostViewport)
+	{
+		const ImVec2 WorkMin = HostViewport->WorkPos;
+		const ImVec2 WorkMax(HostViewport->WorkPos.x + HostViewport->WorkSize.x,
+			HostViewport->WorkPos.y + HostViewport->WorkSize.y);
+		if (PopupPos.y < WorkMin.y)
+			PopupPos.y = std::min(InputMax.y + 2.0f * S, WorkMax.y - PopupHeight);
+		if (PopupPos.x + PopupWidth > WorkMax.x)
+			PopupPos.x = std::max(WorkMin.x, WorkMax.x - PopupWidth);
+		ImGui::SetNextWindowViewport(HostViewport->ID);
+	}
+
+	ImGui::SetNextWindowPos(PopupPos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(PopupWidth, PopupHeight), ImGuiCond_Always);
+
+	const ImGuiWindowFlags PopupFlags =
+		ImGuiWindowFlags_Tooltip |
+		ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_NoFocusOnAppearing |
+		ImGuiWindowFlags_NoDocking;
+
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, PopupBorderPad));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 1.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, EditorColor::WithAlpha(EditorColor::BgPopup, 248));
+	ImGui::PushStyleColor(ImGuiCol_Border, EditorColor::BorderStrong);
+	if (LogFont) ImGui::PushFont(LogFont, 0.0f);
+
+	if (ImGui::Begin("##OutputLogAutocompletePopup", nullptr, PopupFlags))
+	{
+		ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+		bSuggestionPopupHovered = ImGui::IsWindowHovered(
+			ImGuiHoveredFlags_AllowWhenBlockedByActiveItem |
+			ImGuiHoveredFlags_ChildWindows);
+
+		ImDrawList* DrawList = ImGui::GetWindowDrawList();
+		const float ContentWidth = ImGui::GetContentRegionAvail().x;
+		const float FontHeight = ImGui::GetFontSize();
+
+		for (int32 Row = 0; Row < FilteredSuggestionIndices.Num(); ++Row)
+		{
+			const FConsoleSuggestion& Item = AllSuggestions[FilteredSuggestionIndices[Row]];
+			const bool bSelected = (Row == SelectedSuggestion);
+
+			ImGui::PushID(Row);
+			const ImVec2 RowMin = ImGui::GetCursorScreenPos();
+			const ImVec2 RowMax(RowMin.x + ContentWidth, RowMin.y + RowHeight);
+
+			const bool bClicked = ImGui::InvisibleButton("##SuggestionRow", ImVec2(ContentWidth, RowHeight),
+				ImGuiButtonFlags_PressedOnClick | ImGuiButtonFlags_NoHoldingActiveId);
+			const bool bHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+			if (bHovered)
+			{
+				bSuggestionPopupHovered = true;
+				const ImVec2 MouseDelta = ImGui::GetIO().MouseDelta;
+				if (MouseDelta.x != 0.0f || MouseDelta.y != 0.0f)
+					SelectedSuggestion = Row;
+			}
+			if (bClicked)
+			{
+				PendingSuggestionText = Item.InsertText;
+				bApplySuggestionCompletion = true;
+				bReclaimInputFocusNextFrame = true;
+				bMoveCursorToEndOnFocus = true;
+				bSuppressSuggestions = true;
+			}
+
+			if (bSelected && bScrollSuggestionToSelection)
+			{
+				ImGui::SetScrollHereY(0.5f);
+				bScrollSuggestionToSelection = false;
+			}
+
+			ImU32 BadgeColor = IM_COL32(108, 186, 128, 255);
+			if (Item.Badge == "Stat")      BadgeColor = IM_COL32(142, 204, 62, 255);
+			else if (Item.Badge == "Show") BadgeColor = IM_COL32(176, 132, 224, 255);
+			else if (Item.Badge == "CSM")  BadgeColor = IM_COL32(214, 162, 68, 255);
+			else if (Item.bIsCVar)         BadgeColor = IM_COL32(92, 166, 214, 255);
+
+			if (bSelected)
+				DrawList->AddRectFilled(ImVec2(RowMin.x + BadgeWidth, RowMin.y), RowMax, EditorColor::Accent);
+			else if (bHovered)
+				DrawList->AddRectFilled(ImVec2(RowMin.x + BadgeWidth, RowMin.y), RowMax, EditorColor::BgAccentHover);
+
+			DrawList->AddRectFilled(RowMin, ImVec2(RowMin.x + BadgeWidth, RowMax.y), BadgeColor);
+
+			const ImVec2 BadgeTextSize = ImGui::CalcTextSize(Item.Badge.c_str());
+			const ImVec2 BadgeTextPos(
+				RowMin.x + std::max(3.0f * S, (BadgeWidth - BadgeTextSize.x) * 0.5f),
+				RowMin.y + (RowHeight - FontHeight) * 0.5f);
+			DrawList->AddText(BadgeTextPos, IM_COL32(18, 22, 16, 255), Item.Badge.c_str());
+
+			const float LabelX = RowMin.x + BadgeWidth + 6.0f * S;
+			const float TextY = RowMin.y + (RowHeight - FontHeight) * 0.5f;
+			DrawList->AddText(ImVec2(LabelX, TextY), EditorColor::TextPrimary, Item.DisplayText.c_str());
+
+			if (!Item.Hint.empty())
+			{
+				const ImVec2 LabelSize = ImGui::CalcTextSize(Item.DisplayText.c_str());
+				const ImVec2 HintSize = ImGui::CalcTextSize(Item.Hint.c_str());
+				const float HintRightX = RowMax.x - 6.0f * S - HintSize.x;
+				if (HintRightX > LabelX + LabelSize.x + 10.0f * S)
+					DrawList->AddText(ImVec2(HintRightX, TextY), EditorColor::TextMuted, Item.Hint.c_str());
+			}
+
+			ImGui::PopID();
+		}
+	}
+	ImGui::End();
+
+	if (LogFont) ImGui::PopFont();
+	ImGui::PopStyleColor(2);
+	ImGui::PopStyleVar(5);
+}
+
 void FOutputLogPanel::RegisterCommands()
 {
+	ConsoleCommands.Empty();
+	Commands.Empty();
+	AllSuggestions.Empty();
+
 	auto Add = [this](const char* Name, const char* Usage, FConsoleHandler Handler)
 		{
 			ConsoleCommands.Add({ Name, Usage, std::move(Handler) });
-			Commands.Add(Name);   // 자동완성용 목록도 여기서 채운다
+			Commands.Add(Name);
 		};
 
 	Add("HELP", "HELP", [this](const TArray<FString>&, const FString&)
@@ -336,8 +797,36 @@ void FOutputLogPanel::RegisterCommands()
 	Add("STAT", "STAT <fps|memory|profile|light|decal|physics|all|none>", [](const TArray<FString>&, const FString& Line)
 		{
 			FString Message;
-			FStatOverlay::ExecCommand(Line, Message);   // 해석은 엔진 쪽에 맡긴다
+			FStatOverlay::ExecCommand(Line, Message);
 			FLog::Log(ELogVerbosity::Info, "{}", Message);
+			return true;
+		});
+
+	Add("SHOW", "SHOW <FlagName> [0|1]", [this](const TArray<FString>& Args, const FString&)
+		{
+			if (!EditorSettings)
+			{
+				FLog::Log(ELogVerbosity::Info, "Settings not available");
+				return true;
+			}
+			if (Args.Num() == 1)
+			{
+				FLog::Log(ELogVerbosity::Info, "ShowFlags:");
+				for (const FShowFlagInfo& Info : FEngineShowFlags::GetAll())
+					FLog::Log(ELogVerbosity::Info, "- {} = {}", Info.Name, EditorSettings->ShowFlags.Get(Info) ? 1 : 0);
+				return true;
+			}
+			const FShowFlagInfo* Info = FEngineShowFlags::Find(Args[1]);
+			if (!Info) return false;
+			bool bNext = !EditorSettings->ShowFlags.Get(*Info);
+			if (Args.Num() == 3)
+			{
+				if (Args[2] != "0" && Args[2] != "1") return false;
+				bNext = (Args[2] == "1");
+			}
+			else if (Args.Num() != 2) return false;
+			EditorSettings->ShowFlags.Set(*Info, bNext);
+			FLog::Log(ELogVerbosity::Info, "ShowFlag.{} = {}", Info->Name, bNext ? 1 : 0);
 			return true;
 		});
 
@@ -393,6 +882,7 @@ void FOutputLogPanel::RegisterCommands()
 			FLog::Log(ELogVerbosity::Info, "r.Skinning.ForceUpdate = {}", bOn ? 1 : 0);
 			return true;
 		});
+
 	Add("CauseCrash", "CauseCrash [zero|null|stack|crt|purecall|terminate|abort]", [](const TArray<FString>& Args, const FString&)
 		{
 			if (Args.Num() == 1)
@@ -400,46 +890,48 @@ void FOutputLogPanel::RegisterCommands()
 				WindowsPlatformCrashContext::CrashDefault();
 				return true;
 			}
-
-			if (Args.Num() != 2)
-			{
-				return false;
-			}
+			if (Args.Num() != 2) return false;
 
 			const FString& Type = Args[1];
-			if (EqualsIgnoreCase(Type, "zero"))
-			{
-				WindowsPlatformCrashContext::CrashDivideByZero();
-			}
-			else if (EqualsIgnoreCase(Type, "null"))
-			{
-				WindowsPlatformCrashContext::CrashNullPointer();
-			}
-			else if (EqualsIgnoreCase(Type, "stack"))
-			{
-				WindowsPlatformCrashContext::TriggerStackOverflow();
-			}
-			else if (EqualsIgnoreCase(Type, "crt"))
-			{
-				WindowsPlatformCrashContext::CrashInvalidParameter();
-			}
-			else if (EqualsIgnoreCase(Type, "purecall"))
-			{
-				WindowsPlatformCrashContext::CrashPureCall();
-			}
-			else if (EqualsIgnoreCase(Type, "terminate"))
-			{
-				WindowsPlatformCrashContext::CrashTerminate();
-			}
-			else if (EqualsIgnoreCase(Type, "abort"))
-			{
-				WindowsPlatformCrashContext::CrashAbort();
-			}
-			else
-				return false;
-
+			if (EqualsIgnoreCase(Type, "zero"))           WindowsPlatformCrashContext::CrashDivideByZero();
+			else if (EqualsIgnoreCase(Type, "null"))      WindowsPlatformCrashContext::CrashNullPointer();
+			else if (EqualsIgnoreCase(Type, "stack"))     WindowsPlatformCrashContext::TriggerStackOverflow();
+			else if (EqualsIgnoreCase(Type, "crt"))       WindowsPlatformCrashContext::CrashInvalidParameter();
+			else if (EqualsIgnoreCase(Type, "purecall"))  WindowsPlatformCrashContext::CrashPureCall();
+			else if (EqualsIgnoreCase(Type, "terminate")) WindowsPlatformCrashContext::CrashTerminate();
+			else if (EqualsIgnoreCase(Type, "abort"))     WindowsPlatformCrashContext::CrashAbort();
+			else return false;
 			return true;
 		});
+
+	// 자동완성 후보 등록
+	RegisterSuggestion("Cmd", "HELP", "HELP", "List all console commands");
+	RegisterSuggestion("Cmd", "CLEAR", "CLEAR", "Clear output log");
+	RegisterSuggestion("Cmd", "HISTORY", "HISTORY", "Show recent commands");
+	RegisterSuggestion("Cmd", "CauseCrash", "CauseCrash ", "[zero|null|stack|crt|purecall|terminate|abort]");
+
+	RegisterSuggestion("Stat", "stat fps", "stat fps", "Toggle FPS overlay");
+	RegisterSuggestion("Stat", "stat memory", "stat memory", "Toggle memory overlay");
+	RegisterSuggestion("Stat", "stat profile", "stat profile", "Toggle CPU/GPU profiler");
+	RegisterSuggestion("Stat", "stat light", "stat light", "Toggle light stats");
+	RegisterSuggestion("Stat", "stat decal", "stat decal", "Toggle decal stats");
+	RegisterSuggestion("Stat", "stat physics", "stat physics", "Toggle physics stats");
+	RegisterSuggestion("Stat", "stat all", "stat all", "Enable all stats");
+	RegisterSuggestion("Stat", "stat none", "stat none", "Disable all stats");
+
+	RegisterSuggestion("CSM", "CSM Count", "CSM Count ", "Set cascade count (1-4)");
+	RegisterSuggestion("CSM", "CSM LogRatio", "CSM LogRatio ", "Set cascade split ratio (0.0-1.0)");
+
+	RegisterSuggestion("CVar", "r.shadow.CacheWholeSceneShadows", "r.shadow.CacheWholeSceneShadows ", "[0|1]", true);
+	RegisterSuggestion("CVar", "r.GPUSkinning", "r.GPUSkinning ", "[0|1]", true);
+	RegisterSuggestion("CVar", "r.Skinning.ForceUpdate", "r.Skinning.ForceUpdate ", "[0|1]", true);
+
+	for (const FShowFlagInfo& Info : FEngineShowFlags::GetAll())
+	{
+		const FString Display = FString("show ") + Info.Name;
+		const FString Insert = Display + " ";
+		RegisterSuggestion("Show", Display.c_str(), Insert.c_str(), Info.DisplayName);
+	}
 }
 
 void FOutputLogPanel::AddToHistory(const FString& CommandLine)
@@ -459,6 +951,7 @@ void FOutputLogPanel::AddToHistory(const FString& CommandLine)
 void FOutputLogPanel::OnLog(ELogVerbosity Verbosity, const FString& Message)
 {
 	FLogData LogData;
+	LogData.Verbosity = Verbosity;
 
 	switch (Verbosity)
 	{

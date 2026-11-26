@@ -286,6 +286,8 @@ void UEditorEngine::InitPanels()
 	SettingsPanel = LevelEditorTab->AddPanel<FSettingsPanel>();
 	SequencerPanel = LevelEditorTab->AddPanel<FSequencerPanel>();
 	OutputLogPanel->SetEditorSettings(&SettingsPanel->GetMutableSettings());
+	OutputLogPanel->LoadLogFont();
+	EditorStyle::SetTheme(SettingsPanel->GetSettings().Theme);
 	ViewportsPanel->SetCameraSpeedTarget(&SettingsPanel->GetMutableSettings().CameraSpeed);
 
 	// 위젯 에셋은 다른 에셋처럼 EditorManager가 여는 탭에서 편집한다.
@@ -809,7 +811,7 @@ void UEditorEngine::Tick(const float DeltaTime)
 					const FEditorSettings& S = SettingsPanel->GetSettings();
 					FEngineShowFlags& ShowFlags = Context->GameViewport->EngineShowFlags;
 					FSceneRenderOptions& Options = Context->GameViewport->RenderOptions;
-					ShowFlags.AntiAliasing = S.bEnableFXAA;
+					ShowFlags.AntiAliasing = S.ShowFlags.AntiAliasing;
 					Options.bCacheShadows = S.bCacheShadows;
 					Options.PcfMode = S.PcfMode;
 					Options.RenderingPath = S.RenderingPath;
@@ -820,11 +822,13 @@ void UEditorEngine::Tick(const float DeltaTime)
 					Options.SpotShadowMapSize = S.GetSpotShadowMapSize();
 					Options.bGammaCorrection = S.bGammaCorrection;
 					Options.DisplayGamma = S.DisplayGamma;
-					ShowFlags.DepthOfField = S.bShowDepthOfField;
-					ShowFlags.VisualizeDOF = S.bVisualizeDOF;
-					ShowFlags.Vignette = S.bShowVignette;
-					ShowFlags.CameraOverlay = S.bShowCameraOverlay;
-					ShowFlags.SkeletalMeshes = S.bShowSkeletalMesh;
+					ShowFlags.DepthOfField = S.ShowFlags.DepthOfField;
+					ShowFlags.VisualizeDOF = S.ShowFlags.VisualizeDOF;
+					ShowFlags.Vignette = S.ShowFlags.Vignette;
+					ShowFlags.CameraOverlay = S.ShowFlags.CameraOverlay;
+					ShowFlags.SkeletalMeshes = S.ShowFlags.SkeletalMeshes;
+					ShowFlags.Decals = S.ShowFlags.Decals;
+					ShowFlags.Particles = S.ShowFlags.Particles;
 				}
 			}
 		}
@@ -1031,6 +1035,16 @@ void UEditorEngine::UpdateGizmoAndPicking()
 			if (!bParentSelected)
 				Others.Add(Actor);
 		}
+	}
+
+	if (Gizmo && SettingsPanel)
+	{
+		const FEditorSettings& S = SettingsPanel->GetSettings();
+		Gizmo->SetSnapSettings({
+			S.bLocationSnap, S.LocationSnapSize,
+			S.bRotationSnap, S.RotationSnapDegrees,
+			S.bScaleSnap, S.ScaleSnapSize
+		});
 	}
 
 	// 빈 곳을 누르면 SelectedActor가 nullptr이다. Ctrl/Shift를 누르고 있으면 여러 개를 고른다.
@@ -1783,16 +1797,16 @@ void UEditorEngine::SaveSceneAs()
 void UEditorEngine::DrawPIEDebug(UWorld* World, const FMatrix& ViewProjection)
 {
 	const FEditorSettings& Settings = SettingsPanel->GetSettings();
-	GShowSkeletalRootDebug = Settings.bShowRootDebug;  // 런타임 "root" 라벨 표시용
+	GShowSkeletalRootDebug = Settings.ShowFlags.RootBone;  // 런타임 "root" 라벨 표시용
 
 	FLineBatcher* LineBatcher = World->LineBatcher.get();
 	LineBatcher->BeginFrame();
-	if (Settings.bShowCollision)
+	if (Settings.ShowFlags.Collision)
 		DrawCollisionShapes(World, LineBatcher, nullptr);
 	LineBatcher->OnRender(ViewProjection);
 
 	// root는 바닥 높이라 가려지기 쉬우므로 깊이 테스트 없이 따로 그린다 (항상 위에 보임)
-	if (Settings.bShowRootDebug)
+	if (Settings.ShowFlags.RootBone)
 	{
 		LineBatcher->BeginFrame();
 		DrawSkeletalRootDebug(World, LineBatcher);

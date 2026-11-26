@@ -54,26 +54,14 @@ void FLevelEditorViewportClient::Draw(FViewport* InViewport, FUIRenderer* Canvas
 
 		// 쇼 플래그는 뷰포트마다 따로 갖는다 (UE5 뷰포트 Show 메뉴).
 		// 설정 창은 "모든 뷰포트에 한꺼번에 적용"으로 쓰여서, 설정 값이 바뀐 플래그만 옮긴다.
-		FEngineShowFlags SettingsFlags = LastSettingsShowFlags;
-		SettingsFlags.AntiAliasing = S.bEnableFXAA;
-		SettingsFlags.DepthOfField = S.bShowDepthOfField;
-		SettingsFlags.Vignette = S.bShowVignette;
-		SettingsFlags.CameraOverlay = S.bShowCameraOverlay;
-		SettingsFlags.SkeletalMeshes = S.bShowSkeletalMesh;
-		SettingsFlags.Rendering = S.bDrawPrimitives;
-		SettingsFlags.Decals = S.bDrawDecals;
-		auto SyncFlag = [this, &SettingsFlags](bool FEngineShowFlags::* Flag)
+		const FEngineShowFlags& SettingsFlags = S.ShowFlags;
+		for (const FShowFlagInfo& Info : FEngineShowFlags::GetAll())
 		{
-			if (!bSettingsShowFlagsSynced || SettingsFlags.*Flag != LastSettingsShowFlags.*Flag)
-				EngineShowFlags.*Flag = SettingsFlags.*Flag;
-		};
-		SyncFlag(&FEngineShowFlags::AntiAliasing);
-		SyncFlag(&FEngineShowFlags::DepthOfField);
-		SyncFlag(&FEngineShowFlags::Vignette);
-		SyncFlag(&FEngineShowFlags::CameraOverlay);
-		SyncFlag(&FEngineShowFlags::SkeletalMeshes);
-		SyncFlag(&FEngineShowFlags::Rendering);
-		SyncFlag(&FEngineShowFlags::Decals);
+			if (!bSettingsShowFlagsSynced || SettingsFlags.Get(Info) != LastSettingsShowFlags.Get(Info))
+			{
+				EngineShowFlags.Set(Info, SettingsFlags.Get(Info));
+			}
+		}
 		LastSettingsShowFlags = SettingsFlags;
 		bSettingsShowFlagsSynced = true;
 
@@ -138,7 +126,7 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View, FScenePassCallback
 			Cast<ARectLightActor>(SelectedActor) ||
 			Cast<ADecalActor>(SelectedActor));
 
-	const bool bDrawCascadeBounds = Settings.bDrawCascadeBounds;
+	const bool bDrawCascadeBounds = EngineShowFlags.CascadeBounds;
 	{
 		Callbacks.Overlays.EditorLines = [this, &SceneView, &Settings, LineBatcher, SelectedActor, bDrawSelectedLight, bDrawCascadeBounds]
 			{
@@ -169,7 +157,7 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View, FScenePassCallback
 						}
 					}
 				}
-				if (Settings.bDrawBatchLine && Settings.bDrawBoundingBox)
+				if (EngineShowFlags.Grid && EngineShowFlags.Bounds)
 				{
 					LineBatcher->BuildVertexBuffer();
 				}
@@ -206,7 +194,7 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View, FScenePassCallback
 				LineBatcher->OnRender(SceneView.ViewProjectionMatrix);
 			};
 	}
-	if (Settings.bDrawBatchLine)
+	if (EngineShowFlags.Grid)
 	{
 		Callbacks.Overlays.EditorGrid = [this, &SceneView, &Settings, ViewportSetting]
 			{
@@ -240,7 +228,7 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View, FScenePassCallback
 			Gizmo->Render(&SceneView);
 		};
 	Callbacks.Overlays.bClearEditorDepth = true;
-	if (Settings.bShowUUID)
+	if (EngineShowFlags.ObjectUUID)
 		Callbacks.Overlays.EditorUUID = [this, &SceneView] { RenderActorUUIDs(SceneView); };
 }
 

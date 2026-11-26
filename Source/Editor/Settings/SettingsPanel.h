@@ -2,9 +2,11 @@
 
 #include <format>
 #include "Editor/EditorUI/EditorPanel.h"
+#include "Editor/EditorUI/EditorStyle.h"
 #include "Math/Quat.h"
 #include "Math/Vector.h"
 #include "Render/RenderEnums.h"
+#include "Render/ShowFlags.h"
 #include "Editor/LevelViewportLayout.h"
 
 class UWorld;
@@ -16,21 +18,14 @@ struct FEditorSettings
 	const uint32 SpotShadowMapSizePerLevels[5] = { 128, 256, 512, 1024, 2048 };
 
 	// 에디터 렌더 옵션과 Multiple Viewports 레이아웃의 영구 설정을 한곳에 담는다.
+	// 표시 플래그 단일 원본 (목록은 Render/ShowFlagsValues.h)
+	FEngineShowFlags ShowFlags{ EShowFlagInitMode::Editor };
+
 	// Toggles
 	bool bWireframe = false;
-	bool bDrawPrimitives = true;
 	bool bCacheShadows = true; // r.Shadow.CacheWholeSceneShadows
 	EPcfMode PcfMode = EPcfMode::Sample8;
-	bool bDrawBoundingBox = false;
-	bool bShowUUID = false;
-	// Debug Draw (UE show 플래그): PIE에서만 적용된다
-	bool bShowCollision = true;   // show Collision
-	bool bShowRootDebug = false;  // root 본 구체 + 액터→root 선
-	bool bDrawBatchLine = true;
-	bool bDrawCascadeBounds = false;
 	bool bDrawPSGrid = false;
-	bool bEnableFXAA = false;
-	bool bDrawDecals = true;
 	bool bDecalCulling = true;
 	bool bDecalNarrowCulling = true;
 	bool bDecalBVHCulling = true;
@@ -44,6 +39,18 @@ struct FEditorSettings
 	float CameraSpeed = 1.0f;
 	float MouseSensitivity = 1.0f;
 	int32 GridSpacing = 1;
+
+	// 트랜스폼 기즈모 스냅 (미터 / 도 / 배율)
+	bool bLocationSnap = false;
+	float LocationSnapSize = 0.5f;
+	bool bRotationSnap = false;
+	float RotationSnapDegrees = 15.0f;
+	bool bScaleSnap = false;
+	float ScaleSnapSize = 0.25f;
+
+	// 에디터 UI 테마
+	EEditorTheme Theme = EEditorTheme::Dark;
+
 	float MultipleViewportsHorizontal = 0.5f;
 	float MultipleViewportsVertical = 0.5f;
 	float MultipleViewportsThird0 = 1.0f / 3.0f;   // 세 칸 줄의 경계 (Four Panes 큰 칸 배치)
@@ -72,11 +79,6 @@ struct FEditorSettings
 
 	bool bGammaCorrection = true;
 	float DisplayGamma = 2.2f;
-	bool bShowDepthOfField = true;
-	bool bVisualizeDOF = false;
-	bool bShowVignette = true;
-	bool bShowCameraOverlay = true;
-	bool bShowSkeletalMesh = true;
 
 	inline uint32 GetDirectionalShadowMapSize() const { return DirectionalShadowMapSizePerLevels[DirectionalShadowMapSizeLevel]; }
 	inline uint32 GetPointShadowMapSize() const { return PointShadowMapSizePerLevels[PointShadowMapSizeLevel]; }

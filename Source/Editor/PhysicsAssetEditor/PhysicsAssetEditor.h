@@ -3,6 +3,7 @@
 #include "Editor/SkeletalPreviewEditor/SkeletalPreviewEditor.h"
 #include "Editor/Gizmo/Gizmo.h"
 #include "Editor/EditorModeManager.h"
+#include "Editor/PhysicsAssetEditor/PhysicsAssetDebugRenderer.h"
 #include "Physics/AggregateGeom.h"
 #include "Physics/ConstraintInstance.h"
 #include "Physics/BodyInstance.h"
@@ -16,6 +17,7 @@ class USkeletalBodySetup;
 class FPhysicsScene;
 
 enum class EPhysicsAssetSelection : uint8 { None, Body, Constraint };
+enum class EPhysicsBodyDrawMode : uint8 { SolidWireframe, Solid, Wireframe, None };
 
 class FPhysicsAssetEditor : public FSkeletalPreviewEditor
 {
@@ -37,6 +39,8 @@ public:
 
 	const char* GetEditorTypeName() const override { return "PhysicsAsset"; }
 
+	void OnRenderSceneOverlay(const struct FSceneView& View) override;
+	void OnRenderForegroundOverlay(const struct FSceneView& View) override;
 	void OnRenderLine(FLineBatcher& LineBatcher) override;
 
 	const FGizmo* GetPreviewGizmo() const override { return PhysicsGizmo.GetTarget() ? &PhysicsGizmo : nullptr; }
@@ -85,6 +89,9 @@ public:
 
 	bool bShowBodies = true;
 	bool bShowConstraints = true;
+	EPhysicsBodyDrawMode BodyDrawMode = EPhysicsBodyDrawMode::SolidWireframe;
+	float BodyOpacity = 0.55f;
+	bool bShowShadedConstraints = true;
 	float ConstraintDrawSize = 1.0f;
 
 protected:
@@ -154,6 +161,7 @@ private:
 	float GrabDepth = 0.0f;
 
 	UPhysicsAsset* PhysicsAsset = nullptr;
+	TUniquePtr<FPhysicsAssetDebugRenderer> DebugRenderer;
 	EPhysicsAssetSelection SelectionType = EPhysicsAssetSelection::None;
 	int32 SelectionIndex = INDEX_NONE;
 	EAggCollisionShape::Type SelectedShapeType = EAggCollisionShape::Unknown;

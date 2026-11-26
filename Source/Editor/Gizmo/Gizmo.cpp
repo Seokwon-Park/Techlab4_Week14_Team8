@@ -50,6 +50,18 @@ namespace
 		return sqrtf(D.X * D.X + D.Y * D.Y);
 	}
 
+	float SnapScalar(float Value, float Grid)
+	{
+		return Grid > 1e-6f ? std::round(Value / Grid) * Grid : Value;
+	}
+
+	float SnapScaleComponent(float Value, float Step)
+	{
+		if (Step <= 1e-6f) return Value;
+		const float Snapped = std::round(Value / Step) * Step;
+		return std::fabs(Snapped) < 0.01f ? (Value < 0.0f ? -0.01f : 0.01f) : Snapped;
+	}
+
 	// From을 To로 돌리는 최단 회전.
 	FQuat QuatFromTo(const FVector& From, const FVector& To)
 	{
@@ -405,7 +417,16 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 	if (DraggingAxis == Screen && GetWidgetMode() != UE::Widget::WM_Rotate)
 	{
 		if (GetWidgetMode() == UE::Widget::WM_Translate)
-			Target->SetWorldLocation(DragStartLocation + (current - DragStartPoint), false);
+		{
+			FVector NextLoc = DragStartLocation + (current - DragStartPoint);
+			if (SnapSettings.bLocationSnap && SnapSettings.LocationSnapSize > 0.0f)
+			{
+				NextLoc.X = SnapScalar(NextLoc.X, SnapSettings.LocationSnapSize);
+				NextLoc.Y = SnapScalar(NextLoc.Y, SnapSettings.LocationSnapSize);
+				NextLoc.Z = SnapScalar(NextLoc.Z, SnapSettings.LocationSnapSize);
+			}
+			Target->SetWorldLocation(NextLoc, false);
+		}
 		else
 		{
 			float dx = MousePos.X - DragStartMousePos.X;
@@ -416,7 +437,16 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 			if (factor < 0.01f) factor = 0.01f;
 
 			if (!ApplyScaleToLight(factor)) 	// 조명이면 여기서 radius만 변경하고 return
-				Target->SetRelativeScale3D(DragStartScale * factor);
+			{
+				FVector NewScale = DragStartScale * factor;
+				if (SnapSettings.bScaleSnap && SnapSettings.ScaleSnapSize > 0.0f)
+				{
+					NewScale.X = SnapScaleComponent(NewScale.X, SnapSettings.ScaleSnapSize);
+					NewScale.Y = SnapScaleComponent(NewScale.Y, SnapSettings.ScaleSnapSize);
+					NewScale.Z = SnapScaleComponent(NewScale.Z, SnapSettings.ScaleSnapSize);
+				}
+				Target->SetRelativeScale3D(NewScale);
+			}
 		}
 		return;
 	}
@@ -425,6 +455,11 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 	{
 		float currentAngle = ComputeAngleOnPlane(current, DraggingAxis);
 		float deltaAngle = currentAngle - DragStartAngle;
+		if (SnapSettings.bRotationSnap && SnapSettings.RotationSnapDegrees > 0.0f)
+		{
+			const float StepRad = FMath::DegreesToRadians(SnapSettings.RotationSnapDegrees);
+			deltaAngle = SnapScalar(deltaAngle, StepRad);
+		}
 
 		FQuat delta = FQuat::MakeFromAxisAngle(DragAxisDirection, deltaAngle);
 		FQuat start = DragStartRotation.Quaternion();
@@ -441,8 +476,19 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 	{
 		if (GetWidgetMode() == UE::Widget::WM_Translate)
 		{
-			// 교차점이 평면 위에 있으므로 변화량이 곧 평면 안의 이동량이다.
-			Target->SetWorldLocation(DragStartLocation + delta, false);
+			if (SnapSettings.bLocationSnap && SnapSettings.LocationSnapSize > 0.0f)
+			{
+				const FVector AxisA = GetAxisDirection(PlaneAxisA(DraggingAxis));
+				const FVector AxisB = GetAxisDirection(PlaneAxisB(DraggingAxis));
+				const float MoveA = SnapScalar(delta.Dot(AxisA), SnapSettings.LocationSnapSize);
+				const float MoveB = SnapScalar(delta.Dot(AxisB), SnapSettings.LocationSnapSize);
+				Target->SetWorldLocation(DragStartLocation + AxisA * MoveA + AxisB * MoveB, false);
+			}
+			else
+			{
+				// 교차점이 평면 위에 있으므로 변화량이 곧 평면 안의 이동량이다.
+				Target->SetWorldLocation(DragStartLocation + delta, false);
+			}
 		}
 		else
 		{
@@ -454,9 +500,9 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 			FVector NewScale = DragStartScale;
 			for (int Axis : { PlaneAxisA(DraggingAxis), PlaneAxisB(DraggingAxis) })
 			{
-				if (Axis == X)      NewScale.X *= factor;
-				else if (Axis == Y) NewScale.Y *= factor;
-				else                NewScale.Z *= factor;
+				if (Axis == X)      NewScale.X = SnapSettings.bScaleSnap ? SnapScaleComponent(NewScale.X * factor, SnapSettings.ScaleSnapSize) : NewScale.X * factor;
+				else if (Axis == Y) NewScale.Y = SnapSettings.bScaleSnap ? SnapScaleComponent(NewScale.Y * factor, SnapSettings.ScaleSnapSize) : NewScale.Y * factor;
+				else                NewScale.Z = SnapSettings.bScaleSnap ? SnapScaleComponent(NewScale.Z * factor, SnapSettings.ScaleSnapSize) : NewScale.Z * factor;
 			}
 			Target->SetRelativeScale3D(NewScale);
 		}
@@ -466,7 +512,13 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 	float amount = delta.Dot(DragAxisDirection);
 
 	if (GetWidgetMode() == UE::Widget::WM_Translate)
+	{
+		if (SnapSettings.bLocationSnap && SnapSettings.LocationSnapSize > 0.0f)
+		{
+			amount = SnapScalar(amount, SnapSettings.LocationSnapSize);
+		}
 		Target->SetWorldLocation(DragStartLocation + DragAxisDirection * amount, false);
+	}
 	else   // Scale
 	{
 		float factor = 1.0f + amount;
@@ -476,9 +528,9 @@ void FGizmo::UpdateDrag(const FRay& MouseRay, const FVector2& MousePos)
 		if (ApplyScaleToLight(factor)) return;
 
 		FVector NewScale = DragStartScale;
-		if (DraggingAxis == 0)      NewScale.X *= factor;
-		else if (DraggingAxis == 1) NewScale.Y *= factor;
-		else                        NewScale.Z *= factor;
+		if (DraggingAxis == 0)      NewScale.X = SnapSettings.bScaleSnap ? SnapScaleComponent(NewScale.X * factor, SnapSettings.ScaleSnapSize) : NewScale.X * factor;
+		else if (DraggingAxis == 1) NewScale.Y = SnapSettings.bScaleSnap ? SnapScaleComponent(NewScale.Y * factor, SnapSettings.ScaleSnapSize) : NewScale.Y * factor;
+		else                        NewScale.Z = SnapSettings.bScaleSnap ? SnapScaleComponent(NewScale.Z * factor, SnapSettings.ScaleSnapSize) : NewScale.Z * factor;
 
 		Target->SetRelativeScale3D(NewScale);
 	}

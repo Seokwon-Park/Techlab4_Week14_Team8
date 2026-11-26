@@ -5,6 +5,10 @@
 #include "Editor/ContentDrawer/ContentDrawerPanel.h"
 #include "Editor/OutputLog/OutputLogPanel.h"
 #include "Editor/EditorUI/EditorIcons.h"
+#include "Editor/EditorUI/EditorStyle.h"
+#include "Editor/HitoriEd/Editor.h"
+#include "Editor/HitoriEd/EditorEngine.h"
+#include "Editor/Settings/SettingsPanel.h"
 #include <filesystem>
 
 namespace
@@ -100,6 +104,24 @@ void FLevelEditorTab::DrawMenuBar()
 			{
 				Panel->SetOpen(!bOpen);
 			}
+		}
+
+		ImGui::Separator();
+		if (ImGui::BeginMenu("Theme"))
+		{
+			const EEditorTheme Current = EditorStyle::GetTheme();
+			for (EEditorTheme Theme : EditorStyle::AllThemes)
+			{
+				if (ImGui::MenuItem(EditorStyle::GetThemeName(Theme), nullptr, Current == Theme))
+				{
+					EditorStyle::SetTheme(Theme);
+					if (FEditorSettings* S = GEditor ? GEditor->GetMutableEditorSettings() : nullptr)
+					{
+						S->Theme = Theme;
+					}
+				}
+			}
+			ImGui::EndMenu();
 		}
 
 		ImGui::Separator();
@@ -270,7 +292,7 @@ void FLevelEditorTab::DrawStatusBar()
 
 		if (OutputLog)
 		{
-			if (StatusBarToggle("##StatusOutputLog", EEditorIcon::None, "Output Log", OutputLog->IsOpen()))
+			if (StatusBarToggle("##StatusOutputLog", EEditorIcon::OutputLog, "Output Log", OutputLog->IsOpen()))
 				OutputLog->SetOpen(!OutputLog->IsOpen());
 			ImGui::SameLine();
 
@@ -285,15 +307,8 @@ void FLevelEditorTab::DrawStatusBar()
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextDisabled("Cmd");
 			ImGui::SameLine();
-			ImGui::SetNextItemWidth(ImMin(320.0f, ImGui::GetContentRegionAvail().x));
-			if (ImGui::InputTextWithHint("##StatusBarCmd", "Enter Console Command", CommandBuffer, IM_COUNTOF(CommandBuffer),
-				ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll))
-			{
-				if (CommandBuffer[0] != '\0')
-					OutputLog->ExecCommand(CommandBuffer);
-				CommandBuffer[0] = '\0';
-				ImGui::SetKeyboardFocusHere(-1);
-			}
+			OutputLog->RenderCommandInput("##StatusBarCmd", CommandBuffer, IM_COUNTOF(CommandBuffer),
+				ImMin(320.0f, ImGui::GetContentRegionAvail().x), false, false);
 		}
 	}
 
