@@ -4,30 +4,30 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFrameWork/Pawn.h"
 
-// 발소리(Walk/Jog의 PlaySound)와 공격 판정(Punch_Jab의 AttackWindow) Notify는 .anim.bin에 저장돼 있다.
-// AnimSequence 에디터의 타임라인에서 편집한다.
+// 諛쒖냼由?Walk/Jog??PlaySound)? 怨듦꺽 ?먯젙(Punch_Jab??AttackWindow) Notify??.anim.bin????λ뤌 ?덈떎.
+// AnimSequence ?먮뵒?곗쓽 ??꾨씪?몄뿉???몄쭛?쒕떎.
 
 void UMyAnimInstance::NativeInitializeAnimation()
 {
 	USkeletalMeshComponent* SkeletalMesh = Cast<USkeletalMeshComponent>(GetOuter());
 
-	//AnimNode 설정
+	//AnimNode ?ㅼ젙
 	int32 Loco = StateMachine.AddState("Locomotion", &LocomotionPlayer);
-	// Hit 상태를 빠져나가는 순간 피격 플래그를 내린다
+	// Hit ?곹깭瑜?鍮좎졇?섍????쒓컙 ?쇨꺽 ?뚮옒洹몃? ?대┛??
 	FAnimStateDesc HitState;
 	HitState.Name = "Hit";
 	HitState.Pose.SetLinkNode(&HitPlayer);
 	HitState.OnExit = [this](UAnimInstance*) { bIsHit = false; };
 	int32 Hit = StateMachine.AddState(HitState);
 
-	// Attack 상태를 빠져나가는 순간(정상 종료든 Hit에 끊기든) 공격 플래그를 내린다
+	// Attack ?곹깭瑜?鍮좎졇?섍????쒓컙(?뺤긽 醫낅즺??Hit???딄린?? 怨듦꺽 ?뚮옒洹몃? ?대┛??
 	FAnimStateDesc AttackState;
 	AttackState.Name = "Attack";
 	AttackState.Pose.SetLinkNode(&AttackPlayer);
 	AttackState.OnExit = [this](UAnimInstance*) { bIsAttacking = false; };
 	int32 Attack = StateMachine.AddState(AttackState);
 
-	//TEMP : BlendSpace 생성 밎 설정
+	//TEMP : BlendSpace ?앹꽦 諛??ㅼ젙
 	auto LoadSequence = [&](const char* Path) -> UAnimSequence*
 		{
 			auto* Sequence = NewObject<UAnimSequence>(SkeletalMesh);
@@ -44,11 +44,11 @@ void UMyAnimInstance::NativeInitializeAnimation()
 		};
 
 	auto* Idle = LoadSequence(
-		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Idle_Loop.anim.bin");
+		"Content/Models/UAL1_Standard/UAL1_Standard_Armature_Idle_Loop.anim.bin");
 	auto* Walk = LoadSequence(
-		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Walk_Loop.anim.bin");
+		"Content/Models/UAL1_Standard/UAL1_Standard_Armature_Walk_Loop.anim.bin");
 	auto* Running = LoadSequence(
-		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Jog_Fwd_Loop.anim.bin");
+		"Content/Models/UAL1_Standard/UAL1_Standard_Armature_Jog_Fwd_Loop.anim.bin");
 
 	auto* BlendSpace = NewObject<UBlendSpace1D>();
 
@@ -59,11 +59,11 @@ void UMyAnimInstance::NativeInitializeAnimation()
 	LocomotionPlayer.X = 0.f;
 
 	AttackPlayer.Sequence = LoadSequence(
-		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Punch_Jab.anim.bin");
+		"Content/Models/UAL1_Standard/UAL1_Standard_Armature_Punch_Jab.anim.bin");
 	AttackPlayer.bLooping = false;
 
 	HitPlayer.Sequence = LoadSequence(
-		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Hit_Chest.anim.bin");
+		"Content/Models/UAL1_Standard/UAL1_Standard_Armature_Hit_Chest.anim.bin");
 	HitPlayer.bLooping = false;
 
 	StateMachine.SetInitialState(Loco);
@@ -80,7 +80,7 @@ void UMyAnimInstance::NativeInitializeAnimation()
 	AttackToLoco.Rule = [this](const FAnimTransitionContext&) { return AttackPlayer.IsFinished(); };
 	StateMachine.AddTransition(AttackToLoco);
 
-	//AnyTransition으로 Hit 추가
+	//AnyTransition?쇰줈 Hit 異붽?
 	FAnimTransitionDesc AnyToHit;
 	AnyToHit.From = INDEX_NONE;
 	AnyToHit.To = Hit;
@@ -89,7 +89,7 @@ void UMyAnimInstance::NativeInitializeAnimation()
 	AnyToHit.Rule = [this](const FAnimTransitionContext&) { return bIsHit; };
 	StateMachine.AddTransition(AnyToHit);
 
-	// Hit 클립이 끝나면 Locomotion으로 복귀 (OnExit에서 bIsHit = false)
+	// Hit ?대┰???앸굹硫?Locomotion?쇰줈 蹂듦? (OnExit?먯꽌 bIsHit = false)
 	FAnimTransitionDesc HitToLoco;
 	HitToLoco.From = Hit;
 	HitToLoco.To = Loco;
@@ -103,10 +103,10 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	if (APawn* Pawn = TryGetPawnOwner())
 	{
-		// UE GroundSpeed: 수평 속도만, cm/s 단위 (BlendSpace 샘플이 UE 값 기준)
+		// UE GroundSpeed: ?섑룊 ?띾룄留? cm/s ?⑥쐞 (BlendSpace ?섑뵆??UE 媛?湲곗?)
 		const FVector Velocity = Pawn->GetVelocity();
 		Speed = FVector(Velocity.X, Velocity.Y, 0.0f).Size() * WorldToCm;
 	}
 
-	LocomotionPlayer.X = Speed;                     // UE 에서는 핀 바인딩이 대신한다
+	LocomotionPlayer.X = Speed;                     // UE ?먯꽌??? 諛붿씤?⑹씠 ??좏븳??
 }
