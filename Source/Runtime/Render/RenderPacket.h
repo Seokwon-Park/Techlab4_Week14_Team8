@@ -4,7 +4,9 @@
 #include "Shader.h"
 #include "Material.h"
 #include "Particles/ParticleHelper.h"
+#include "Render/VertexFactory.h"
 #include <array>
+#include <deque>
 #include <utility>
 #include <algorithm>
 #include <bit>
@@ -12,18 +14,22 @@
 
 class FPrimitiveSceneProxy;
 inline constexpr uint32 InvalidObjectSlot = ~0u;
-inline constexpr uint32 BoneMatrixBufferSlot = 14; // GpuSkinCommon.hlsli의 t14
 
 struct FRenderPacket
 {
 	const FPrimitiveSceneProxy* Proxy = nullptr;
 	const FMatrix* Model = nullptr;
 
-	UStaticMesh* Mesh = nullptr; // static
-	FVertexBuffer* VertexBuffer = nullptr; // dynamic
-	FIndexBuffer* IndexBuffer= nullptr; // dynamic
-	const FStructuredBuffer* BoneBuffer = nullptr; // GPU 스킨
-	std::span<const FMeshParticleInstanceVertex> MeshParticleInstances;
+	UStaticMesh* Mesh = nullptr; // static. VertexFactory가 없으면 Mesh의 LOD VertexFactory를 쓴다
+	// 동적 정점(스킨, 파티클). 소유자(프록시, FRenderQueue)가 그 프레임 동안 살려 둔다
+	const FVertexFactory* VertexFactory = nullptr;
+
+	// 그릴 정점 스트림. VertexFactory가 우선이고, 없으면 스태틱 메시의 LOD
+	const FVertexFactory* GetVertexFactory() const
+	{
+		if (VertexFactory) return VertexFactory;
+		return Mesh ? Mesh->GetVertexFactory(LODIndex) : nullptr;
+	}
 
 	UMaterial* Material = nullptr;
 	const void* MaterialParamData = nullptr;
@@ -107,6 +113,8 @@ class FRenderQueue : public TArray<FRenderPacket>
 	using FMatrixBlock = std::array<FMatrix, MatricesPerBlock>;
 	TArray<TUniquePtr<FMatrixBlock>> MatrixBlocks;
 	TArray<TUniquePtr<TArray<FMeshParticleInstanceVertex>>> MeshParticleInstanceArrays;
+	// 메시 파티클 VertexFactory는 인스턴스 배열과 수명이 같다. deque라 추가해도 주소가 바뀌지 않는다
+	std::deque<FMeshParticleVertexFactory> MeshParticleFactories;
 	uint32 MatrixCount = 0;
 	uint32 FirstTranslucentIndex = 0;
 
@@ -132,6 +140,7 @@ public:
 	FRenderQueue(FRenderQueue&& Other) noexcept
 		: FPackets(std::move(Other)), MatrixBlocks(std::move(Other.MatrixBlocks)),
 		  MeshParticleInstanceArrays(std::move(Other.MeshParticleInstanceArrays)),
+		  MeshParticleFactories(std::move(Other.MeshParticleFactories)),
 		  MatrixCount(std::exchange(Other.MatrixCount, 0)),
 		  FirstTranslucentIndex(std::exchange(Other.FirstTranslucentIndex, 0)) {}
 	FRenderQueue& operator=(FRenderQueue&& Other) noexcept
@@ -141,6 +150,7 @@ public:
 			FPackets::operator=(std::move(Other));
 			MatrixBlocks = std::move(Other.MatrixBlocks);
 			MeshParticleInstanceArrays = std::move(Other.MeshParticleInstanceArrays);
+			MeshParticleFactories = std::move(Other.MeshParticleFactories);
 			MatrixCount = std::exchange(Other.MatrixCount, 0);
 			FirstTranslucentIndex = std::exchange(Other.FirstTranslucentIndex, 0);
 		}
@@ -161,6 +171,15 @@ public:
 	{
 		MeshParticleInstanceArrays.Add(MakeUnique<TArray<FMeshParticleInstanceVertex>>());
 		return *MeshParticleInstanceArrays.Last();
+	}
+
+	// 이 프레임 동안 살아 있는 메시 파티클 VertexFactory를 만든다
+	const FVertexFactory* AllocateMeshParticleFactory(FVertexBuffer* VB, FIndexBuffer* IB,
+		std::span<const FMeshParticleInstanceVertex> Instances)
+	{
+		FMeshParticleVertexFactory& Factory = MeshParticleFactories.emplace_back();
+		Factory.Init(VB, IB, Instances);
+		return &Factory;
 	}
 
 	// 렌더 패킷 정렬
@@ -184,7 +203,8 @@ public:
 		for (int32 Index = 0; Index < TotalPackets; ++Index)
 		{
 			const FRenderPacket& Packet = (*this)[Index];
-			if ((!Packet.Mesh && (!Packet.VertexBuffer || !Packet.IndexBuffer)) || !Packet.Material) continue;
+			const FVertexFactory* Factory = Packet.GetVertexFactory();
+			if (!Factory || !Factory->IsValid() || !Packet.Material) continue;
 			SortItems.Add({ MakeSortKey(Packet), Index });
 		}
 
@@ -215,6 +235,7 @@ public:
 	{
 		FPackets::Reset();
 		MeshParticleInstanceArrays.Reset();
+		MeshParticleFactories.clear();
 		MatrixCount = 0;
 		FirstTranslucentIndex = 0;
 	}

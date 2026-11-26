@@ -1,5 +1,5 @@
 #pragma pack_matrix(row_major)
-#include "GpuSkinCommon.hlsli"
+#include "VertexFactory.hlsli"
 #include "ColorSpace.hlsli"
 
 cbuffer Viewconstants : register(b0)
@@ -10,6 +10,7 @@ cbuffer Viewconstants : register(b0)
 cbuffer Worldconstants : register(b2)
 {
     matrix World;
+    matrix NormalMatrix; // FPerObjectConstants와 같은 순서
 };
 
 cbuffer MaterialParams : register(b1)
@@ -29,15 +30,7 @@ cbuffer TranslucentFogConstants : register(b3)
     float4 FogDistanceViewport;
 };
 
-struct VS_INPUT
-{
-	float3 p : POSITION;
-	float3 n : NORMAL;
-	float4 tangent : TANGENT;
-	float2 t : TEXCOORD;
-	float4 c : COLOR;
-	GPU_SKIN_VS_INPUT
-};
+// 정점 입력은 VertexFactory.hlsli의 FVertexFactoryInput (정점 타입별 변형)
 
 struct PS_INPUT
 {
@@ -85,16 +78,16 @@ float FogTransmittance(float3 Position)
     return max(saturate(T), 1.0f - FogDistanceViewport.x);
 }
 
-PS_INPUT mainVS(VS_INPUT input)
+PS_INPUT mainVS(FVertexFactoryInput input)
 {
     PS_INPUT output;
-    GPU_SKIN_APPLY(input, input.p, input.n, input.tangent);
+    const FVFIntermediates VF = VF_GetIntermediates(input, World, NormalMatrix);
 
-    float4 WorldPosition = mul(float4(input.p, 1.0f), World);
+    float4 WorldPosition = float4(VF.WorldPosition, 1.0f);
     output.position = mul(WorldPosition, VP);
-    output.color = input.c;
-    output.uv = input.t;
-    output.normal = input.n;
+    output.color = VF.Color;
+    output.uv = VF.UV;
+    output.normal = VF.WorldNormal;
     output.worldPosition = WorldPosition.xyz;
     return output;
 }

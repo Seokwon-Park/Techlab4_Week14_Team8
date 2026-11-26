@@ -33,6 +33,7 @@ struct FMeshDrawBatch
 		uint32 ObjectSlot = InvalidObjectSlot;
 		uint32 StartIndex = 0;
 		uint32 IndexCount = 0;
+		uint32 InstanceCount = 0; // 0이면 인스턴싱하지 않는다
 		const void* ObjectKey = nullptr;
 		bool bOccludedByGpu = false;
 		bool bReceivesDecals = true;
@@ -42,11 +43,22 @@ struct FMeshDrawBatch
 
 	FPipelineState Pipeline;
 
-	FVertexBuffer* VertexBuffer = nullptr;
-	FIndexBuffer* IndexBuffer = nullptr;
-	const FStructuredBuffer* BoneBuffer = nullptr;
-	std::span<const FMeshParticleInstanceVertex> MeshParticleInstances;
+	// 정점/인덱스/본/인스턴스 스트림. 소유자(메시, 프록시, FRenderQueue)가 이 배치를 그릴 때까지 살아 있다
+	const FVertexFactory* VertexFactory = nullptr;
+	// 메시 파티클 인스턴스 버퍼를 올리지 못했을 때 인스턴스마다 그리는 Local VS
 	FVertexShader* MeshParticleFallbackVS = nullptr;
+
+	EVertexFactoryType GetVertexFactoryType() const
+	{
+		return VertexFactory ? VertexFactory->GetType() : EVertexFactoryType::Local;
+	}
+	FIndexBuffer* GetIndexBuffer() const { return VertexFactory ? VertexFactory->GetIndexBuffer() : nullptr; }
+	// 메시 파티클이면 인스턴스 배열, 아니면 빈 span
+	std::span<const FMeshParticleInstanceVertex> GetMeshParticleInstances() const
+	{
+		if (GetVertexFactoryType() != EVertexFactoryType::MeshParticle) return {};
+		return static_cast<const FMeshParticleVertexFactory*>(VertexFactory)->GetInstances();
+	}
 
 	TArray<FTextureBinding> Textures;
 	ESamplerState Sampler = ESamplerState::LinearClamp;
@@ -61,6 +73,8 @@ struct FMeshDrawBatch
 	bool bBindViewConstants = true;
 	bool bForceWireframe = false;
 	bool bTwoSided = false;
+	// Masked 머티리얼: 깊이 프리패스도 알파로 픽셀을 버려야 하므로 전용 깊이 PS를 쓴다
+	bool bIsMasked = false;
 	TArray<FItem> Items;
 };
 

@@ -2,6 +2,7 @@
 
 #include "Shader.h"
 #include "PipelineState.h"
+#include "VertexFactory.h"
 #include "Core/Misc/Paths.h"
 
 // 렌더링에 사용할 파이프라인 종류 정의
@@ -42,6 +43,8 @@ enum class EPSOType : uint8
 	DepthOfFieldPostfilter,
 	DepthOfFieldRecombine,
 	DepthOfFieldVisualize,
+	// 기존 씬/에셋의 PSOType 번호가 밀리지 않도록 새 항목은 여기(Count 앞)에만 추가한다
+	StaticMesh_Additive,         // 가산 블렌드 메시 (EMaterialBlendMode::Additive)
 	Count
 };
 
@@ -67,6 +70,9 @@ public:
 	static FPipelineState* GetPSO(const EPSOType& InType);
 	static FShaderProgram* GetForwardShaderProgram(ELightingModel Model);
 	static FShaderProgram* FindMeshParticleShader(const FShaderProgram& Base);
+	// Local 변형인 Base를 정점 타입에 맞는 변형으로 바꾼다.
+	// 전용 셰이더 정점 타입(스프라이트, 트레일)은 Base를 그대로 돌려준다. 변형이 없으면 nullptr
+	static FShaderProgram* ResolveShader(FShaderProgram* Base, EVertexFactoryType VF);
 private:
 	
 	void LoadOrCompileShader(const FString& Path);

@@ -3,6 +3,7 @@
 #include "PrimitiveSceneProxy.h"
 #include "Particles/ParticleHelper.h"
 #include "Render/Buffer.h"
+#include "Render/VertexFactory.h"
 
 class UParticleSystemComponent;
 class UMaterial;
@@ -33,6 +34,9 @@ private:
 		uint32 CapacityParticles = 0;   // 쿼드 수 (스프라이트는 파티클 수와 같다)
 		uint32 VertexStride = 0;        // 추가: 64(스프라이트) 또는 36(띠). 바뀌면 VB를 다시 만든다
 		FParticleSpriteConstants Constants{};
+		// 이 슬롯 정점 버퍼의 스트림. 스프라이트 또는 띠 중 마지막으로 그린 쪽으로 맞춘다
+		FSpriteParticleVertexFactory SpriteFactory;
+		FTrailVertexFactory TrailFactory;
 		// 띠 전용 머티리얼 사본. Required가 주는 머티리얼은 Sprite PSO라 띠 정점(36B)을 Sprite 셰이더(64B)로 읽게 된다
 		UMaterial* TrailMaterial = nullptr;
 		~FSpriteDrawSlot();

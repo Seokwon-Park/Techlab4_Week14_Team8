@@ -99,7 +99,7 @@
 ### Phase 2. 렌더링 아키텍처 핵심 — `FVertexFactory` & `UMaterial`
 **목표**: 정점 스트림/셰이더 변형을 `FVertexFactory`로 추상화하고, `UMaterial`을 Domain/BlendMode/ShadingModel + `.mat` 에셋 기반으로 고도화.
 
-- [ ] **`FVertexFactory` C++ & HLSL 도입**
+- [x] **`FVertexFactory` C++ & HLSL 도입**
   - 참조:
     - C++: `Kurisu\Source\Runtime\Render\VertexFactory.{h,cpp}`, `MeshPassProcessor.{h,cpp}`, `RenderResourceManager.{h,cpp}`, `Renderer.{h,cpp}`, `Mesh.{h,cpp}`, `SkeletalMesh.{h,cpp}`, `SkeletalMeshObject.{h,cpp}`
     - HLSL: `Kurisu\EngineResources\Shaders\VertexFactory.hlsli`, `VF_Local.hlsli`, `VF_GpuSkin.hlsli`, `VF_MeshParticle.hlsli`, `UberLit.hlsl`, `DepthPrepass.hlsl`, `ShadowDepth.hlsl`, `DecalShader.hlsl`
@@ -109,7 +109,7 @@
     - `Hitori\Source\Runtime\Render\MeshPassProcessor.{h,cpp}`: `FMeshDrawBatch`의 raw `VertexBuffer`/`IndexBuffer`/`BoneBuffer`/`MeshParticleInstances`를 `const FVertexFactory* VertexFactory` + `uint32 InstanceCount`로 통합
     - `Hitori\Source\Runtime\Render\RenderResourceManager.{h,cpp}`: `ResolveShader(BaseShader, EVertexFactoryType)` 구현
     - `Hitori\EngineResources\Shaders\StaticMeshGBufferShader.hlsl` (**14주차 Deferred GBuffer**) 포함 모든 메시 셰이더에 VF 적용
-- [ ] **`UMaterial` 추상화 & `MaterialFile` (`.mat`) 도입**
+- [x] **`UMaterial` 추상화 & `MaterialFile` (`.mat`) 도입**
   - 참조: `Kurisu\Source\Runtime\Render\Material.{h,cpp}`, `MaterialFile.{h,cpp}`
   - 대상: `Hitori\Source\Runtime\Render\Material.{h,cpp}`, `MaterialFile.{h,cpp}`(신규)
   - 기능: `EMaterialDomain`, `EMaterialBlendMode`(Opaque/**Masked**+`OpacityMaskClipValue`/Translucent/**Additive**), `EMaterialShadingModel`(DefaultLit/Unlit), `SyncLegacyStates()`, `bRenderBeforeDOF` 보존, DepthPrepass & GBuffer Masked 알파 클립 지원

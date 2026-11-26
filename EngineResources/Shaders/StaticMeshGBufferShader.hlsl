@@ -1,6 +1,5 @@
 #pragma pack_matrix(row_major)
-#include "GpuSkinCommon.hlsli"
-#include "MeshParticleInstancing.hlsli"
+#include "VertexFactory.hlsli"
 
 cbuffer ViewConstants : register(b0)
 {
@@ -19,18 +18,10 @@ cbuffer MaterialParams : register(b1)
     float4 BaseColor;
     float2 UVOffset;
     float2 TextureFlags; // x: 노멀맵 인코딩, y: 노멀맵 Y 반전
+    float4 MaskParams;   // x: Masked 알파 기준값(0이면 끔). FStaticMeshMaterialParams와 같은 순서
 };
 
-struct VS_INPUT
-{
-	float3 Position : POSITION;
-	float3 Normal : NORMAL;
-	float4 Tangent : TANGENT;
-	float2 UV : TEXCOORD;
-	float4 Color : COLOR;
-	GPU_SKIN_VS_INPUT
-	MESH_PARTICLE_VS_INPUT
-};
+// 정점 입력은 VertexFactory.hlsli의 FVertexFactoryInput (정점 타입별 변형)
 
 struct PS_INPUT
 {
@@ -70,21 +61,15 @@ float3 DecodeMapNormal(float3 Sample, float Encoding)
     return Sample * 2.0f - 1.0f;
 }
 
-PS_INPUT mainVS(VS_INPUT Input)
+PS_INPUT mainVS(FVertexFactoryInput Input)
 {
     PS_INPUT Output;
-    GPU_SKIN_APPLY(Input, Input.Position, Input.Normal, Input.Tangent);
-    float4x4 WorldTransform = MESH_PARTICLE_WORLD(Input);
-    float4 WorldPosition = mul(float4(Input.Position, 1.0f), WorldTransform);
+    const FVFIntermediates VF = VF_GetIntermediates(Input, World, NormalMatrix);
 
-    Output.Position = mul(WorldPosition, VP);
-    Output.WorldNormal = mul(Input.Normal, MESH_PARTICLE_NORMAL(WorldTransform));
-    float3 T = mul(float4(Input.Tangent.xyz, 0.0f), WorldTransform).xyz;
-
-    // CPU가 구한 로컬 공간 부호에 월드 변환의 거울 반전만 반영한다.
-    float Handedness = Input.Tangent.w * (determinant((float3x3)WorldTransform) < 0.0f ? -1.0f : 1.0f);
-    Output.WorldTangent = float4(T, Handedness);
-    Output.UV = Input.UV;
+    Output.Position = mul(float4(VF.WorldPosition, 1.0f), VP);
+    Output.WorldNormal = VF.WorldNormal;
+    Output.WorldTangent = VF.WorldTangent;
+    Output.UV = VF.UV;
     Output.ReceiveShadow = ShadowFlags.x;
     return Output;
 }
@@ -96,6 +81,9 @@ GBUFFER_OUTPUT mainPS(PS_INPUT Input, bool bFrontFace : SV_IsFrontFace)
     if (!bFrontFace) Input.WorldNormal = -Input.WorldNormal;
 
     float4 TextureColor = ColorTexture.Sample(ColorSampler, Input.UV + UVOffset);
+    // Masked 머티리얼: 알파가 기준값보다 작은 픽셀은 GBuffer에 쓰지 않는다(깊이도 남지 않는다)
+    if (MaskParams.x > 0.0f)
+        clip(TextureColor.a * BaseColor.a - MaskParams.x);
     // 색 텍스처는 UNORM으로 읽히므로 sRGB 값을 선형 조명 공간으로 변환한다.
     float3 LinearAlbedo = pow(max(TextureColor.rgb, 0.0f), 2.2f) * BaseColor.rgb;
     float3 Normal = normalize(Input.WorldNormal);

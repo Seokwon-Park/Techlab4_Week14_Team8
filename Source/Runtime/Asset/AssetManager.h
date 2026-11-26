@@ -16,7 +16,8 @@ enum class EAssetType
 	Texture,
 	Font,
 	StaticMesh,
-	SkeletalMesh
+	SkeletalMesh,
+	Material   // .mat (MaterialFile)
 };
 
 class UStaticMesh;
@@ -89,6 +90,10 @@ public:
 	static UAnimSequence* LoadAnimSequence(const FString& Path);
 	static UBlendSpace1D* LoadBlendSpace(const FString& Path);
 	static UParticleSystem* LoadParticleSystem(const FString& Path);
+	// .mat 머티리얼 에셋. 한 번 읽으면 경로 키로 등록되어 씬의 머티리얼 참조(Asset)로 찾을 수 있다
+	UMaterial* LoadMaterial(const FString& Path);
+	// 머티리얼을 .mat(JSON)으로 저장한다. Path는 Content 기준 경로 또는 절대 경로
+	static bool SaveMaterial(UMaterial& Material, const FString& Path, FString& OutError);
 	// 로드된 파티클 시스템의 키(Content 기준 경로). 로드된 적이 없으면 빈 문자열
 	static FString FindParticleSystemPath(const UParticleSystem* System);
 

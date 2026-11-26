@@ -26,6 +26,7 @@
 
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemFile.h"
+#include "Render/MaterialFile.h"
 
 #include "Render/ImageLoader.h"
 #include "Asset/AssetLoadProfiler.h"
@@ -54,6 +55,9 @@ namespace
 		}
 		if (Extension == ".obj") {
 			return EAssetType::StaticMesh;
+		}
+		if (Extension == ".mat") {
+			return EAssetType::Material;
 		}
 		if (Extension == ".bin" && FFbxMeshBake::IsBakedPath(Path)) {
 			// 파일을 읽지 않고 구분하도록 FFbxImporter의 저장 이름 규칙을 쓴다
@@ -252,6 +256,9 @@ void UAssetManager::LoadAsset(const FString& Key, const FString& Path) {
 		break;
 	case EAssetType::StaticMesh:
 		LoadObjStaticMesh(Path);
+		break;
+	case EAssetType::Material:
+		LoadMaterial(Path);
 		break;
 	default:
 		break;
@@ -860,4 +867,45 @@ FString UAssetManager::FindParticleSystemPath(const UParticleSystem* System)
 		if (Loaded == System) return Key;
 	}
 	return FString();
+}
+
+UMaterial* UAssetManager::LoadMaterial(const FString& Path)
+{
+	const FString Key = MakeLookupKey(Path);
+	if (URenderAsset** Found = AssetMap.Find(Key))
+	{
+		return Cast<UMaterial>(*Found);
+	}
+
+	const FString FilePath = FAssetUtils::ResolveAssetFilePath(Path);
+
+	// DefaultMaterial과 같은 기본값으로 만든 뒤 파일 값으로 덮는다
+	UMaterial* Material = NewObject<UMaterial>();
+	Material->Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("UberLit.hlsl"));
+	Material->ParamLayout = EMaterialParamLayout::StaticMesh;
+	Material->ParamBuffer = RenderCommand::CreateConstantBuffer(sizeof(FStaticMeshMaterialParams));
+
+	FString Error;
+	if (!MaterialFile::Read(std::filesystem::path(FPaths::FromUtf8(FilePath.empty() ? Path : FilePath)), *Material, Error))
+	{
+		HTR_LOG(Warning, "Failed to load material: {} ({})", Path, Error);
+		return nullptr;
+	}
+
+	// 비어 있는 색/노멀 칸은 DefaultMaterial처럼 흰색/평평한 노멀로 채운다
+	if (!Material->GetTexture(0))
+		Material->SetTexture(0, GetAssetByPath<UTexture2D>("WhiteTexture"));
+	if (!Material->GetTexture(1))
+		Material->SetTexture(1, GetAssetByPath<UTexture2D>("FlatNormalTexture"));
+
+	Material->bIsInstance = false;
+	Material->Parent = nullptr;
+	RegisterAsset(Path, Material);
+	return Material;
+}
+
+bool UAssetManager::SaveMaterial(UMaterial& Material, const FString& Path, FString& OutError)
+{
+	const FString FilePath = FAssetUtils::ResolveAssetFilePath(Path);
+	return MaterialFile::Write(std::filesystem::path(FPaths::FromUtf8(FilePath.empty() ? Path : FilePath)), Material, OutError);
 }

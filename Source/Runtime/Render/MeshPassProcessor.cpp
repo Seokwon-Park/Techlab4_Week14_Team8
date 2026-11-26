@@ -55,22 +55,21 @@ namespace
 			| (static_cast<uint64>(Group.LODIndex & 0x3) << 29);
 	}
 
-	bool BuildBatch(FMeshDrawBatch& Batch, FVertexBuffer* VB, FIndexBuffer* IB,
+	bool BuildBatch(FMeshDrawBatch& Batch, const FVertexFactory* VertexFactory,
 		UMaterial* Material, EMeshPassType Pass, const FSceneView& View, ELightingModel LightingModel,
 		const void* OverrideParams = nullptr, uint32 OverrideSize = 0)
 	{
-		if (!VB || !IB || !Material) return false;
-		Batch.VertexBuffer = VB;
-		Batch.IndexBuffer = IB;
-		if (!Batch.VertexBuffer || !Batch.IndexBuffer) return false;
+		if (!VertexFactory || !VertexFactory->IsValid() || !Material) return false;
+		Batch.VertexFactory = VertexFactory;
 		const bool bUsesUberShader = Pass == EMeshPassType::Forward || Pass == EMeshPassType::WorldNormal;
 		if (bUsesUberShader)
 		{
 			const bool bWorldNormal = Pass == EMeshPassType::WorldNormal;
 			FPipelineState* Base = FRenderResourceManager::GetPSO(bWorldNormal
 				? EPSOType::StaticMesh_WorldNormal : EPSOType::StaticMesh_Forward);
+			// Unlit 머티리얼은 뷰의 조명 모델과 상관없이 Unlit 변형으로 그린다
 			FShaderProgram* Shader = bWorldNormal ? (Base ? Base->Shader : nullptr)
-				: FRenderResourceManager::GetForwardShaderProgram(LightingModel);
+				: FRenderResourceManager::GetForwardShaderProgram(Material->IsUnlit() ? ELightingModel::Unlit : LightingModel);
 			if (!Base || !Shader || !Shader->VertexShader || !Shader->PixelShader) return false;
 			Batch.Pipeline = *Base;
 			Batch.Pipeline.Shader = Shader;
@@ -90,8 +89,9 @@ namespace
 			UTexture2D* Color = Material->Textures.IsEmpty() ? nullptr : Material->Textures[0];
 			UTexture2D* Normal = Material->Textures.Num() > 1 ? Material->Textures[1] : nullptr;
 			const bool bHasColor = Color && Color->GetResource() && Color->GetResource()->GetSRV();
-			Params.SurfaceParams = FVector4(Material->bFlipNormalY ? 1.0f : 0.0f, 0.0f, bHasColor ? 1.0f : 0.0f,
-				GetNormalEncoding(Normal));
+			// y: Masked 알파 기준값(0이면 끔). UberLit.hlsl의 SurfaceParams와 같은 순서
+			Params.SurfaceParams = FVector4(Material->bFlipNormalY ? 1.0f : 0.0f, Material->GetMaskClipValue(),
+				bHasColor ? 1.0f : 0.0f, GetNormalEncoding(Normal));
 			const FVector2 UV = Material->UVScrollSpeed * EngineTimer::GetTotalTime();
 			Params.UVTransform = FVector4(UV.X, UV.Y, 1.0f, 1.0f);
 			std::memcpy(Batch.MaterialData.data(), &Params, sizeof(Params));
@@ -110,12 +110,14 @@ namespace
 			Batch.bForceWireframe = Pass == EMeshPassType::GBuffer && View.bIsWireframe;
 			if (Material->PSOType == EPSOType::StaticMesh_Opaque ||
 				Material->PSOType == EPSOType::StaticMesh_Translucent ||
+				Material->PSOType == EPSOType::StaticMesh_Additive ||
 				Material->PSOType == EPSOType::StaticMesh_Wireframe)
 			{
 				FStaticMeshMaterialParams Params{};
 				Params.BaseColor = Material->BaseColor;
 				Params.UVOffset = Material->UVScrollSpeed * EngineTimer::GetTotalTime();
-				if (Material->PSOType == EPSOType::StaticMesh_Translucent)
+				Params.MaskParams.X = Material->GetMaskClipValue();
+				if (Material->PSOType == EPSOType::StaticMesh_Translucent || Material->PSOType == EPSOType::StaticMesh_Additive)
 				{
 					UTexture2D* Color = Material->Textures.IsEmpty() ? nullptr : Material->Textures[0];
 					Params.TextureFlags.X = Pass == EMeshPassType::TranslucentBeforeDOF && NeedsSRGBDecode(Color) ? 1.0f : 0.0f;
@@ -142,6 +144,7 @@ namespace
 		}
 		// 그림자 깊이 패스는 전용 래스터라이저 상태(깊이 클립 설정)를 그대로 쓴다
 		Batch.bTwoSided = Material->bTwoSided && Pass != EMeshPassType::ShadowDepth;
+		Batch.bIsMasked = Material->IsMasked();
 		Batch.Sampler = Material->SamplerState;
 		Batch.Textures.Reserve(Material->Textures.Num());
 		for (int32 Index = 0; Index < Material->Textures.Num(); ++Index)
@@ -162,14 +165,14 @@ namespace
 		return true;
 	}
 
-	// 패킷에 본 버퍼가 있으면 같은 패스의 GPU 스킨 변형으로 바꾼다
-	bool ApplyGpuSkin(FMeshDrawBatch& Batch, const FRenderPacket& Packet)
+	// 배치의 셰이더를 정점 타입(GPU 스킨 등)에 맞는 변형으로 바꾼다. 메시 파티클은 호출하는 쪽이 따로 처리한다
+	bool ApplyVertexFactoryShader(FMeshDrawBatch& Batch)
 	{
-		if (!Packet.BoneBuffer) return true;
-		FShaderProgram* Skinned = FRenderResourceManager::GetShaderProgram(Batch.Pipeline.Shader->Name + "#GPU_SKIN");
-		if (!Skinned) return false;
-		Batch.Pipeline.Shader = Skinned;
-		Batch.BoneBuffer = Packet.BoneBuffer;
+		const EVertexFactoryType Type = Batch.GetVertexFactoryType();
+		if (Type == EVertexFactoryType::MeshParticle) return true;
+		FShaderProgram* Resolved = FRenderResourceManager::ResolveShader(Batch.Pipeline.Shader, Type);
+		if (!Resolved) return false;
+		Batch.Pipeline.Shader = Resolved;
 		return true;
 	}
 
@@ -269,7 +272,7 @@ bool FMeshPassProcessor::Build(const FSceneView& View, const FRenderQueue& Queue
 		for (const FStaticDrawGroup* Group : Groups)
 		{
 			FMeshDrawBatch Batch; // Render에게 전달하는 최종 구조체
-			if (!BuildBatch(Batch, Group->Mesh->GetVertexBuffer(Group->LODIndex), Group->Mesh->GetIndexBuffer(Group->LODIndex), Group->Material, Pass, View, LightingModel))
+			if (!BuildBatch(Batch, Group->Mesh->GetVertexFactory(Group->LODIndex), Group->Material, Pass, View, LightingModel))
 				return false;
 
 			Batch.Items.Reserve(static_cast<uint32>(Group->Items.size()));
@@ -295,35 +298,39 @@ bool FMeshPassProcessor::Build(const FSceneView& View, const FRenderQueue& Queue
 		if (Pass == EMeshPassType::WorldNormal &&
 			(!Packet.Material || Packet.Material->PSOType != EPSOType::StaticMesh_Opaque)) continue;
 		FMeshDrawBatch Batch;
-		FVertexBuffer* VB = Packet.Mesh ? Packet.Mesh->GetVertexBuffer(Packet.LODIndex) : Packet.VertexBuffer;
-		FIndexBuffer* IB = Packet.Mesh ? Packet.Mesh->GetIndexBuffer(Packet.LODIndex) : Packet.IndexBuffer;
-		if (!BuildBatch(Batch, VB, IB, Packet.Material, Pass, View,
+		if (!BuildBatch(Batch, Packet.GetVertexFactory(), Packet.Material, Pass, View,
 			LightingModel, Packet.MaterialParamData, Packet.MaterialParamDataSize)) return false;
-		if (!ApplyGpuSkin(Batch, Packet)) continue;
+		if (!ApplyVertexFactoryShader(Batch)) continue;
 
-		const uint32 IndexCount = Packet.IndexCount ? Packet.IndexCount : Batch.IndexBuffer->GetIndexCount();
+		const uint32 IndexCount = Packet.IndexCount ? Packet.IndexCount : Batch.GetIndexBuffer()->GetIndexCount();
 		const void* ObjectKey = Packet.Proxy ? static_cast<const void*>(Packet.Proxy) : static_cast<const void*>(&Packet);
-		if (!Packet.MeshParticleInstances.empty())
+		const std::span<const FMeshParticleInstanceVertex> MeshParticleInstances = Batch.GetMeshParticleInstances();
+		if (Batch.GetVertexFactoryType() == EVertexFactoryType::MeshParticle)
 		{
-			FShaderProgram* Variant = FRenderResourceManager::FindMeshParticleShader(*Batch.Pipeline.Shader);
+			if (MeshParticleInstances.empty()) continue;
+			FShaderProgram* Variant = FRenderResourceManager::ResolveShader(Batch.Pipeline.Shader, EVertexFactoryType::MeshParticle);
 			if (Pass == EMeshPassType::Forward)
 			{
+				// Forward 데칼이 같은 배치를 다시 그리므로 데칼 셰이더에도 인스턴싱 변형이 있어야 한다
 				const FPipelineState* Decal = FRenderResourceManager::GetPSO(EPSOType::Decal);
-				if (Decal && Decal->Shader && !FRenderResourceManager::FindMeshParticleShader(*Decal->Shader))
+				if (Decal && Decal->Shader && !FRenderResourceManager::ResolveShader(Decal->Shader, EVertexFactoryType::MeshParticle))
 					Variant = nullptr;
 			}
 			if (Variant)
 			{
-				Batch.MeshParticleInstances = Packet.MeshParticleInstances;
 				Batch.MeshParticleFallbackVS = Batch.Pipeline.Shader->VertexShader;
 				Batch.Pipeline.Shader = Variant;
 				Batch.bUseObjectSlots = false;
 				Batch.Items.Add(BuildItem(FMatrix::Identity, View, Pass, InvalidObjectSlot, Packet.StartIndex,
 					IndexCount, ObjectKey, false, true, true, ConservativeBounds, nullptr));
+				Batch.Items.Last().InstanceCount = static_cast<uint32>(MeshParticleInstances.size());
 			}
 			else
 			{
-				for (const FMeshParticleInstanceVertex& Instance : Packet.MeshParticleInstances)
+				// 인스턴싱 변형이 없으면 메시의 Local 스트림으로 인스턴스마다 그린다
+				Batch.VertexFactory = Packet.Mesh ? Packet.Mesh->GetVertexFactory(Packet.LODIndex) : nullptr;
+				if (!Batch.VertexFactory) continue;
+				for (const FMeshParticleInstanceVertex& Instance : MeshParticleInstances)
 				{
 					Batch.Items.Add(BuildItem(Instance.GetWorldMatrix(), View, Pass, InvalidObjectSlot, Packet.StartIndex,
 						IndexCount, ObjectKey, false, true, true, ConservativeBounds, nullptr));
@@ -371,13 +378,17 @@ bool FMeshPassProcessor::Build(const TArray<FPrimitiveSceneProxy*>& ShadowMeshes
 			Proxy->GetDynamicMeshElements(DynamicPackets, FViewContext());
 			for (const FRenderPacket& Packet : DynamicPackets)
 			{
-				if (!Packet.VertexBuffer || !Packet.IndexBuffer || Packet.IndexCount == 0)
+				// 그림자는 메시 정점(Local, GPU 스킨)만 그린다. 파티클 스트림은 깊이 셰이더 입력과 맞지 않고,
+				// 메시 파티클 VF는 지역 큐(DynamicPackets)가 들고 있어 이 함수 밖에서 쓸 수 없다
+				const FVertexFactory* Factory = Packet.VertexFactory;
+				if (!Factory || !Factory->IsValid() || Packet.IndexCount == 0)
+					continue;
+				if (Factory->GetType() != EVertexFactoryType::Local && Factory->GetType() != EVertexFactoryType::GpuSkin)
 					continue;
 				FMeshDrawBatch Batch{};
 				Batch.Pipeline = *Pipeline;
-				Batch.VertexBuffer = Packet.VertexBuffer;
-				Batch.IndexBuffer = Packet.IndexBuffer;
-				if (!ApplyGpuSkin(Batch, Packet)) continue;
+				Batch.VertexFactory = Factory;
+				if (!ApplyVertexFactoryShader(Batch)) continue;
 				Batch.bUseObjectSlots = false;
 				Batch.bBindViewConstants = true;
 				Batch.ObjectBindingSlot = 2;
@@ -397,14 +408,13 @@ bool FMeshPassProcessor::Build(const TArray<FPrimitiveSceneProxy*>& ShadowMeshes
 
 		FMeshDrawBatch Batch{};
 		Batch.Pipeline = *Pipeline;
-		Batch.VertexBuffer = Mesh->GetVertexBuffer(LOD);
-		Batch.IndexBuffer = Mesh->GetIndexBuffer(LOD);
+		Batch.VertexFactory = Mesh->GetVertexFactory(LOD);
 		Batch.bUseObjectSlots = false;
 		Batch.bBindViewConstants = true;
 		Batch.ObjectBindingSlot = 2;
 		Batch.ObjectStages = EShaderBindFlagBits::Vertex;
 
-		if (!Batch.VertexBuffer || !Batch.IndexBuffer)
+		if (!Batch.VertexFactory->IsValid())
 		{
 			return false;
 		}

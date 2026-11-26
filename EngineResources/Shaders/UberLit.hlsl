@@ -3,8 +3,7 @@
 #include "LightData.hlsli"
 #include "LightEvaluation.hlsli"
 #include "LightGridCommon.hlsli"
-#include "GpuSkinCommon.hlsli"
-#include "MeshParticleInstancing.hlsli"
+#include "VertexFactory.hlsli"
 
 // 셰이더 스캐너는 매크로 정의 없이 이 파일을 컴파일하므로 기본 변형에는 Lambert를 쓴다.
 // 명시적인 변형은 조명 모델 또는 뷰 모드 하나만 1로 설정한다.
@@ -52,7 +51,7 @@ cbuffer MaterialParams : register(b2)
 {
     float4 BaseColor;
     float4 Emissive;
-    float4 SurfaceParams; // x: 노멀맵 Y 반전, y: 예약, z: 컬러 텍스처 사용, w: 노멀맵 인코딩
+    float4 SurfaceParams; // x: 노멀맵 Y 반전, y: Masked 알파 기준값(0이면 끔), z: 컬러 텍스처 사용, w: 노멀맵 인코딩
     float4 UVTransform; // xy: 이동량, zw: 배율
     float4 SpecularColorShininess; // rgb: 정반사 색상, w: 광택 지수
 };
@@ -63,16 +62,7 @@ Texture2D NormalTexture : register(t1);
 SamplerState ColorSampler : register(s0);
 SamplerState SkySampler : register(s1);
 
-struct VS_IN
-{
-	float3 Position : POSITION;
-	float3 Normal : NORMAL;
-	float4 Tangent : TANGENT;
-	float2 UV : TEXCOORD;
-	float4 Color : COLOR;
-	GPU_SKIN_VS_INPUT
-    MESH_PARTICLE_VS_INPUT
-};
+// 정점 입력은 VertexFactory.hlsli의 FVertexFactoryInput (정점 타입별 변형)
 
 struct VS_OUT
 {
@@ -402,30 +392,26 @@ FLightResult CalculateTiledLighting(float3 PixelPosition, float3 P, float ViewDe
 #endif
 
 
-VS_OUT Uber_VS(VS_IN Input)
+VS_OUT Uber_VS(FVertexFactoryInput Input)
 {
     VS_OUT Output;
-    GPU_SKIN_APPLY(Input, Input.Position, Input.Normal, Input.Tangent);
-    float4x4 WorldTransform = MESH_PARTICLE_WORLD(Input);
-    float4 WorldPosition = mul(float4(Input.Position, 1.0f), WorldTransform);
+    const FVFIntermediates VF = VF_GetIntermediates(Input, World, NormalMatrix);
+    float4 WorldPosition = float4(VF.WorldPosition, 1.0f);
     float4 ViewPosition = mul(WorldPosition, View);
     Output.Position = mul(ViewPosition, Projection);
-    Output.Color = Input.Color;
-#if GPU_SKIN
+    Output.Color = VF.Color;
     if (ShadowFlags.y > 0.5f)
     {
         const uint Bone = (uint)(ShadowFlags.y - 0.5f);   // 본 번호 + 1로 실은 값을 되돌린다
-        Output.Color = float4(GpuSkinWeightColor(GpuSkinWeightForBone(Input.BlendIndices, Input.BlendWeights, Bone)), 1.0f);
+        float4 WeightColor;
+        if (VF_GetDebugWeightColor(Input, Bone, WeightColor))
+            Output.Color = WeightColor;
     }
-#endif
-    Output.UV = Input.UV * UVTransform.zw + UVTransform.xy;
+    Output.UV = VF.UV * UVTransform.zw + UVTransform.xy;
 
-    float3 N = mul(Input.Normal, MESH_PARTICLE_NORMAL(WorldTransform));
+    float3 N = VF.WorldNormal;
     Output.WorldNormal = N;
-    float3 T = mul(float4(Input.Tangent.xyz, 0.0f), WorldTransform).xyz;
-    // CPU가 구한 로컬 공간 부호에 월드 변환의 거울 반전만 반영한다.
-    float Handedness = Input.Tangent.w * (determinant((float3x3)WorldTransform) < 0.0f ? -1.0f : 1.0f);
-    Output.WorldTangent = float4(T, Handedness);
+    Output.WorldTangent = VF.WorldTangent;
 #if LIGHTING_MODEL_GOURAUD
     FLightResult Lit = CalculateLighting(float3(0.0f, 0.0f, 0.0f), WorldPosition.xyz, ViewPosition.x, N, true);
     Output.VertexDiffuse = Lit.Diffuse;
@@ -460,6 +446,9 @@ FUberOutput Uber_PS(VS_OUT Input)
     {
         SurfaceColor = Input.Color;
     }
+    // Masked 머티리얼: 알파가 기준값보다 작은 픽셀은 버린다 (DepthPrepassMasked.hlsl과 같은 판정)
+    if (SurfaceParams.y > 0.0f)
+        clip(SurfaceColor.a * BaseColor.a - SurfaceParams.y);
     float3 Albedo = SurfaceColor.rgb * BaseColor.rgb;
     float3 Diffuse;
     float3 Specular = 0.0f;
@@ -488,7 +477,7 @@ FUberOutput Uber_PS(VS_OUT Input)
 }
 
 // 현재 리소스 매니저는 .hlsl 파일을 스캔할 때 mainVS/mainPS 진입점을 찾는다.
-VS_OUT mainVS(VS_IN Input) { return Uber_VS(Input); }
+VS_OUT mainVS(FVertexFactoryInput Input) { return Uber_VS(Input); }
 // 뒷면 픽셀은 Two Sided 머티리얼에서만 들어온다. 법선을 뒤집어 보는 쪽 면 기준으로 조명한다
 FUberOutput mainPS(VS_OUT Input, bool bFrontFace : SV_IsFrontFace)
 {

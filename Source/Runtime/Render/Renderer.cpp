@@ -50,10 +50,13 @@ void FRenderer::BindBatch(const FMeshDrawBatch& Batch)
 	else if (Batch.bTwoSided && Batch.Pipeline.RasterizerState == ERasterizerState::SolidBack)
 		RenderCommand::SetRasterizerState(ERasterizerState::SolidNone);
 	
-	RenderCommand::BindVertexBuffer(Batch.VertexBuffer);
-	RenderCommand::BindIndexBuffer(Batch.IndexBuffer);
-	if (Batch.BoneBuffer)
-		RenderCommand::BindShaderResource(BoneMatrixBufferSlot, Batch.BoneBuffer, EShaderBindFlagBits::Vertex);
+	if (Batch.VertexFactory)
+		Batch.VertexFactory->Bind();
+	else
+	{
+		RenderCommand::BindVertexBuffer(nullptr);
+		RenderCommand::BindIndexBuffer(nullptr);
+	}
 
 	if (Batch.bBindViewConstants)
 		RenderCommand::BindConstantBuffer(0, ViewCB.get(), EShaderBindFlagBits::Vertex);
@@ -98,9 +101,8 @@ void FRenderer::DrawMeshes(std::span<const FMeshDrawBatch> Batches)
 				EShaderBindFlagBits::Vertex | EShaderBindFlagBits::Pixel);
 		
 		PreviousTextureCount = static_cast<uint32>(Batch.Textures.Num());
-		if (!Batch.MeshParticleInstances.empty())
+		if (const auto Instances = Batch.GetMeshParticleInstances(); !Instances.empty())
 		{
-			const auto Instances = Batch.MeshParticleInstances;
 			if (UploadedInstances != Instances.data())
 			{
 				UploadedInstances = UploadMeshParticleInstances(Instances) ? Instances.data() : nullptr;
@@ -115,7 +117,8 @@ void FRenderer::DrawMeshes(std::span<const FMeshDrawBatch> Batches)
 			for (const FMeshDrawBatch::FItem& Item : Batch.Items)
 			{
 				BindObject(Batch, Item);
-				RenderCommand::DrawIndexedInstanced(Item.IndexCount, static_cast<uint32>(Instances.size()), Item.StartIndex);
+				const uint32 InstanceCount = Item.InstanceCount ? Item.InstanceCount : static_cast<uint32>(Instances.size());
+				RenderCommand::DrawIndexedInstanced(Item.IndexCount, InstanceCount, Item.StartIndex);
 			}
 			RenderCommand::BindVertexBuffer(nullptr, 1);
 			continue;
@@ -156,7 +159,7 @@ void FRenderer::DrawMeshParticleFallback(const FMeshDrawBatch& Batch)
 		FMeshDrawBatch::FItem Item = Template;
 		const size_t NormalOffset = Batch.bBindViewConstants
 			? offsetof(FPerObjectConstants, NormalMatrix) : offsetof(FForwardObjectConstants, NormalMatrix);
-		for (const FMeshParticleInstanceVertex& Instance : Batch.MeshParticleInstances)
+		for (const FMeshParticleInstanceVertex& Instance : Batch.GetMeshParticleInstances())
 		{
 			const FMatrix World = Instance.GetWorldMatrix();
 			const FMatrix Normal = World.Inverse().GetTransposed();

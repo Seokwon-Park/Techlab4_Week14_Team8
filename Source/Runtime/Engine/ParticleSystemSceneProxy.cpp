@@ -159,8 +159,8 @@ void FParticleSystemSceneProxy::DrawSpriteEmitter(const FDynamicSpriteEmitterDat
 	FRenderPacket& Packet = Queue.AddDefaulted_GetRef();
 	Packet.Proxy = nullptr;
 	Packet.Model = Queue.StoreWorldMatrix(Src.bUseLocalSpace ? GetLocalToWorld() : FMatrix::Identity);
-	Packet.VertexBuffer = Slot.VertexBuffer.get();
-	Packet.IndexBuffer = IndexBuffer;
+	Slot.SpriteFactory.Init(Slot.VertexBuffer.get(), IndexBuffer);
+	Packet.VertexFactory = &Slot.SpriteFactory;
 	Packet.Material = Material;
 	Packet.MaterialParamData = &Slot.Constants;
 	Packet.MaterialParamDataSize = sizeof(FParticleSpriteConstants);
@@ -238,10 +238,17 @@ void FParticleSystemSceneProxy::DrawMeshEmitter(const FDynamicMeshEmitterData& D
 		}
 	}
 
-	for (FRenderPacket& Section : InstancedSections)
+	if (!InstancedSections.IsEmpty())
 	{
-		Section.MeshParticleInstances = { Instances->GetData(), static_cast<size_t>(Instances->Num()) };
-		Queue.Add(std::move(Section));
+		// 인스턴스 배열과 VertexFactory는 Queue가 이 프레임 동안 들고 있다. 섹션들은 같은 VF를 함께 쓴다
+		const FVertexFactory* InstancedFactory = Queue.AllocateMeshParticleFactory(
+			Mesh->GetVertexBuffer(0), Mesh->GetIndexBuffer(0),
+			{ Instances->GetData(), static_cast<size_t>(Instances->Num()) });
+		for (FRenderPacket& Section : InstancedSections)
+		{
+			Section.VertexFactory = InstancedFactory;
+			Queue.Add(std::move(Section));
+		}
 	}
 }
 
@@ -350,8 +357,8 @@ void FParticleSystemSceneProxy::DrawTrailEmitter(const FDynamicSpriteEmitterData
 	FRenderPacket& Packet = Queue.AddDefaulted_GetRef();
 	Packet.Proxy = nullptr;
 	Packet.Model = Queue.StoreWorldMatrix(FMatrix::Identity);
-	Packet.VertexBuffer = Slot.VertexBuffer.get();
-	Packet.IndexBuffer = IndexBuffer;
+	Slot.TrailFactory.Init(Slot.VertexBuffer.get(), IndexBuffer);
+	Packet.VertexFactory = &Slot.TrailFactory;
 	Packet.Material = Material;
 	Packet.MaterialParamData = &Slot.Constants;
 	Packet.MaterialParamDataSize = sizeof(FParticleSpriteConstants);

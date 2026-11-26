@@ -858,16 +858,19 @@ bool FSceneRenderer::RenderPrePass(FRenderGraphBuilder& Graph, FRenderer* Render
 			if (ForwardBatches.IsEmpty()) return;
 
 			// 실제 메시 패스와 같은 VS를 사용해 깊이 계산을 일치시킨다.
-			FShaderProgram DepthProgram(nullptr, DepthPipeline->Shader->PixelShader);
-			FShaderProgram SkinnedDepthProgram(nullptr, DepthPipeline->Shader->PixelShader);
-			FShaderProgram MeshParticleDepthProgram(nullptr, DepthPipeline->Shader->PixelShader);
+			// Masked 머티리얼은 알파로 픽셀을 버리는 깊이 PS를 쓴다. 없으면 일반 깊이 PS로 대신한다
+			const FShaderProgram* MaskedDepth = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("DepthPrepassMasked.hlsl"));
+			FPixelShader* MaskedDepthPS = MaskedDepth && MaskedDepth->PixelShader ? MaskedDepth->PixelShader : DepthPipeline->Shader->PixelShader;
+
+			// 배치마다 VS(정점 타입, 조명 변형)와 PS(Masked 여부) 조합이 다르므로 프로그램을 배치 수만큼 만든다
 			TArray<FMeshDrawBatch> DepthBatches = ForwardBatches;
+			TArray<FShaderProgram> DepthPrograms;
+			DepthPrograms.Reserve(DepthBatches.Num());
 			for (FMeshDrawBatch& Batch : DepthBatches)
 			{
-				// 스킨과 파티클 인스턴싱은 각각 다른 VS와 입력 레이아웃을 사용한다.
-				FShaderProgram& Program = !Batch.MeshParticleInstances.empty() ? MeshParticleDepthProgram
-					: Batch.BoneBuffer ? SkinnedDepthProgram : DepthProgram;
-				Program.VertexShader = Batch.Pipeline.Shader->VertexShader;
+				// 실제 메시 패스와 같은 VS를 사용해 깊이 계산을 일치시킨다.
+				FShaderProgram& Program = DepthPrograms.Emplace_GetRef(Batch.Pipeline.Shader->VertexShader,
+					Batch.bIsMasked ? MaskedDepthPS : DepthPipeline->Shader->PixelShader);
 				Batch.Pipeline = *DepthPipeline;
 				Batch.Pipeline.Shader = &Program;
 			}
@@ -1084,11 +1087,12 @@ bool FSceneRenderer::RenderDecals(FRenderGraphBuilder& Graph, FRenderer* Rendere
 				for (uint32 BatchIndex : TouchedBatches) {
 					FMeshDrawBatch& Header = DecalHeaders[BatchIndex];
 					Header.Pipeline = Decal->IsAdditive() ? *DecalAdditivePipeline : *DecalPipeline;
-					if (!Header.MeshParticleInstances.empty())
-					{
+					// 받는 쪽 정점 타입(GPU 스킨, 메시 파티클)에 맞는 데칼 셰이더 변형을 쓴다
+					const EVertexFactoryType ReceiverVF = Header.GetVertexFactoryType();
+					if (ReceiverVF == EVertexFactoryType::MeshParticle)
 						Header.MeshParticleFallbackVS = Header.Pipeline.Shader->VertexShader;
-						Header.Pipeline.Shader = FRenderResourceManager::FindMeshParticleShader(*Header.Pipeline.Shader);
-					}
+					if (FShaderProgram* Resolved = FRenderResourceManager::ResolveShader(Header.Pipeline.Shader, ReceiverVF))
+						Header.Pipeline.Shader = Resolved;
 					Header.Textures = { { Decal->GetDecalTexture(), EShaderBindFlagBits::Pixel } };
 					ReceiverItems += Header.Items.Num();
 					DecalBatches.Add(std::move(Header));

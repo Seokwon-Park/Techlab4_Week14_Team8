@@ -1,5 +1,5 @@
-refactor: Phase 0 기반 정비 (FrameTime 통합, PhysX 스코프 락, 물리 스탯, LuaBindings 분할)
+refactor: Phase 2 FVertexFactory 도입과 UMaterial BlendMode/.mat 에셋화
 
-- MovieScene에 있던 FFrameNumber/FFrameTime/FFrameRate를 Core/FrameTime.h로 옮겨 애니메이션·시퀀서가 같이 쓰도록 정리
-- PxSceneRead/WriteLock 직접 사용 30곳을 null-safe SCOPED_SCENE_*_LOCK 매크로로 교체하고, 물리/래그돌 구간 CPU 스탯(PhysicsStats.h)을 Profile 오버레이에 노출
-- 1500줄짜리 LuaBindings.cpp를 코어/Actor/Input/Animation 파일로 분할 (바인딩 API 변경 없음)
+- 렌더 패킷·드로우 배치의 정점/인덱스/본/인스턴스 버퍼를 FVertexFactory(Local/GpuSkin/MeshParticle/Sprite/Trail)로 통합하고, 셰이더 변형은 ResolveShader 한 곳에서 고르도록 정리
+- 메시 셰이더 6종(UberLit·반투명·그림자·데칼·아웃라인·GBuffer)이 VertexFactory.hlsli로 정점을 받도록 변경 (매크로·셰이더 키는 기존과 동일)
+- UMaterial에 Domain/BlendMode(Masked·Additive)/ShadingModel 추가, Masked 알파 클립(Forward·프리패스·GBuffer), StaticMesh_Additive PSO(끝에 추가), .mat 로드/저장. 기존 씬의 PSOType/BlendState는 그대로 읽힘

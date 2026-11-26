@@ -58,6 +58,7 @@ constexpr FPipelineTableEntry PipelineTable[] =
 	{ EPSOType::DepthOfFieldPostfilter, HITORI_ENGINE_SHADER("DepthOfFieldPostfilter.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
 	{ EPSOType::DepthOfFieldRecombine, HITORI_ENGINE_SHADER("DepthOfFieldRecombine.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
 	{ EPSOType::DepthOfFieldVisualize, HITORI_ENGINE_SHADER("DepthOfFieldVisualize.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::StaticMesh_Additive,  HITORI_ENGINE_SHADER("StaticMeshTranslucentShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::Additive, EDepthStencilState::ReadOnly },
 };
 
 static_assert(sizeof(PipelineTable) / sizeof(PipelineTable[0]) == static_cast<size_t>(EPSOType::Count));
@@ -163,15 +164,21 @@ void FRenderResourceManager::ScanShaders(const fs::path& ShaderRoot)
 		// 키는 지금까지처럼 엔진 상대 경로("EngineResources/Shaders/X.hlsl")로 둔다.
 		FString Path = FPaths::ToUtf8(Entry.path().lexically_relative(FPaths::EngineDir()));
 		LoadOrCompileShader(Path);
-		if (Source.find("GPU_SKIN_VS_INPUT") != std::string::npos)
+		// VertexFactory.hlsli로 정점을 받는 셰이더는 정점 타입마다 VS 변형을 만든다.
+		// 아직 옮기지 않은 셰이더는 예전 매크로(GPU_SKIN_VS_INPUT, MESH_PARTICLE_VS_INPUT)로 찾는다
+		const bool bUsesVertexFactory = Source.find("VertexFactory.hlsli") != std::string::npos;
+		TUniquePtr<FShaderProgram>* Base = ShaderProgramMap.Find(Path);
+		if (!Base) continue;
+		for (uint8 Index = 0; Index < static_cast<uint8>(EVertexFactoryType::Count); ++Index)
 		{
-			if (TUniquePtr<FShaderProgram>* Base = ShaderProgramMap.Find(Path))
-				CreateVertexShaderVariant(Path, "GPU_SKIN", nullptr, **Base);
-		}
-		if (Source.find("MESH_PARTICLE_VS_INPUT") != std::string::npos)
-		{
-			if (TUniquePtr<FShaderProgram>* Base = ShaderProgramMap.Find(Path))
-				CreateVertexShaderVariant(Path, "MESH_PARTICLE_INSTANCING", nullptr, **Base);
+			const FVertexFactoryTypeInfo& Info = GetVertexFactoryTypeInfo(static_cast<EVertexFactoryType>(Index));
+			if (!Info.VariantMacro) continue;
+			const bool bLegacySkin = std::strcmp(Info.VariantMacro, "GPU_SKIN") == 0
+				&& Source.find("GPU_SKIN_VS_INPUT") != std::string::npos;
+			const bool bLegacyParticle = std::strcmp(Info.VariantMacro, "MESH_PARTICLE_INSTANCING") == 0
+				&& Source.find("MESH_PARTICLE_VS_INPUT") != std::string::npos;
+			if (bUsesVertexFactory || bLegacySkin || bLegacyParticle)
+				CreateVertexShaderVariant(Path, Info.VariantMacro, nullptr, **Base);
 		}
 	}
 }
@@ -265,6 +272,16 @@ void FRenderResourceManager::CreateVertexShaderVariant(const FString& Path, cons
 FShaderProgram* FRenderResourceManager::FindMeshParticleShader(const FShaderProgram& Base)
 {
 	if (auto* Found = Get().ShaderProgramMap.Find(Base.Name + "#MESH_PARTICLE_INSTANCING"))
+		return Found->get();
+	return nullptr;
+}
+
+FShaderProgram* FRenderResourceManager::ResolveShader(FShaderProgram* Base, EVertexFactoryType VF)
+{
+	if (!Base) return nullptr;
+	const FVertexFactoryTypeInfo& Info = GetVertexFactoryTypeInfo(VF);
+	if (Info.bDedicatedShader || !Info.VariantMacro) return Base;
+	if (auto* Found = Get().ShaderProgramMap.Find(Base->Name + "#" + Info.VariantMacro))
 		return Found->get();
 	return nullptr;
 }

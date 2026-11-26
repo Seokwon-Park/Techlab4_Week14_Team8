@@ -4,6 +4,7 @@
 #include "Render/Buffer.h"
 #include "Render/StaticMeshData.h"
 #include "Render/MeshRenderData.h"
+#include "Render/VertexFactory.h"
 #include <unordered_map>
 #include <vector>
 #include "Mesh.generated.h"
@@ -15,6 +16,8 @@ struct FStaticMeshLODResource
 	FStaticMeshData Data;
 	TUniquePtr<FVertexBuffer> VertexBuffer;
 	TUniquePtr<FIndexBuffer> IndexBuffer;
+	// 버퍼를 다시 만들 수 있으므로 UStaticMesh::GetVertexFactory가 꺼낼 때마다 현재 버퍼로 맞춘다
+	mutable FLocalVertexFactory VertexFactory;
 };
 
 UCLASS()
@@ -61,6 +64,14 @@ public:
         return LODIndex == 0 ? IndexBuffer.get() : AdditionalLODs[LODIndex - 1].IndexBuffer.get();
     }
 
+    // LOD별 정점 스트림. 버퍼를 다시 만들 수 있으므로 꺼낼 때마다 현재 버퍼로 맞춘다
+    const FVertexFactory* GetVertexFactory(uint32 LODIndex) const
+    {
+        FLocalVertexFactory& Factory = LODIndex == 0 ? VertexFactory : AdditionalLODs[LODIndex - 1].VertexFactory;
+        Factory.Init(GetVertexBuffer(LODIndex), GetIndexBuffer(LODIndex));
+        return &Factory;
+    }
+
     void RebuildRenderData();
     const FLODSphere& GetLocalLODSphere() const { return LocalLODSphere; }
     const FBox& GetRenderBounds() const { return RenderBounds; }
@@ -73,6 +84,7 @@ public:
     class UBodySetup* GetBodySetup();
 private:
     static inline uint16 NextSortID = 0;
+    mutable FLocalVertexFactory VertexFactory; // LOD0
     struct FMaterialSlotsHash
     {
         size_t operator()(const std::vector<UMaterial*>& Slots) const;
