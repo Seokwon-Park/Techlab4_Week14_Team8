@@ -24,7 +24,7 @@ std::filesystem::path ResolveProjectFile(HINSTANCE hInstance, const std::filesys
 	// 프로젝트 솔루션에서 빌드한 <Name>.exe는 개발 중에 자기 프로젝트를 연다.
 	if (const std::filesystem::path Built = FPaths::BuiltProjectFile(); !Built.empty()) return Built;
 
-	const std::filesystem::path Found = FPaths::FindProjectFileIn(FPaths::EngineDir());
+	const std::filesystem::path Found = FPaths::FindDefaultProjectFile();
 	if (Found.empty())
 		MessageBoxW(nullptr, L"No .hproject file found. Pass one on the command line: HitoriGame.exe Path/To/Game.hproject",
 			L"Hitori", MB_OK | MB_ICONERROR);

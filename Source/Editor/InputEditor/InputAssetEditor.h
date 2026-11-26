@@ -42,7 +42,7 @@ public:
 	// 패널이 값을 바꿨을 수 있을 때 부른다. 다음 Tick에서 저장된 상태와 비교한다
 	void NoteEdited() { bCheckDirty = true; }
 
-	// 매핑의 Action 선택 목록. Assets 아래 *.inputaction 전부 (Assets/... 형식)
+	// 매핑의 Action 선택 목록. Content 아래 *.inputaction 전부 (Content/... 형식)
 	const std::vector<FString>& GetActionAssetPaths(bool bRefresh);
 
 protected:

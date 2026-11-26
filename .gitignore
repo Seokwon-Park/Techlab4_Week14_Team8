@@ -428,10 +428,10 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# Premake / VS generated
+# Premake / VS generated, 빌드 산출물
+# /Build/ 아래: Bin, Intermediate, Projects(.vcxproj), Generated, Cache(셰이더), Saved(최근 프로젝트 목록)
 /Build/
 /.vs/
-/Saved/
 *.sln
 *.vcxproj
 *.vcxproj.filters
@@ -442,27 +442,25 @@ imgui.ini
 editor.ini
 
 # 3D .obj 파일은 커밋 허용
-!Assets/**/*.obj
+!HitoriProject/Content/**/*.obj
 
 # Bake 결과 (실행 시 자동 생성, 원본을 수정하면 지우고 다시 실행)
 *.obj.bin
-
-# 셰이더 컴파일 캐시 (실행 시 자동 생성)
-/Intermediate/
 
 AGENTS.md
 CLAUDE.md
 
 # 빌드 결과 exe가 루트 등에 커밋되지 않게 한다. premake 실행 파일만 예외
 *.exe
-!Setup/premake5.exe
+!Setup/Build/premake5.exe
 /Docs/Runtime/ParticleSystem.md
 Tools/SnowMountain/build_snow_mountain.py
 /Tools
 /Docs/Runtime/UI/JRPG_BattleUI_Timer_Random.md
 
-# 엔진 사용자 데이터 (최근 프로젝트 목록)
-/Saved/
+# 기본 프로젝트의 생성 파일 (에디터 패키징 결과 Build/Package, 썸네일 Saved/AutoScreenshot.png)
+/HitoriProject/Build/
+/HitoriProject/Saved/
 
 # PhysX SDK 배포 바이너리
 !/Source/ThirdParty/PhysX/lib/debug/

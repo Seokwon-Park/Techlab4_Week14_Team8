@@ -32,7 +32,7 @@ protected:
     void DrawContent() override;
 
 private:
-    // Assets 폴더의 .anim.bin을 찾아 목록을 다시 만든다. 처음 그릴 때와 Refresh를 누를 때만 부른다.
+    // Content 폴더의 .anim.bin을 찾아 목록을 다시 만든다. 처음 그릴 때와 Refresh를 누를 때만 부른다.
     void Refresh();
 
     TArray<FString> Entries;

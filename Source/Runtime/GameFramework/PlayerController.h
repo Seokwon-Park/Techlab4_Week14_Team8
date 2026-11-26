@@ -47,11 +47,11 @@ public:
 	APlayerCameraManager* GetCameraManager() const { return PlayerCameraManager; }
 
 	UPROPERTY(EditAnywhere)
-	FString DebugMappingContextPath = "Assets/Input/IMC_Debug.inputcontext";
+	FString DebugMappingContextPath = "Content/Input/IMC_Debug.inputcontext";
 	UPROPERTY(EditAnywhere)
-	FString DebugCameraShakeActionPath = "Assets/Input/IA_DebugCameraShake.inputaction";
+	FString DebugCameraShakeActionPath = "Content/Input/IA_DebugCameraShake.inputaction";
 	UPROPERTY(EditAnywhere)
-	FString DebugStopCameraShakeActionPath = "Assets/Input/IA_DebugStopCameraShake.inputaction";
+	FString DebugStopCameraShakeActionPath = "Content/Input/IA_DebugStopCameraShake.inputaction";
 protected:
 	// UE의 SetupInputComponent. Controller 자체가 쓰는 Action(디버그 키 등)을 바인딩한다
 	virtual void SetupInputComponent();

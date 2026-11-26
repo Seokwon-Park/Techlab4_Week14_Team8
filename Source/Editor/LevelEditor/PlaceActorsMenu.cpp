@@ -274,14 +274,14 @@ namespace
 		return bOpen;
 	}
 
-	// Blueprint 에셋 경로("Blueprints/BP_Door.bp", Assets 기준)를 작업 폴더 기준 파일 경로로 바꾼다.
+	// Blueprint 에셋 경로("Blueprints/BP_Door.bp", Content 기준)를 작업 폴더 기준 파일 경로로 바꾼다.
 	FString ToBlueprintFile(const FString& AssetPath)
 	{
 		const std::filesystem::path Path = FPaths::FromUtf8(AssetPath);
 		std::error_code Error;
 		if (Path.is_absolute() || std::filesystem::exists(Path, Error))
 			return AssetPath;
-		return FPaths::ToUtf8((std::filesystem::path("Assets") / Path).generic_wstring());
+		return FPaths::ToUtf8((FPaths::ProjectContentDir() / Path).generic_wstring());
 	}
 }
 

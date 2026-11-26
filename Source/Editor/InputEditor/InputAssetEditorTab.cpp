@@ -283,7 +283,7 @@ void FInputAssetEditorTab::DrawActionPicker(FEnhancedActionKeyMapping& Mapping)
 			}
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Path.c_str());
 		}
-		if (Paths.empty()) ImGui::TextColored(HintColor, "No .inputaction files under Assets.");
+		if (Paths.empty()) ImGui::TextColored(HintColor, "No .inputaction files under Content.");
 		ImGui::EndCombo();
 	}
 	if (Mapping.Action)

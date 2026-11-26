@@ -32,7 +32,7 @@ namespace
 	bool IsEngineDir(const fs::path& Dir)
 	{
 		std::error_code Ec;
-		return !Dir.empty() && fs::exists(Dir / L"Resources" / L"Shader", Ec);
+		return !Dir.empty() && fs::exists(Dir / HITORI_ENGINE_SHADERS_FOLDER, Ec);
 	}
 
 	fs::path EngineDirFromProjectFile(const fs::path& ProjectFile)
@@ -75,7 +75,7 @@ bool FPaths::InitEngineDir(const fs::path& ProjectFileHint)
 		}
 	}
 
-	// 2. 빌드할 때 정해진 엔진 폴더. 프로젝트 솔루션이 Intermediate/Generated/BuildConfig에 만든다.
+	// 2. 빌드할 때 정해진 엔진 폴더. 프로젝트 솔루션이 Build/Generated/BuildConfig에 만든다.
 #ifdef HITORI_ENGINE_DIR
 	if (const fs::path Built(HITORI_ENGINE_DIR); IsEngineDir(Built))
 	{
@@ -125,6 +125,22 @@ bool FPaths::SetProject(const fs::path& ProjectFile, FString* OutError)
 	return true;
 }
 
+namespace
+{
+	FString JoinPath(const FString& Dir, const FString& Relative)
+	{
+		return Relative.empty() ? Dir : Dir + "/" + Relative;
+	}
+}
+
+fs::path FPaths::ProjectContentDir() { return FromUtf8(ProjectContentPath()); }
+fs::path FPaths::ProjectScenesDir() { return FromUtf8(ProjectScenesPath()); }
+fs::path FPaths::ProjectScriptsDir() { return FromUtf8(ProjectScriptsPath()); }
+
+FString FPaths::ProjectContentPath(const FString& Relative) { return JoinPath(ProjectContentFolder, Relative); }
+FString FPaths::ProjectScenesPath(const FString& Relative) { return JoinPath(ProjectContentPath("Scenes"), Relative); }
+FString FPaths::ProjectScriptsPath(const FString& Relative) { return JoinPath(ProjectContentPath("Scripts"), Relative); }
+
 fs::path FPaths::EngineFile(const fs::path& Relative)
 {
 	if (Relative.is_absolute()) return Relative;
@@ -133,7 +149,7 @@ fs::path FPaths::EngineFile(const fs::path& Relative)
 
 fs::path FPaths::ResolveEngineRelative(const FString& Path)
 {
-	if (StartsWithFolder(Path, "Resources") || StartsWithFolder(Path, "Intermediate"))
+	if (StartsWithFolder(Path, HITORI_ENGINE_RESOURCES_FOLDER))
 		return EngineFile(FromUtf8(Path));
 	return FromUtf8(Path);
 }
@@ -143,26 +159,36 @@ FString FPaths::EngineFileUtf8(const fs::path& Relative)
 	return ToUtf8(EngineFile(Relative));
 }
 
-fs::path FPaths::EngineContentDir()
+fs::path FPaths::EngineResourcesDir()
 {
-	return GEngineDir / L"EngineContent";
+	return GEngineDir / HITORI_ENGINE_RESOURCES_FOLDER;
 }
 
-bool FPaths::IsEngineContentPath(const FString& Path)
+bool FPaths::IsEngineResourcePath(const FString& Path)
 {
 	return StartsWithFolder(Path, "Engine");
 }
 
-FString FPaths::ResolveContentPath(const FString& Path)
+FString FPaths::ResolveEngineResourcePath(const FString& Path)
 {
-	if (!IsEngineContentPath(Path)) return Path;
-	const size_t PrefixLength = std::strlen(EngineContentPrefix);
-	return ToUtf8(EngineContentDir() / FromUtf8(Path.substr(PrefixLength)));
+	if (!IsEngineResourcePath(Path)) return Path;
+	const size_t PrefixLength = std::strlen(EngineResourcePrefix);
+	return ToUtf8(EngineResourcesDir() / FromUtf8(Path.substr(PrefixLength)));
 }
 
 fs::path FPaths::EngineSavedDir()
 {
-	return GEngineDir / L"Saved";
+	return GEngineDir / L"Build" / SavedFolder;
+}
+
+fs::path FPaths::ProjectSavedDir()
+{
+	return GProjectDir.empty() ? fs::path() : GProjectDir / SavedFolder;
+}
+
+fs::path FPaths::EngineShaderCacheDir()
+{
+	return GEngineDir / L"Build" / L"Cache" / L"Shaders";
 }
 
 FString FPaths::ToUtf8(const fs::path& Path)
@@ -185,6 +211,11 @@ fs::path FPaths::FindProjectFileIn(const fs::path& Dir)
 			return Entry.path();
 	}
 	return {};
+}
+
+fs::path FPaths::FindDefaultProjectFile()
+{
+	return FindProjectFileIn(GEngineDir / DefaultProjectFolder);
 }
 
 bool FProjectDescriptor::Load(const fs::path& File, FString* OutError)

@@ -1,6 +1,6 @@
 // HitoriHeaderTool (HHT)
 // 사용법: HitoriHeaderTool <모듈 이름> <출력 폴더> <소스 폴더>...
-//   예:   HitoriHeaderTool Runtime Intermediate/Generated/Runtime Source/Runtime
+//   예:   HitoriHeaderTool Runtime Build/Generated/Runtime Source/Runtime
 //
 // 소스 폴더의 헤더 중 UCLASS(), USTRUCT(), UENUM()이 있는 것마다 <출력 폴더>/<헤더 이름>.generated.h를 만든다.
 // 오류가 하나라도 있으면 아무 파일도 쓰지 않고 1을 반환해서 빌드를 멈춘다.

@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "SkyboxRenderer.h"
 
 #include "RenderCommand.h"
@@ -37,7 +38,7 @@ namespace
 
 bool FSkyboxRenderer::Init(const FString& PanoramaPath)
 {
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/SkyboxShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("SkyboxShader.hlsl"));
 	if (!Shader)
 	{
 		HTR_LOG(Error, "[Skybox] shader not found");

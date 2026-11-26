@@ -59,7 +59,7 @@ public:
 
 	static UInputMappingContext* Create(UObject* Outer, const char* Name);
 
-	// 에셋에서 읽었다면 그 경로(Assets 상대 키)
+	// 에셋에서 읽었다면 그 경로(Content 상대 키)
 	FString AssetPath;
 
 private:

@@ -1,5 +1,6 @@
 ﻿#include "EnginePCH.h"
 #include "Render/SceneRenderer.h"
+#include "Core/Misc/Paths.h"
 #include "Render/Renderer.h"
 #include "Render/SceneLightResources.h"
 #include "Render/RenderGraph/RenderGraph.h"
@@ -545,7 +546,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 		FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::DepthOfFieldSetup);
 		FConstantBuffer* Constants = Renderer->GetDepthOfFieldConstants();
 
-		if (Pipeline && Pipeline->Shader && Constants && Pipeline->Shader->Name == "Resources/Shader/DepthOfFieldSetup.hlsl")
+		if (Pipeline && Pipeline->Shader && Constants && Pipeline->Shader->Name == HITORI_ENGINE_SHADER("DepthOfFieldSetup.hlsl"))
 		{
 			DepthOfFieldSetupData Data{};
 			Data.ProjectionA = View.ProjectionMatrix.M[0][2];
@@ -575,7 +576,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 			{
 				FPipelineState* VisualizePipeline = FRenderResourceManager::GetPSO(EPSOType::DepthOfFieldVisualize);
 				if (VisualizePipeline && VisualizePipeline->Shader &&
-					VisualizePipeline->Shader->Name == "Resources/Shader/DepthOfFieldVisualize.hlsl")
+					VisualizePipeline->Shader->Name == HITORI_ENGINE_SHADER("DepthOfFieldVisualize.hlsl"))
 				{
 					FRenderGraphRasterPassDesc VisualizePass{};
 					VisualizePass.Name = "DOF.Visualize";
@@ -597,7 +598,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 
 			FPipelineState* GatherPipeline = FRenderResourceManager::GetPSO(EPSOType::DepthOfFieldGather);
 			if (GatherPipeline && GatherPipeline->Shader &&
-				GatherPipeline->Shader->Name == "Resources/Shader/DepthOfFieldGather.hlsl")
+				GatherPipeline->Shader->Name == HITORI_ENGINE_SHADER("DepthOfFieldGather.hlsl"))
 			{
 				const FRenderGraphTextureDesc GatherDesc{
 					(Width + 1) / 2, (Height + 1) / 2, ETextureFormat::R16G16B16A16_Float
@@ -626,7 +627,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 				FRenderGraphTextureRef RecombineFar = FarLayer;
 				FPipelineState* PostfilterPipeline = FRenderResourceManager::GetPSO(EPSOType::DepthOfFieldPostfilter);
 				if (PostfilterPipeline && PostfilterPipeline->Shader &&
-					PostfilterPipeline->Shader->Name == "Resources/Shader/DepthOfFieldPostfilter.hlsl")
+					PostfilterPipeline->Shader->Name == HITORI_ENGINE_SHADER("DepthOfFieldPostfilter.hlsl"))
 				{
 					const FRenderGraphTextureRef NearFiltered = Graph.CreateTexture(GatherDesc, "DOF.NearFiltered");
 					const FRenderGraphTextureRef FarFiltered = Graph.CreateTexture(GatherDesc, "DOF.FarFiltered");
@@ -655,7 +656,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 
 				FPipelineState* RecombinePipeline = FRenderResourceManager::GetPSO(EPSOType::DepthOfFieldRecombine);
 				if (RecombinePipeline && RecombinePipeline->Shader &&
-					RecombinePipeline->Shader->Name == "Resources/Shader/DepthOfFieldRecombine.hlsl")
+					RecombinePipeline->Shader->Name == HITORI_ENGINE_SHADER("DepthOfFieldRecombine.hlsl"))
 				{
 					const FRenderGraphTextureRef RecombinedHDR = Graph.CreateTexture(HDRDesc, "DOF.RecombinedHDR");
 					if (!RecombinedHDR) return false;
@@ -1116,7 +1117,7 @@ bool FSceneRenderer::RenderTireMarks(FRenderGraphBuilder& Graph, FRenderer* Rend
 	if (Scene.GetTireMarks().IsEmpty() || !Scene.TireMarkTexture) return true;
 	FConstantBuffer* ViewBuffer = Renderer->GetTireMarkViewConstants();
 	FStructuredBuffer* MarkBuffer = Renderer->GetTireMarkBuffer();
-	FShaderProgram* Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/TireMarkShader.hlsl");
+	FShaderProgram* Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("TireMarkShader.hlsl"));
 	if (!ViewBuffer || !MarkBuffer || !Shader || !Shader->VertexShader || !Shader->PixelShader) return true;
 
 	FRenderGraphRasterPassDesc Pass = MakeViewportPass("TireMarks", SceneTextures.Color);

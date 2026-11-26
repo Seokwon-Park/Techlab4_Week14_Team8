@@ -42,11 +42,11 @@ public:
 	UCameraComponent* CameraComponent = nullptr;
 
 	UPROPERTY(EditAnywhere)
-	FString CharacterMappingContextPath = "Assets/Input/IMC_Character.inputcontext";
+	FString CharacterMappingContextPath = "Content/Input/IMC_Character.inputcontext";
 	UPROPERTY(EditAnywhere)
-	FString JumpActionPath = "Assets/Input/IA_Jump.inputaction";
+	FString JumpActionPath = "Content/Input/IA_Jump.inputaction";
 	UPROPERTY(EditAnywhere)
-	FString AttackActionPath = "Assets/Input/IA_Attack.inputaction";
+	FString AttackActionPath = "Content/Input/IA_Attack.inputaction";
 
 protected:
 	UInputAction* JumpAction = nullptr;

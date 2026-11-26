@@ -46,7 +46,7 @@ public:
 		return Ref;
 	}
 
-	// 에셋에서 읽었다면 그 경로(Assets 상대 키). 코드로 만든 Action은 비어 있다
+	// 에셋에서 읽었다면 그 경로(Content 상대 키). 코드로 만든 Action은 비어 있다
 	FString AssetPath;
 
 	// 코드에서 Action을 만들 때 쓰는 헬퍼. 반환된 객체는 호출한 쪽이 delete로 해제한다

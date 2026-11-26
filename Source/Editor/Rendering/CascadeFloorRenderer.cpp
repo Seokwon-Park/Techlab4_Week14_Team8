@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Editor/Rendering/CascadeFloorRenderer.h"
 #include "Render/RenderCommand.h"
 #include "Render/RenderResourceManager.h"
@@ -7,7 +8,7 @@
 
 void FCascadeFloorRenderer::Init()
 {
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/CascadeFloorShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("CascadeFloorShader.hlsl"));
 	PipelineState.Shader = Shader;
 	PipelineState.Topology = EPrimitiveTopology::TriangleList;
 	PipelineState.RasterizerState = ERasterizerState::SolidNone;

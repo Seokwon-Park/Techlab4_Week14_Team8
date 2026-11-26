@@ -19,7 +19,7 @@ public:
 	static constexpr const char* ActionExtension = ".inputaction";
 	static constexpr const char* ContextExtension = ".inputcontext";
 
-	// 경로는 "Assets/Input/IA_Move.inputaction" 또는 Assets 상대 키 "Input/IA_Move.inputaction"
+	// 경로는 "Content/Input/IA_Move.inputaction" 또는 Content 상대 키 "Input/IA_Move.inputaction"
 	// 실패하면 로그를 남기고 nullptr
 	static UInputAction* LoadInputAction(const FString& Path);
 	static UInputMappingContext* LoadMappingContext(const FString& Path);

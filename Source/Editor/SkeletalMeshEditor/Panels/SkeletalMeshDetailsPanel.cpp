@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "SkeletalMeshDetailsPanel.h"
+#include "Core/Misc/Paths.h"
 #include "Editor/SkeletalMeshEditor/SkeletalMeshEditor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Math/Transform.h"
@@ -12,11 +13,11 @@
 
 namespace
 {
-	// Assets/Physics/<메시 이름>.physicsasset
+	// Content/Physics/<메시 이름>.physicsasset
 	std::filesystem::path DebugPhysicsAssetPath(const FString& MeshAssetPath)
 	{
 		const FString Stem = std::filesystem::path(MeshAssetPath).stem().string();
-		return std::filesystem::path("Assets/Physics") / (Stem + ".physicsasset");
+		return FPaths::ProjectContentDir() / "Physics" / (Stem + ".physicsasset");
 	}
 
 	// 3단계 확인용: 바디 2개, 관절 1개, 충돌 끄기 1쌍을 손으로 만든 에셋
@@ -76,7 +77,7 @@ void FSkeletalMeshDetailsPanel::DrawPhysicsDebug()
 	// 3단계: 직렬화 왕복
 	if (ImGui::Button("Save/Load Test Asset"))
 	{
-		DebugMessage = SaveAndReload(*MakeTestPhysicsAsset(), "Assets/Physics/_Test.physicsasset");
+		DebugMessage = SaveAndReload(*MakeTestPhysicsAsset(), FPaths::ProjectContentDir() / "Physics" / "_Test.physicsasset");
 		HTR_LOG(Info, "{}", DebugMessage);
 	}
 

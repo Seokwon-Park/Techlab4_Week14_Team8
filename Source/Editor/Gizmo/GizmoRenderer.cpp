@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Editor/Gizmo/GizmoRenderer.h"
 
 #include "Render/GeometryGenerator.h"
@@ -70,7 +71,7 @@ bool FGizmoRenderer::Init(FRenderer* InRenderer)
 
 	CB = RenderCommand::CreateConstantBuffer(sizeof(FGizmoData));
 
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/GizmoShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("GizmoShader.hlsl"));
 	PipelineState.Shader = Shader;
 	PipelineState.Topology = EPrimitiveTopology::TriangleList;
 

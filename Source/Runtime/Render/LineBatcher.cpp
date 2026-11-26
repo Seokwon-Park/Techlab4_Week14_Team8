@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "LineBatcher.h"
 #include "Components/PrimitiveComponent.h"
 
@@ -19,7 +20,7 @@ bool FLineBatcher::Init(FRenderer* InRenderer, UWorld* InWorld)
 	Renderer = InRenderer;
 	World = InWorld;
 
-	LineShader = FRenderResourceManager::GetShaderProgram("Resources/Shader/LineShader.hlsl");
+	LineShader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("LineShader.hlsl"));
 
 	PipelineState.Shader = LineShader;
 	PipelineState.Topology = EPrimitiveTopology::LineList;

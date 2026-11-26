@@ -198,7 +198,7 @@ bool FContentDrawerPanel::BrowseToFile(const fs::path& FilePath)
 	if (FilePath.empty() || !fs::is_regular_file(FilePath, Error))
 		return false;
 
-	// 드로어는 작업 폴더 기준 상대 경로("Scenes/A.scene")로 다루므로 프로젝트 안이면 상대 경로로 바꾼다.
+	// 드로어는 작업 폴더 기준 상대 경로("Content/Scenes/A.scene")로 다루므로 프로젝트 안이면 상대 경로로 바꾼다.
 	fs::path Target = FilePath;
 	const fs::path Relative = fs::relative(FilePath, fs::current_path(Error), Error);
 	if (!Error && !Relative.empty() && *Relative.begin() != "..")
@@ -497,12 +497,10 @@ void FContentDrawerPanel::DrawSidebar()
 		{
 			// 검색 중에는 트리 대신 이름이 맞는 폴더를 평평하게 보여 준다.
 			DrawFolderSearchResults(AssetRootPath);
-			DrawFolderSearchResults(SceneRootPath);
 		}
 		else
 		{
 			DrawFolderTree(AssetRootPath);
-			DrawFolderTree(SceneRootPath);
 			bRevealCurrentFolder = false;
 		}
 		ImGui::PopStyleVar();
@@ -520,7 +518,7 @@ void FContentDrawerPanel::DrawFolderTree(const fs::path& Path)
 		return;
 
 	const float S = EditorIcons::GetScale();
-	const bool bRoot = Path == AssetRootPath || Path == SceneRootPath;
+	const bool bRoot = Path == AssetRootPath;
 
 	// 하위 폴더가 없으면 화살표 없는 잎 노드로 그린다.
 	bool bHasChildren = false;
@@ -695,7 +693,7 @@ void FContentDrawerPanel::DrawToolbar()
 	const float GearWidth = EditorIcons::CalcButtonWidth(true, nullptr, false, H);
 	const float RightWidth = DockWidth + GearWidth + 4.0f * S;
 
-	// 경로 (All > Assets > Particle). 조각을 누르면 그 폴더로 간다.
+	// 경로 (All > Content > Particle). 조각을 누르면 그 폴더로 간다.
 	ImGui::SameLine(0.0f, 8.0f * S);
 	const ImVec2 CrumbMin = ImGui::GetCursorScreenPos();
 	const float CrumbWidth = ImMax(60.0f * S, ImGui::GetContentRegionAvail().x - RightWidth - 8.0f * S);
@@ -1298,7 +1296,7 @@ void FContentDrawerPanel::DrawCreatePopups()
 	NameDialog("Create Widget", ".widget", [this](const fs::path& Target)
 	{
 		if (OnCreateWidget)
-			OnCreateWidget(Target.generic_string());   // "Assets/UI/GameOver.widget" 형식
+			OnCreateWidget(Target.generic_string());   // "Content/UI/GameOver.widget" 형식
 	});
 
 	NameDialog("Create Particle System", ".particle", [this](const fs::path& Target)

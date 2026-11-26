@@ -32,7 +32,7 @@ namespace
 		return ImGui::ColorConvertFloat4ToU32(C);
 	}
 
-	// EEditorIcon 순서대로 EngineContent/Editor/Icons/<이름>.svg
+	// EEditorIcon 순서대로 EngineResources/Icons/Editor/<이름>.svg
 	constexpr const char* IconFileNames[] = {
 		nullptr,          // None
 		"Save",
@@ -174,7 +174,7 @@ namespace
 			}
 
 			Rasterizer = nsvgCreateRasterizer();
-			const std::filesystem::path Dir = FPaths::EngineContentDir() / "Editor" / "Icons";
+			const std::filesystem::path Dir = FPaths::EngineResourcesDir() / "Icons" / "Editor";
 			for (int32 I = 1; I < static_cast<int32>(EEditorIcon::Count); ++I)
 				Images[I] = LoadSvg(Dir / (std::string(IconFileNames[I]) + ".svg"));
 			return true;

@@ -55,7 +55,7 @@ public:
 	// UE는 TSoftObjectPtr<UPhysicsAsset>. 저장은 경로로, 로드 때 UAssetManager로 찾아 연결
 	UPhysicsAsset* PhysicsAsset = nullptr;
 	FString PhysicsAssetPath;
-	// 처음 요청할 때 PhysicsAssetPath(비어 있으면 Assets/Physics/<메시 파일 이름>.physicsasset)에서 읽어 연결한다
+	// 처음 요청할 때 PhysicsAssetPath(비어 있으면 Content/Physics/<메시 파일 이름>.physicsasset)에서 읽어 연결한다
 	UPhysicsAsset* GetPhysicsAsset();
 private:
 	bool bPhysicsAssetLoadTried = false;

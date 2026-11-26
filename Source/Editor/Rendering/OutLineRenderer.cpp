@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Editor/Rendering/OutLineRenderer.h"
 #include "Asset/AssetManager.h"
 #include "Render/RenderCommand.h"
@@ -12,7 +13,7 @@
 void FOutlineRenderer::Init(FRenderer* InRenderer)
 {
 	Renderer = InRenderer;
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/OutlineShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("OutlineShader.hlsl"));
 
 	// 1패스: 원본 크기 메시 영역을 색 없이 스텐실에만 기록한다.
 	MaskPipelineState.Shader = Shader;

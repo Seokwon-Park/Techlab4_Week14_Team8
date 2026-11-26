@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "PhysicsAssetEditor.h"
+#include "Core/Misc/Paths.h"
 #include "PhysicsAssetEditorTab.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -127,7 +128,7 @@ FString FPhysicsAssetEditor::GetSaveFilePath() const
 		return Mesh->PhysicsAssetPath;
 	}
 	// USkeletalMesh::GetPhysicsAsset이 읽는 기본 위치와 같아야 다음에 열 때 로드된다
-	return (std::filesystem::path("Assets/Physics") /
+	return (FPaths::ProjectContentDir() / "Physics" /
 		(std::filesystem::path(Mesh->GetPath()).stem().string() + ".physicsasset")).generic_string();
 }
 

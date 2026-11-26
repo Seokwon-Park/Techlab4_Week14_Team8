@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "TextRenderer.h"
 
 #include "Camera/CameraComponent.h"
@@ -51,7 +52,7 @@ void FTextRenderer::Init(uint32 InMaxCharacters)
 	MVP = RenderCommand::CreateConstantBuffer(sizeof(TextTransformData));
 	ScreenPx = RenderCommand::CreateConstantBuffer(sizeof(MSDFData));
 
-	TextShader = FRenderResourceManager::GetShaderProgram("Resources/Shader/TextShader.hlsl");
+	TextShader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("TextShader.hlsl"));
 
 	PipelineState.Shader = TextShader;
 	PipelineState.Topology = EPrimitiveTopology::TriangleList;

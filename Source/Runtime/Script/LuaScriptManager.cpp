@@ -61,17 +61,17 @@ sol::state& FLuaScriptManager::GetState()
 
 FString FLuaScriptManager::MakeScriptPath(const FString& SceneName, const FString& ActorName)
 {
-	return "Scripts/" + SceneName + "_" + ActorName + ".lua";
+	return FPaths::ProjectScriptsPath(SceneName + "_" + ActorName + ".lua");
 }
 
 FString FLuaScriptManager::GetTemplatePath()
 {
-	// 프로젝트에 Scripts/template.lua가 있으면 그것을 쓰고, 없으면 엔진 콘텐츠의 기본 템플릿을 쓴다.
-	const FString ProjectTemplate = "Scripts/template.lua";
+	// 프로젝트에 Content/Scripts/template.lua가 있으면 그것을 쓰고, 없으면 엔진 리소스의 기본 템플릿을 쓴다.
+	const FString ProjectTemplate = FPaths::ProjectScriptsPath("template.lua");
 	std::error_code Ec;
 	if (fs::exists(ToPath(ProjectTemplate), Ec))
 		return ProjectTemplate;
-	return FPaths::ResolveContentPath("Engine/Scripts/template.lua");
+	return FPaths::ResolveEngineResourcePath("Engine/Scripts/template.lua");
 }
 
 bool FLuaScriptManager::CreateScriptFromTemplate(const FString& Path)

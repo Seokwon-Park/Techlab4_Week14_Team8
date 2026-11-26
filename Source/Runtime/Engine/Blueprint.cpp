@@ -28,7 +28,7 @@ namespace
 {
 	struct FBlueprintData
 	{
-		FString AssetPath;        // Assets 기준 경로 ("Blueprints/BP_Door.bp")
+		FString AssetPath;        // Content 기준 경로 ("Blueprints/BP_Door.bp")
 		FString ParentClassName;
 		TArray<uint8> FileBytes;  // 기본값을 적용할 때마다 다시 읽는다
 		// "Graphs" (EventGraph, Construction Script). 없으면 nullptr.
@@ -63,7 +63,7 @@ namespace
 	FString ToAssetPath(const std::filesystem::path& File)
 	{
 		std::error_code Ec;
-		const std::filesystem::path Relative = std::filesystem::relative(File, "Assets", Ec);
+		const std::filesystem::path Relative = std::filesystem::relative(File, FPaths::ProjectContentDir(), Ec);
 		if (!Ec && !Relative.empty() && Relative.native().find(L"..") != 0)
 			return FPaths::ToUtf8(Relative.generic_wstring());
 		return FPaths::ToUtf8(File.generic_wstring());
@@ -631,7 +631,7 @@ bool FBlueprint::SetDefaultStringProperty(UClass* BlueprintClass, const FString&
 	const std::string Text = Root.dump(1, '\t');
 
 	const std::filesystem::path File = FPaths::FromUtf8(Data->AssetPath.find(':') == FString::npos
-		? "Assets/" + Data->AssetPath : Data->AssetPath);
+		? FPaths::ProjectContentPath(Data->AssetPath) : Data->AssetPath);
 	{
 		std::ofstream Stream(File, std::ios::binary | std::ios::trunc);
 		if (!Stream)

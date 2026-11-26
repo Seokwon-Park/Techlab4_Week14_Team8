@@ -6,6 +6,7 @@
 
 #include "Launch/EntryPoint.h"
 #include "Core/Misc/Paths.h"
+#include "Launch/Windows/WindowsPlatformCrashContext.h"
 #include "Core/CoreGlobals.h"
 
 #include "Asset/AssetManager.h"
@@ -97,7 +98,7 @@ namespace
 		const std::filesystem::path& CommandLineProject = GetStartupOptions().Project;
 		if (!FPaths::InitEngineDir(CommandLineProject))
 		{
-			MessageBoxW(nullptr, L"Cannot find the engine folder (Resources/Shader).", L"Hitori", MB_OK | MB_ICONERROR);
+			MessageBoxW(nullptr, L"Cannot find the engine folder (EngineResources/Shaders).", L"Hitori", MB_OK | MB_ICONERROR);
 			return false;
 		}
 
@@ -131,6 +132,8 @@ bool FEngineLoop::PreInit(HINSTANCE hInstance, UClass* EngineClass)
 	{
 		return false;
 	}
+	// 크래시 덤프도 프로젝트 데이터와 같이 <프로젝트>/Saved에 둔다 (UE의 <Project>/Saved/Crashes).
+	WindowsPlatformCrashContext::SetCrashDumpDirectory(FPaths::ProjectSavedDir() / L"Crashes");
 
 	// 시작 시간 전체(Phase/Total)는 PreInit에서 재기 시작해 Init 끝에서 기록한다.
 	StartupBeginCycles = FPlatformTime::GetCycles64();
@@ -204,7 +207,7 @@ bool FEngineLoop::PreInit(HINSTANCE hInstance, UClass* EngineClass)
 	{
 		// 씬 파일이 BP 클래스 이름으로 액터를 저장하므로 씬을 열기 전에 BP 클래스를 모두 등록한다.
 		FLoadStageTimer Timer{ "Phase/RegisterBlueprints" };
-		FBlueprint::RegisterAll("Assets");
+		FBlueprint::RegisterAll(FPaths::ProjectContentDir());
 	}
 
 	{

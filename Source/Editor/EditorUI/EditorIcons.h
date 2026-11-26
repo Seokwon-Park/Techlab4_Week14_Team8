@@ -5,7 +5,7 @@
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 
-// 에디터 아이콘. UE5 Slate처럼 EngineContent/Editor/Icons/<이름>.svg 파일을 쓴다.
+// 에디터 아이콘. UE5 Slate처럼 EngineResources/Icons/Editor/<이름>.svg 파일을 쓴다.
 // 그리는 크기(픽셀)마다 SVG를 래스터화해 아틀라스 텍스처에 굽고, 정점 색으로 칠한다.
 // SVG는 흰색으로 그리고, 색을 그대로 남길 부분(AddActor의 초록 + 등)만 색을 넣는다.
 enum class EEditorIcon : uint8

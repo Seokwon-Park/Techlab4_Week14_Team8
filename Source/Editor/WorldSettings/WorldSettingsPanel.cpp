@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "Editor/WorldSettings/WorldSettingsPanel.h"
+#include "Core/Misc/Paths.h"
 
 #include <algorithm>
 #include <cctype>
@@ -204,7 +205,7 @@ void FWorldSettingsPanel::DrawGameModeSection()
 		{
 			ImGui::SameLine(0.0f, 4.0f * S);
 			if (EditorIcons::Button("##EditGameMode", EEditorIcon::Script, IM_COL32(60, 140, 230, 255), nullptr, false, false, ButtonW))
-				OpenAssetCallback("Assets/" + FBlueprint::GetAssetPath(OverrideClass));
+				OpenAssetCallback(FPaths::ProjectContentPath(FBlueprint::GetAssetPath(OverrideClass)));
 			ImGui::SetItemTooltip("Edit %s", OverrideClass->Name.c_str());
 		}
 		const float ResetW = ButtonW;

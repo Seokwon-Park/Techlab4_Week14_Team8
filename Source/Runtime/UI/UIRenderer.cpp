@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "UI/UIRenderer.h"
 
 #include "Render/RenderCommand.h"
@@ -14,7 +15,7 @@ void FUIRenderer::Init(uint32 InMaxQuads)
 	IndexBuffer = RenderCommand::CreateDynamicIndexBuffer(MaxIndices);
 	ParamBuffer = RenderCommand::CreateConstantBuffer(sizeof(FUIParams));
 
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/UIShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("UIShader.hlsl"));
 
 	PipelineState.Shader = Shader;
 	PipelineState.Topology = EPrimitiveTopology::TriangleList;

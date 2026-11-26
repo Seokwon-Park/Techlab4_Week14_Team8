@@ -118,7 +118,7 @@ const std::vector<FString>& FInputAssetEditor::GetActionAssetPaths(bool bRefresh
 
 	ActionAssetPaths.clear();
 	std::error_code Error;
-	for (auto It = std::filesystem::recursive_directory_iterator("Assets", Error);
+	for (auto It = std::filesystem::recursive_directory_iterator(FPaths::ProjectContentDir(), Error);
 		!Error && It != std::filesystem::recursive_directory_iterator(); It.increment(Error))
 	{
 		if (!It->is_regular_file(Error)) continue;

@@ -62,7 +62,7 @@ namespace
 		return EAssetType::None;
 	}
 
-	// 저장된 씬에 "Assets/..."와 "Models/..."가 섞여 있어 둘 다 같은 키로 바꾼다. 내장 에셋 이름은 그대로 남는다.
+	// 저장된 씬에 "Content/..."와 "Models/..."가 섞여 있어 둘 다 같은 키로 바꾼다. 내장 에셋 이름은 그대로 남는다.
 	FString MakeLookupKey(const FString& Path)
 	{
 		FString Key = Path;
@@ -71,19 +71,12 @@ namespace
 		{
 			Key.erase(0, 2);
 		}
-		if (Key.starts_with("Assets/"))
+		const FString ContentPrefix = FPaths::ProjectContentPath() + "/";
+		if (Key.starts_with(ContentPrefix))
 		{
-			Key.erase(0, 7);
+			Key.erase(0, ContentPrefix.size());
 		}
 		return Key;
-	}
-
-	// 엔진 콘텐츠로 옮긴 파일의 옛 키("Icons/Point.png")를 엔진 키("Engine/Icons/Point.png")로 바꾼다.
-	// 옛 씬은 "Assets/Icons/..."를 저장하고 있으므로, 프로젝트에 그 파일이 없을 때 엔진 콘텐츠에서 찾는다.
-	FString MakeEngineFallbackKey(const FString& Key)
-	{
-		if (Key.starts_with(FPaths::EngineContentPrefix)) return {};
-		return FPaths::EngineContentPrefix + Key;
 	}
 
 	UStaticMesh* CreateStaticMesh(const FStaticMeshData* MeshData)
@@ -162,7 +155,7 @@ namespace
 
 	FString MakeAssetKey(const FString& Path)
 	{
-		return fs::relative(Path, "Assets").generic_string();
+		return fs::relative(Path, FPaths::ProjectContentDir()).generic_string();
 	}
 }
 
@@ -183,9 +176,9 @@ void UAssetManager::Init(const FAssetLoadProgress& OnProgress)
 	}
 	{
 		FLoadStageTimer Timer{ "Init/ScanAssets" };
-		Get().ScanAssets("Assets", OnProgress);
-		// 엔진 콘텐츠는 엔진 폴더에 있고 키는 "Engine/..."이다.
-		Get().ScanAssets(FPaths::EngineContentDir(), OnProgress, FPaths::EngineContentPrefix);
+		Get().ScanAssets(FPaths::ProjectContentDir(), OnProgress);
+		// 엔진 리소스는 엔진 폴더에 있고 키는 "Engine/..."이다.
+		Get().ScanAssets(FPaths::EngineResourcesDir(), OnProgress, FPaths::EngineResourcePrefix);
 	}
 	FLoadStageTimer DefaultsTimer{ "Init/Defaults after scan" };
 	Get().CreateDefaultMeshes();
@@ -220,7 +213,7 @@ void UAssetManager::ScanAssets(const fs::path& AssetRoot, const FAssetLoadProgre
 		FString Path = Files[i].generic_string();
 		if (!KeyPrefix.empty())
 		{
-			// 엔진 콘텐츠는 경로도 "Engine/..." 그대로 둔다. 파일을 열 때 FPaths::ResolveContentPath로 바꾼다.
+			// 엔진 리소스는 경로도 "Engine/..." 그대로 둔다. 파일을 열 때 FPaths::ResolveEngineResourcePath로 바꾼다.
 			// 이렇게 해야 로드 뒤 RegisterAsset이 같은 키로 등록하고, 씬에도 "Engine/..."으로 저장된다.
 			Key = KeyPrefix + FPaths::ToUtf8(Files[i].lexically_relative(AssetRoot));
 			Path = Key;
@@ -282,12 +275,6 @@ URenderAsset* UAssetManager::FindOrLoadAsset(const FString& Path)
 	const FString* FoundSource = AssetPathMap.Find(Key);
 	if (FoundSource == nullptr)
 	{
-		// 프로젝트에 없으면 엔진 콘텐츠에서 찾는다. 프로젝트에 같은 경로의 파일이 있으면 그쪽이 먼저다.
-		const FString EngineKey = MakeEngineFallbackKey(Key);
-		if (!EngineKey.empty() && AssetPathMap.Contains(EngineKey))
-		{
-			return FindOrLoadAsset(EngineKey);
-		}
 		return nullptr;
 	}
 	const FString SourcePath = *FoundSource;
@@ -453,7 +440,7 @@ void UAssetManager::CreateDefaultMeshes()
 
 void UAssetManager::CreateDefaultMaterial() {
 	UMaterial* DefaultMat{ NewObject<UMaterial>() };
-	DefaultMat->Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/UberLit.hlsl");
+	DefaultMat->Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("UberLit.hlsl"));
 	DefaultMat->Textures.Add(GetAssetByPath<UTexture2D>("WhiteTexture"));
 	DefaultMat->Textures.Add(GetAssetByPath<UTexture2D>("FlatNormalTexture"));
 	DefaultMat->ParamLayout = EMaterialParamLayout::StaticMesh;
@@ -477,7 +464,7 @@ void UAssetManager::CreateParticleMaterial()
 {
 	UMaterial* ParticleMat = NewObject<UMaterial>();
 	ParticleMat->PSOType = EPSOType::Particle_AlphaBlend;
-	ParticleMat->Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/ParticleSubUVShader.hlsl");
+	ParticleMat->Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("ParticleSubUVShader.hlsl"));
 	ParticleMat->Textures.Add(GetAssetByPath<UTexture2D>("Engine/SubUV/StarParticle.png"));
 	ParticleMat->BlendState = EBlendState::AlphaBlend;
 	ParticleMat->DepthStencilState = EDepthStencilState::ReadOnly;
@@ -515,18 +502,8 @@ UTexture2D* UAssetManager::LoadTexture(const FString& InPath, bool GenerateMips)
 		return Cast<UTexture2D>(*Found);
 	}
 
-	// 옛 경로("Assets/Icons/Decal.png")로 불렸는데 프로젝트에는 없고 엔진 콘텐츠에 있으면 그쪽을 쓴다.
-	if (!AssetPathMap.Contains(Key))
-	{
-		const FString EngineKey = MakeEngineFallbackKey(Key);
-		if (!EngineKey.empty() && AssetPathMap.Contains(EngineKey))
-		{
-			return Cast<UTexture2D>(FindOrLoadAsset(EngineKey));
-		}
-	}
-
 	FLoadStageTimer DecodeTimer{ "Texture/Decode" };
-	const FImageData Data = ImageLoader::LoadAuto(FPaths::ResolveContentPath(InPath));
+	const FImageData Data = ImageLoader::LoadAuto(FPaths::ResolveEngineResourcePath(InPath));
 	DecodeTimer.Stop();
 	if (!Data.IsValid())
 	{
@@ -565,7 +542,7 @@ UFont* UAssetManager::LoadFontAtlas(const FString& JsonPath, const FString& Atla
 {
 	UFont* Font = NewObject<UFont>();
 
-	if (!Font->LoadFontAtlasJson(FPaths::ResolveContentPath(JsonPath)))
+	if (!Font->LoadFontAtlasJson(FPaths::ResolveEngineResourcePath(JsonPath)))
 	{
 		return nullptr;
 	}

@@ -2,6 +2,7 @@
 
 #include "Shader.h"
 #include "PipelineState.h"
+#include "Core/Misc/Paths.h"
 
 // 렌더링에 사용할 파이프라인 종류 정의
 enum class EPSOType : uint8
@@ -55,7 +56,7 @@ public:
 
 	static void Init()
 	{
-		Get().ScanShaders("Resources/Shader");
+		Get().ScanShaders(HITORI_ENGINE_SHADERS_FOLDER);
 		Get().InitPipelineStates(); // PSO 초기화 추가
 	}
 

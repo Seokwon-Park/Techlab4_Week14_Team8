@@ -206,8 +206,8 @@ void FSplashScreen::Show(HINSTANCE hInstance, const FString& ImagePath)
 		return;
 	}
 
-	// 스플래시 이미지는 엔진 콘텐츠("Engine/Splash/...")에 있다.
-	const FImageData Image = ImageLoader::Load(FPaths::ResolveContentPath(ImagePath));
+	// 스플래시 이미지는 엔진 리소스("Engine/Splash/...")에 있다.
+	const FImageData Image = ImageLoader::Load(FPaths::ResolveEngineResourcePath(ImagePath));
 	if (Image.IsValid())
 	{
 		GSplash.Bitmap = CreateBitmapFromImage(Image);

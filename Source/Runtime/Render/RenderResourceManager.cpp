@@ -24,40 +24,40 @@ struct FPipelineTableEntry
 constexpr FPipelineTableEntry PipelineTable[] =
 {
 	{ EPSOType::StaticMesh_Opaque,       nullptr,                                            EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::Opaque,       EDepthStencilState::Default },
-	{ EPSOType::StaticMesh_Translucent,  "Resources/Shader/StaticMeshTranslucentShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
+	{ EPSOType::StaticMesh_Translucent,  HITORI_ENGINE_SHADER("StaticMeshTranslucentShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
 	{ EPSOType::StaticMesh_Wireframe,    nullptr,                                    EPrimitiveTopology::TriangleList, ERasterizerState::Wireframe, EBlendState::Opaque,       EDepthStencilState::Default },
-	{ EPSOType::Particle_AlphaBlend,     "Resources/Shader/ParticleSubUVShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
-	{ EPSOType::Particle_Additive,       "Resources/Shader/ParticleSubUVShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,     EDepthStencilState::ReadOnly },
-	{ EPSOType::Skybox,                  "Resources/Shader/SkyboxShader.hlsl",        EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::ReadOnly },
-	{ EPSOType::Grid,                    "Resources/Shader/GridShader.hlsl",          EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::AlphaBlend,   EDepthStencilState::Default },
-	{ EPSOType::Outline_Mask,            "Resources/Shader/OutlineShader.hlsl",       EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::NoColorWrite, EDepthStencilState::StencilMask },
-	{ EPSOType::Outline_Draw,            "Resources/Shader/OutlineShader.hlsl",       EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::StencilOutline },
-	{ EPSOType::StaticMesh_GBuffer,		 "Resources/Shader/StaticMeshGBufferShader.hlsl",	EPrimitiveTopology::TriangleList,	ERasterizerState::SolidBack,	EBlendState::Opaque,  EDepthStencilState::Default },
-	{ EPSOType::DeferredLighting,       "Resources/Shader/DeferredLightingShader.hlsl",    EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Disabled },
-	{ EPSOType::DeferredPointLighting,  "Resources/Shader/DeferredLightingShader.hlsl",    EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,     EDepthStencilState::Disabled },
-	{ EPSOType::ToneMap,                "Resources/Shader/ToneMapShader.hlsl",              EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Disabled },
+	{ EPSOType::Particle_AlphaBlend,     HITORI_ENGINE_SHADER("ParticleSubUVShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
+	{ EPSOType::Particle_Additive,       HITORI_ENGINE_SHADER("ParticleSubUVShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,     EDepthStencilState::ReadOnly },
+	{ EPSOType::Skybox,                  HITORI_ENGINE_SHADER("SkyboxShader.hlsl"),        EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::ReadOnly },
+	{ EPSOType::Grid,                    HITORI_ENGINE_SHADER("GridShader.hlsl"),          EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::AlphaBlend,   EDepthStencilState::Default },
+	{ EPSOType::Outline_Mask,            HITORI_ENGINE_SHADER("OutlineShader.hlsl"),       EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::NoColorWrite, EDepthStencilState::StencilMask },
+	{ EPSOType::Outline_Draw,            HITORI_ENGINE_SHADER("OutlineShader.hlsl"),       EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::StencilOutline },
+	{ EPSOType::StaticMesh_GBuffer,		 HITORI_ENGINE_SHADER("StaticMeshGBufferShader.hlsl"),	EPrimitiveTopology::TriangleList,	ERasterizerState::SolidBack,	EBlendState::Opaque,  EDepthStencilState::Default },
+	{ EPSOType::DeferredLighting,       HITORI_ENGINE_SHADER("DeferredLightingShader.hlsl"),    EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Disabled },
+	{ EPSOType::DeferredPointLighting,  HITORI_ENGINE_SHADER("DeferredLightingShader.hlsl"),    EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,     EDepthStencilState::Disabled },
+	{ EPSOType::ToneMap,                HITORI_ENGINE_SHADER("ToneMapShader.hlsl"),              EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Disabled },
 	{ EPSOType::Reserved_13,            nullptr,                                            EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Default },
-	{ EPSOType::Billboard,              "Resources/Shader/BillboardShader.hlsl",            EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
-	{ EPSOType::StaticMesh_Forward,		"Resources/Shader/UberLit.hlsl",			EPrimitiveTopology::TriangleList,			ERasterizerState::SolidBack, EBlendState::Opaque, EDepthStencilState::Default },
-	{ EPSOType::StaticMesh_WorldNormal, "Resources/Shader/UberLit.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::Opaque, EDepthStencilState::Default },
-	{ EPSOType::StaticMesh_DepthOnly, "Resources/Shader/DepthPrepass.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::NoColorWrite, EDepthStencilState::Default },
-	{ EPSOType::StaticMesh_LightShadow, "Resources/Shader/DepthPrepass.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::LightShadow, EBlendState::NoColorWrite, EDepthStencilState::Default },
-	{ EPSOType::LightCullingDebug, "Resources/Shader/LightCullingDebug.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend, EDepthStencilState::Disabled },
+	{ EPSOType::Billboard,              HITORI_ENGINE_SHADER("BillboardShader.hlsl"),            EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
+	{ EPSOType::StaticMesh_Forward,		HITORI_ENGINE_SHADER("UberLit.hlsl"),			EPrimitiveTopology::TriangleList,			ERasterizerState::SolidBack, EBlendState::Opaque, EDepthStencilState::Default },
+	{ EPSOType::StaticMesh_WorldNormal, HITORI_ENGINE_SHADER("UberLit.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::Opaque, EDepthStencilState::Default },
+	{ EPSOType::StaticMesh_DepthOnly, HITORI_ENGINE_SHADER("DepthPrepass.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::NoColorWrite, EDepthStencilState::Default },
+	{ EPSOType::StaticMesh_LightShadow, HITORI_ENGINE_SHADER("DepthPrepass.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::LightShadow, EBlendState::NoColorWrite, EDepthStencilState::Default },
+	{ EPSOType::LightCullingDebug, HITORI_ENGINE_SHADER("LightCullingDebug.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend, EDepthStencilState::Disabled },
 	{ EPSOType::ShadowTileClear, nullptr, EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::NoColorWrite, EDepthStencilState::AlwaysWrite },
-	{ EPSOType::ShadowDepth, "Resources/Shader/ShadowDepth.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::LightShadow, EBlendState::NoColorWrite, EDepthStencilState::Default },
-	{ EPSOType::ShadowProjection, "Resources/Shader/ShadowProjection.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::ShadowMaskR, EDepthStencilState::Disabled },
-	{ EPSOType::ShadowMaskVisualize, "Resources/Shader/ShadowMaskVisualize.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::Decal,			"Resources/Shader/DecalShader.hlsl",			EPrimitiveTopology::TriangleList,		ERasterizerState::SolidBack, EBlendState::AlphaBlend, EDepthStencilState::ReadOnly },
-	{ EPSOType::DecalAdditive,	"Resources/Shader/DecalShader.hlsl",			EPrimitiveTopology::TriangleList,		ERasterizerState::SolidBack, EBlendState::Additive, EDepthStencilState::ReadOnly },
-	{ EPSOType::ParticleSprite_AlphaBlend, "Resources/Shader/ParticleSpriteShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend, EDepthStencilState::ReadOnly },
-	{ EPSOType::ParticleSprite_Additive,   "Resources/Shader/ParticleSpriteShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,   EDepthStencilState::ReadOnly },
-	{ EPSOType::ParticleTrail_AlphaBlend, "Resources/Shader/ParticleTrailShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend, EDepthStencilState::ReadOnly },
-	{ EPSOType::ParticleTrail_Additive,   "Resources/Shader/ParticleTrailShader.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,   EDepthStencilState::ReadOnly },
-	{ EPSOType::DepthOfFieldSetup, "Resources/Shader/DepthOfFieldSetup.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::DepthOfFieldGather, "Resources/Shader/DepthOfFieldGather.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::DepthOfFieldPostfilter, "Resources/Shader/DepthOfFieldPostfilter.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::DepthOfFieldRecombine, "Resources/Shader/DepthOfFieldRecombine.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::DepthOfFieldVisualize, "Resources/Shader/DepthOfFieldVisualize.hlsl", EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::ShadowDepth, HITORI_ENGINE_SHADER("ShadowDepth.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::LightShadow, EBlendState::NoColorWrite, EDepthStencilState::Default },
+	{ EPSOType::ShadowProjection, HITORI_ENGINE_SHADER("ShadowProjection.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::ShadowMaskR, EDepthStencilState::Disabled },
+	{ EPSOType::ShadowMaskVisualize, HITORI_ENGINE_SHADER("ShadowMaskVisualize.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::Decal,			HITORI_ENGINE_SHADER("DecalShader.hlsl"),			EPrimitiveTopology::TriangleList,		ERasterizerState::SolidBack, EBlendState::AlphaBlend, EDepthStencilState::ReadOnly },
+	{ EPSOType::DecalAdditive,	HITORI_ENGINE_SHADER("DecalShader.hlsl"),			EPrimitiveTopology::TriangleList,		ERasterizerState::SolidBack, EBlendState::Additive, EDepthStencilState::ReadOnly },
+	{ EPSOType::ParticleSprite_AlphaBlend, HITORI_ENGINE_SHADER("ParticleSpriteShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend, EDepthStencilState::ReadOnly },
+	{ EPSOType::ParticleSprite_Additive,   HITORI_ENGINE_SHADER("ParticleSpriteShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,   EDepthStencilState::ReadOnly },
+	{ EPSOType::ParticleTrail_AlphaBlend, HITORI_ENGINE_SHADER("ParticleTrailShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend, EDepthStencilState::ReadOnly },
+	{ EPSOType::ParticleTrail_Additive,   HITORI_ENGINE_SHADER("ParticleTrailShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,   EDepthStencilState::ReadOnly },
+	{ EPSOType::DepthOfFieldSetup, HITORI_ENGINE_SHADER("DepthOfFieldSetup.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::DepthOfFieldGather, HITORI_ENGINE_SHADER("DepthOfFieldGather.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::DepthOfFieldPostfilter, HITORI_ENGINE_SHADER("DepthOfFieldPostfilter.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::DepthOfFieldRecombine, HITORI_ENGINE_SHADER("DepthOfFieldRecombine.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::DepthOfFieldVisualize, HITORI_ENGINE_SHADER("DepthOfFieldVisualize.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
 };
 
 static_assert(sizeof(PipelineTable) / sizeof(PipelineTable[0]) == static_cast<size_t>(EPSOType::Count));
@@ -82,7 +82,7 @@ void FRenderResourceManager::InitPipelineStates()
 	for (const char* Name : Names)
 	{
 		const D3D_SHADER_MACRO Defines[] = { { Name, "1" }, { nullptr, nullptr } };
-		const FString Path = "Resources/Shader/UberLit.hlsl";
+		const FString Path = HITORI_ENGINE_SHADER("UberLit.hlsl");
 		// 변형도 .cso 캐시를 쓴다(매크로 이름이 캐시 파일 이름에 들어간다). 매번 컴파일하면 Release에서 시작이 크게 늦어진다.
 		FString VSCSOPath;
 		FString PSCSOPath;
@@ -123,7 +123,7 @@ FShaderProgram* FRenderResourceManager::GetForwardShaderProgram(ELightingModel M
 	case ELightingModel::Unlit: Name = "LIGHTING_MODEL_UNLIT"; break;
 	default: break;
 	}
-	const FString Key = FString("Resources/Shader/UberLit.hlsl#") + Name;
+	const FString Key = FString(HITORI_ENGINE_SHADER("UberLit.hlsl") "#") + Name;
 	if (auto* Found = Get().ShaderProgramMap.Find(Key)) return Found->get();
 	return nullptr;
 }
@@ -160,7 +160,7 @@ void FRenderResourceManager::ScanShaders(const fs::path& ShaderRoot)
 		if (Source.find("mainVS(") == std::string::npos ||
 			Source.find("mainPS(") == std::string::npos) continue;
 
-		// 키는 지금까지처럼 엔진 상대 경로("Resources/Shader/X.hlsl")로 둔다.
+		// 키는 지금까지처럼 엔진 상대 경로("EngineResources/Shaders/X.hlsl")로 둔다.
 		FString Path = FPaths::ToUtf8(Entry.path().lexically_relative(FPaths::EngineDir()));
 		LoadOrCompileShader(Path);
 		if (Source.find("GPU_SKIN_VS_INPUT") != std::string::npos)
@@ -191,7 +191,7 @@ FShaderProgram* FRenderResourceManager::GetShaderProgram(const FString& InPath)
 	HTR_LOG(Error, "[Shader] not found: {}", InPath);
 
 	if (TUniquePtr<FShaderProgram>* Fallback =
-		Get().ShaderProgramMap.Find("Resources/Shader/DefaultShader.hlsl"))
+		Get().ShaderProgramMap.Find(HITORI_ENGINE_SHADER("DefaultShader.hlsl")))
 		return Fallback->get();
 
 	return nullptr;

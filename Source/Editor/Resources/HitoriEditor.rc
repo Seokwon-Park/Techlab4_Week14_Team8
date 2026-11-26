@@ -1,0 +1,40 @@
+#pragma code_page(65001)
+// HitoriEditor.exe 리소스: 창·exe 아이콘과 버전 정보.
+// 상대 경로는 이 .rc 파일 폴더(Source/Editor/Resources) 기준이다.
+#include <winresrc.h>
+#include "../../Runtime/Core/Windows/ResourceIds.h"
+#include "../../Runtime/Core/Misc/Version.h"
+
+LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_ICON2 ICON "../../../EngineResources/Icons/Logo/Hitori.ico"
+
+// exe 파일 속성의 자세히 탭에 보이는 정보. 이 정보가 없으면 MS 정책(Wacatac 등)에 오탐될 수 있다.
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION HITORI_VERSION_TUPLE
+ PRODUCTVERSION HITORI_VERSION_TUPLE
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041204b0"
+        BEGIN
+            VALUE "CompanyName", HITORI_COMPANY_NAME
+            VALUE "FileDescription", "Hitori Engine"
+            VALUE "FileVersion", HITORI_VERSION_STRING
+            VALUE "LegalCopyright", HITORI_COPYRIGHT
+            VALUE "ProductName", HITORI_PRODUCT_NAME
+            VALUE "ProductVersion", HITORI_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x412, 1200
+    END
+END

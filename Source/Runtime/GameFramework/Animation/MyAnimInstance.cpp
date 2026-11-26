@@ -44,11 +44,11 @@ void UMyAnimInstance::NativeInitializeAnimation()
 		};
 
 	auto* Idle = LoadSequence(
-		"Assets/FBX/UAL1_Standard/UAL1_Standard_Armature_Idle_Loop.anim.bin");
+		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Idle_Loop.anim.bin");
 	auto* Walk = LoadSequence(
-		"Assets/FBX/UAL1_Standard/UAL1_Standard_Armature_Walk_Loop.anim.bin");
+		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Walk_Loop.anim.bin");
 	auto* Running = LoadSequence(
-		"Assets/FBX/UAL1_Standard/UAL1_Standard_Armature_Jog_Fwd_Loop.anim.bin");
+		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Jog_Fwd_Loop.anim.bin");
 
 	auto* BlendSpace = NewObject<UBlendSpace1D>();
 
@@ -59,11 +59,11 @@ void UMyAnimInstance::NativeInitializeAnimation()
 	LocomotionPlayer.X = 0.f;
 
 	AttackPlayer.Sequence = LoadSequence(
-		"Assets/FBX/UAL1_Standard/UAL1_Standard_Armature_Punch_Jab.anim.bin");
+		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Punch_Jab.anim.bin");
 	AttackPlayer.bLooping = false;
 
 	HitPlayer.Sequence = LoadSequence(
-		"Assets/FBX/UAL1_Standard/UAL1_Standard_Armature_Hit_Chest.anim.bin");
+		"Content/FBX/UAL1_Standard/UAL1_Standard_Armature_Hit_Chest.anim.bin");
 	HitPlayer.bLooping = false;
 
 	StateMachine.SetInitialState(Loco);

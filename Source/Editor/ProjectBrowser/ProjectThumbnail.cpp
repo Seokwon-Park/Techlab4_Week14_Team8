@@ -123,7 +123,7 @@ namespace
 
 fs::path ProjectThumbnail::AutoScreenshotPath(const fs::path& ProjectDir)
 {
-	return ProjectDir / L"Saved" / L"AutoScreenshot.png";
+	return ProjectDir / FPaths::SavedFolder / L"AutoScreenshot.png";
 }
 
 fs::path ProjectThumbnail::Find(const fs::path& ProjectFile)

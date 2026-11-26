@@ -30,7 +30,7 @@ std::filesystem::path ResolveProjectFile(HINSTANCE hInstance, const std::filesys
 #if defined(OBJ_VIEWER) || defined(BENCHMARK)
 	// 도구 빌드는 프로젝트를 고르지 않고 엔진 폴더의 기본 프로젝트를 쓴다.
 	(void)hInstance;
-	return FromCommandLine.empty() ? FPaths::FindProjectFileIn(FPaths::EngineDir()) : FromCommandLine;
+	return FromCommandLine.empty() ? FPaths::FindDefaultProjectFile() : FromCommandLine;
 #else
 	// 프로젝트 솔루션에서 빌드한 <Name>Editor.exe는 자기 프로젝트를 연다.
 	// 그 밖에는 커맨드라인으로 받지 않았으면 UE처럼 프로젝트 브라우저에서 고르거나 새로 만든다.

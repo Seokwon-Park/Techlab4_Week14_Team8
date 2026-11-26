@@ -21,7 +21,7 @@ namespace
 	constexpr const char* WindowTitleWithHint = "Obj Viewer - Ctrl+O: Open, F: Frame";
 
 	// Asset
-	constexpr const char* DefaultMeshPath = "Assets/Models/Rover/Rover.obj";
+	constexpr const char* DefaultMeshPath = "Content/Models/Rover/Rover.obj";
 
 	// Camera Projection
 	constexpr float CameraFovDegrees = 60.0f;
@@ -79,8 +79,8 @@ namespace
 		Ofn.lpstrFile = FilePath;
 		Ofn.nMaxFile = MAX_PATH;
 		Ofn.lpstrFilter = "OBJ Files (*.obj)\0*.obj\0All Files (*.*)\0*.*\0";
-		Ofn.lpstrInitialDir = "Assets\\Models";
-		// NOCHANGEDIR: 작업 디렉터리가 바뀌면 Assets·Resources 상대 경로를 찾지 못한다.
+		Ofn.lpstrInitialDir = "Content\\Models";
+		// NOCHANGEDIR: 작업 디렉터리가 바뀌면 Content 상대 경로를 찾지 못한다.
 		Ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
 
 		return GetOpenFileNameA(&Ofn) ? FString(FilePath) : FString();

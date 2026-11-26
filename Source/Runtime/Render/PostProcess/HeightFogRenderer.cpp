@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Render/PostProcess/HeightFogRenderer.h"
 #include "Render/RenderCommand.h"
 #include "Render/RenderResourceManager.h"
@@ -8,7 +9,7 @@
 void FHeightFogRenderer::Init(FRenderer* InRenderer)
 {
 	Renderer = InRenderer;
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/HeightFogShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("HeightFogShader.hlsl"));
 	PipelineState.Shader = Shader;
 	PipelineState.Topology = EPrimitiveTopology::TriangleList;
 	PipelineState.RasterizerState = ERasterizerState::SolidNone;

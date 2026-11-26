@@ -207,11 +207,11 @@ void UEditorEngine::InitImGui()
 
 	// 기본 제목 표시줄을 없애고 ImGui 메인 메뉴 바를 제목 표시줄로 쓴다.
 	EditorTitleBar::Install(*MainWindow);
-	// 엔진 콘텐츠에 로고 이미지가 있으면 제목 표시줄 왼쪽 위 칸에 그린다. 없으면 빈 칸으로 둔다.
+	// 엔진 리소스에 로고 이미지가 있으면 제목 표시줄 왼쪽 위 칸에 그린다. 없으면 빈 칸으로 둔다.
 	{
 		const FString LogoPath = "Engine/Icons/Logo.png";
 		std::error_code Ec;
-		if (std::filesystem::exists(FPaths::FromUtf8(FPaths::ResolveContentPath(LogoPath)), Ec))
+		if (std::filesystem::exists(FPaths::FromUtf8(FPaths::ResolveEngineResourcePath(LogoPath)), Ec))
 		{
 			if (UTexture2D* Logo = UAssetManager::GetAssetByPath<UTexture2D>(LogoPath))
 				EditorTitleBar::SetLogo((ImTextureID)Logo->GetResource()->GetSRV());

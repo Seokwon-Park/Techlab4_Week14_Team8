@@ -13,6 +13,6 @@ namespace EditorDragDrop
 
 	inline constexpr const char* Component = "COMPONENT";
 
-	// 페이로드 내용: 널로 끝나는 UTF-8 에셋 경로 ("Assets/Blueprints/BP_Door.bp")
+	// 페이로드 내용: 널로 끝나는 UTF-8 에셋 경로 ("Content/Blueprints/BP_Door.bp")
 	inline constexpr const char* Blueprint = "ASSET_BLUEPRINT";
 }

@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "SkeletalMesh.h"
+#include "Core/Misc/Paths.h"
 #include "Render/RenderCommand.h"
 #include "Asset/AssetManager.h"
 #include "Physics/PhysicsAsset.h"
@@ -16,7 +17,7 @@ UPhysicsAsset* USkeletalMesh::GetPhysicsAsset()
 
 	// 스켈레탈 메시 에디터의 Generate Bodies가 저장하는 위치와 같은 규칙
 	if (PhysicsAssetPath.empty())
-		PhysicsAssetPath = (std::filesystem::path("Assets/Physics") /
+		PhysicsAssetPath = (FPaths::ProjectContentDir() / "Physics" /
 			(std::filesystem::path(GetPath()).stem().string() + ".physicsasset")).generic_string();
 	if (!std::filesystem::exists(PhysicsAssetPath)) return nullptr;
 

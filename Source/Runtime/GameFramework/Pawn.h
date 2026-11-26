@@ -58,11 +58,11 @@ public:
 
 	// 입력 에셋 경로 (UE에서 캐릭터 BP에 IMC/IA 에셋을 지정하는 자리). 디테일 패널에서 바꿀 수 있다
 	UPROPERTY(EditAnywhere)
-	FString DefaultMappingContextPath = "Assets/Input/IMC_Default.inputcontext";
+	FString DefaultMappingContextPath = "Content/Input/IMC_Default.inputcontext";
 	UPROPERTY(EditAnywhere)
-	FString MoveActionPath = "Assets/Input/IA_Move.inputaction";
+	FString MoveActionPath = "Content/Input/IA_Move.inputaction";
 	UPROPERTY(EditAnywhere)
-	FString LookActionPath = "Assets/Input/IA_Look.inputaction";
+	FString LookActionPath = "Content/Input/IA_Look.inputaction";
 
 protected:
 	// Controller의 FEnhancedInputSubsystem에 Context를 추가하고, 빙의 해제 때 자동으로 빠지도록 기억한다

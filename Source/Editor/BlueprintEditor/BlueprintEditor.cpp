@@ -25,7 +25,7 @@
 
 namespace
 {
-	// 에디터가 받은 경로("Assets/Blueprints/BP_Door.bp" 또는 Assets 기준 키)를 실제 파일 경로로 바꾼다.
+	// 에디터가 받은 경로("Content/Blueprints/BP_Door.bp" 또는 Content 기준 키)를 실제 파일 경로로 바꾼다.
 	std::filesystem::path ResolveFile(const FString& AssetPath)
 	{
 		const FString Resolved = FAssetUtils::ResolveAssetFilePath(AssetPath);

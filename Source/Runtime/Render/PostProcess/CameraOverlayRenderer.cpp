@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Render/PostProcess/CameraOverlayRenderer.h"
 #include "Render/RenderCommand.h"
 #include "Render/RenderResourceManager.h"
@@ -7,7 +8,7 @@
 void FCameraOverlayRenderer::Init(FRenderer* InRenderer)
 {
     Renderer = InRenderer;
-    Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/CameraOverlay.hlsl");
+    Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("CameraOverlay.hlsl"));
 
     PipelineState.Shader = Shader;
     PipelineState.Topology = EPrimitiveTopology::TriangleList;

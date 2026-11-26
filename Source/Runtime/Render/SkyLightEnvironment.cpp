@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Render/SkyLightEnvironment.h"
 #include "Render/ImageLoader.h"
 #include "Render/RenderCommand.h"
@@ -18,7 +19,7 @@ namespace
 	TUniquePtr<FComputeShader> CompileCompute(const char* Entry)
 	{
 		TUniquePtr<FComputeShader> Shader = RenderCommand::CreateComputeShader(RenderUtil::CompileShader(
-			"Resources/Shader/SkyLightConvolutionCS.hlsli", Entry, EShaderType::Compute));
+			HITORI_ENGINE_SHADER("SkyLightConvolutionCS.hlsli"), Entry, EShaderType::Compute));
 		if (!Shader || !Shader->IsValid())
 		{
 			HTR_LOG(Error, "[SkyLight] {} compile failed", Entry);

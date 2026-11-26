@@ -124,7 +124,7 @@ namespace
 			"\n"
 			"[Game]\n"
 			"; 시작할 씬. 프로젝트 폴더 기준 상대 경로. 에디터에서 이 경로로 씬을 저장한다.\n"
-			"GameDefaultMap=Scenes/Main.scene\n"
+			"GameDefaultMap=" + FPaths::ProjectScenesPath("Main.scene") + "\n"
 			"; 씬의 GameMode Override가 비어 있을 때 쓸 GameMode 클래스. 비워 두면 AGameModeBase\n"
 			"GlobalDefaultGameMode=" + DefaultGameMode + "\n"
 			"; 비워 두면 하늘을 그리지 않는다\n"
@@ -177,7 +177,7 @@ bool ProjectCreator::Create(const FString& Name, const fs::path& ParentDir, fs::
 		return false;
 	}
 
-	for (const wchar_t* Folder : { L"Assets", L"Scenes", L"Scripts", L"Config" })
+	for (const fs::path& Folder : { FPaths::ProjectContentDir(), FPaths::ProjectScenesDir(), FPaths::ProjectScriptsDir(), fs::path(L"Config") })
 	{
 		fs::create_directories(ProjectDir / Folder, Ec);
 		if (Ec)
@@ -187,7 +187,7 @@ bool ProjectCreator::Create(const FString& Name, const fs::path& ParentDir, fs::
 		}
 	}
 
-	// 아이콘, 폰트, Lua 템플릿 같은 엔진용 파일은 엔진 콘텐츠(Engine/...)에서 바로 읽으므로 복사하지 않는다.
+	// 아이콘, 폰트, Lua 템플릿 같은 엔진용 파일은 엔진 리소스(Engine/...)에서 바로 읽으므로 복사하지 않는다.
 
 	const bool bCpp = Template == EProjectTemplate::Cpp;
 	if (bCpp && !ProjectCode::WriteModuleTemplate(ProjectDir, Name, OutError)) return false;
@@ -219,7 +219,7 @@ bool ProjectCreator::Create(const FString& Name, const fs::path& ParentDir, fs::
 		if (!ProjectCode::GenerateProjectFiles(OutProjectFile, Log, OutError))
 		{
 			HTR_LOG(Error, "GenerateProjectFiles output:\n{}", Log);
-			OutError += " The project was created; run Setup/GenerateProjectFiles.bat on it after fixing the problem.";
+			OutError += " The project was created; run Setup/Build/GenerateProjectFiles.bat on it after fixing the problem.";
 			return false;
 		}
 	}
@@ -249,10 +249,10 @@ namespace
 			Window.Device->CreateRenderTargetView(BackBuffer.Get(), nullptr, &Window.RenderTarget);
 	}
 
-	// 엔진 콘텐츠의 로고 이미지를 텍스처로 만든다. 파일이 없거나 읽지 못하면 nullptr이고, 제목 표시줄은 빈 칸으로 남는다.
+	// 엔진 리소스의 로고 이미지를 텍스처로 만든다. 파일이 없거나 읽지 못하면 nullptr이고, 제목 표시줄은 빈 칸으로 남는다.
 	ComPtr<ID3D11ShaderResourceView> CreateLogoTexture(ID3D11Device* Device)
 	{
-		const FImageData Image = ImageLoader::Load(FPaths::ResolveContentPath("Engine/Icons/Logo.png"));
+		const FImageData Image = ImageLoader::Load(FPaths::ResolveEngineResourcePath("Engine/Icons/Logo.png"));
 		if (!Image.IsValid()) return nullptr;
 
 		D3D11_TEXTURE2D_DESC Desc{};
@@ -365,9 +365,9 @@ fs::path ProjectBrowser::Run(HINSTANCE hInstance)
 		IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
 		ApplyStyle(Scale);
-		const FString FontPath = FPaths::EngineFileUtf8(L"NanumSquareR.TTF");
+		const FString FontPath = FPaths::ResolveEngineResourcePath("Engine/Fonts/NanumSquareR.ttf");
 		std::error_code Ec;
-		if (!fs::exists(FPaths::EngineFile(L"NanumSquareR.TTF"), Ec) ||
+		if (!fs::exists(FPaths::FromUtf8(FontPath), Ec) ||
 			!IO.Fonts->AddFontFromFileTTF(FontPath.c_str(), 17.0f * Scale, nullptr, IO.Fonts->GetGlyphRangesKorean()))
 		{
 			ImFontConfig Config;

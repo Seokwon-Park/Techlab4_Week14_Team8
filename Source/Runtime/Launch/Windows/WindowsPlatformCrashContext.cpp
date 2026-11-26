@@ -206,6 +206,41 @@ namespace
     }
 }
 
+namespace
+{
+    // 덤프 폴더를 만들고 DumpDirectory에 기록한다. 실패하면 기존 값을 그대로 둔다.
+    bool ApplyDumpDirectory(const std::filesystem::path& Directory)
+    {
+        // WriteMinidump()가 붙이는 파일명과 널 문자까지 들어갈 공간을 확인
+        constexpr size_t MaxDumpFileNameLength = _countof(L"\\Hitori-4294967295-9999-12-31_23-59-59.dmp") - 1;
+
+        if (Directory.native().size() + MaxDumpFileNameLength >= _countof(DumpDirectory))
+        {
+            ::OutputDebugStringW(L"Hitori: Crash dump path is too long.\n");
+            return false;
+        }
+
+        std::error_code Error;
+        std::filesystem::create_directories(Directory, Error);
+        if (Error)
+        {
+            ::OutputDebugStringW(L"Hitori: Could not create the crash dump directory.\n");
+            return false;
+        }
+
+        ::wcscpy_s(DumpDirectory, _countof(DumpDirectory), Directory.c_str());
+        return true;
+    }
+}
+
+void WindowsPlatformCrashContext::SetCrashDumpDirectory(const std::filesystem::path& Directory)
+{
+    if (DumpThread && !Directory.empty())
+    {
+        ApplyDumpDirectory(Directory);
+    }
+}
+
 void WindowsPlatformCrashContext::RegisterUnhandledExceptionHandler()
 {
     if (DumpThread)
@@ -222,27 +257,12 @@ void WindowsPlatformCrashContext::RegisterUnhandledExceptionHandler()
         return;
     }
 
-    const std::filesystem::path Directory =
-        std::filesystem::path(ExePath).parent_path() / L"Saved" / L"Crashes";
-
-    // WriteMinidump()가 붙이는 파일명과 널 문자까지 들어갈 공간을 확인
-    constexpr size_t MaxDumpFileNameLength = _countof(L"\\Hitori-4294967295-9999-12-31_23-59-59.dmp") - 1;
-
-    if (Directory.native().size() + MaxDumpFileNameLength >= _countof(DumpDirectory))
+    // 프로젝트를 정하기 전에도 크래시를 남기도록 처음에는 exe 옆에 둔다.
+    // 프로젝트가 정해지면 FEngineLoop::PreInit이 SetCrashDumpDirectory로 <프로젝트>/Saved/Crashes로 옮긴다.
+    if (!ApplyDumpDirectory(std::filesystem::path(ExePath).parent_path() / L"Saved" / L"Crashes"))
     {
-        ::OutputDebugStringW(L"Hitori: Crash dump path is too long.\n");
         return;
     }
-
-    std::error_code Error;
-    std::filesystem::create_directories(Directory, Error);
-    if (Error)
-    {
-        ::OutputDebugStringW(L"Hitori: Could not create the crash dump directory.\n");
-        return;
-    }
-
-    ::wcscpy_s(DumpDirectory, _countof(DumpDirectory), Directory.c_str());
 
     DumpRequestedEvent = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!DumpRequestedEvent)

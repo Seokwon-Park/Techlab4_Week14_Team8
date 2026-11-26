@@ -453,7 +453,7 @@ namespace
                 Paths.clear();
                 ScanMessage.clear();
                 std::error_code Error;
-                std::filesystem::recursive_directory_iterator It("Assets", Error);
+                std::filesystem::recursive_directory_iterator It(FPaths::ProjectContentDir(), Error);
                 const std::filesystem::recursive_directory_iterator End;
 
                 while (!Error && It != End)
@@ -510,7 +510,7 @@ namespace
             }
             else if (Paths.empty())
             {
-                ImGui::TextUnformatted("No .animblueprint files in Assets.");
+                ImGui::TextUnformatted("No .animblueprint files in Content.");
             }
 
             ImGui::EndCombo();
@@ -608,7 +608,7 @@ namespace
 		{
 			Paths.clear();
 			std::error_code Error;
-			std::filesystem::recursive_directory_iterator It("Assets", Error);
+			std::filesystem::recursive_directory_iterator It(FPaths::ProjectContentDir(), Error);
 			const std::filesystem::recursive_directory_iterator End;
 			while (!Error && It != End)
 			{
@@ -1867,7 +1867,7 @@ bool FDetailsPanel::Init()
 	io.Fonts->AddFontDefault();
 
 	// 폰트 파일은 엔진 폴더 루트에 있다. 작업 디렉터리는 프로젝트 폴더이므로 절대 경로로 연다.
-	const FString fontPath = FPaths::EngineFileUtf8("NanumSquareR.TTF");
+	const FString fontPath = FPaths::ResolveEngineResourcePath("Engine/Fonts/NanumSquareR.ttf");
 	float fontSize = 15.0f;
 	const ImWchar* koreanRanges = io.Fonts->GetGlyphRangesKorean();
 

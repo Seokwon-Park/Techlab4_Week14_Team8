@@ -6,7 +6,7 @@
 #include "Core/EngineString.h"
 #include "Containers/Array.h"
 
-// 최근에 연 프로젝트 목록. 엔진 폴더의 Saved/RecentProjects.json에 저장한다.
+// 최근에 연 프로젝트 목록. 엔진 폴더의 Build/Saved/RecentProjects.json에 저장한다.
 namespace RecentProjects
 {
 	// 파일이 없어진 항목은 빼고 돌려준다. 최근에 연 것이 앞에 온다.
@@ -24,9 +24,9 @@ enum class EProjectTemplate
 };
 
 // 새 프로젝트 폴더를 만든다.
-// <ParentDir>/<Name>/ 아래에 Assets, Scenes, Scripts, Config와 <Name>.hproject를 만든다.
+// <ParentDir>/<Name>/ 아래에 Content(Scenes, Scripts 포함), Config와 <Name>.hproject를 만든다.
 // C++ 템플릿은 Source/<Name>과 프로젝트 솔루션(<Name>.slnx)도 만든다.
-// 엔진 코드가 직접 참조하는 아이콘, 폰트 등은 엔진 콘텐츠(EngineContent)에서 읽으므로 복사하지 않는다.
+// 엔진 코드가 직접 참조하는 아이콘, 폰트 등은 엔진 리소스(EngineResources)에서 읽으므로 복사하지 않는다.
 namespace ProjectCreator
 {
 	// 이름 규칙: 영문자로 시작하고 영문자, 숫자, _, -만 쓴다 (C++ 템플릿은 -도 안 된다). 문제가 없으면 빈 문자열.

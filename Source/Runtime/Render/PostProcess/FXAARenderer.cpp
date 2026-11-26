@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Render/PostProcess/FXAARenderer.h"
 #include "Render/RenderCommand.h"
 #include "Render/RenderResourceManager.h"
@@ -10,7 +11,7 @@ static_assert(sizeof(FFXAAData) == 16);
 void FFXAARenderer::Init(FRenderer* InRenderer)
 {
 	Renderer = InRenderer;
-	Shader = FRenderResourceManager::GetShaderProgram("Resources/Shader/FXAAShader.hlsl");
+	Shader = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("FXAAShader.hlsl"));
 
 	// depth buffer를 사용하지 않고, 별도의 shader를 통해 렌더링을 처리한다.
 	FXAAPipelineState.Shader = Shader;

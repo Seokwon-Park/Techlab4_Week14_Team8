@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "ForwardLightTiles.h"
 #include "Render/RenderCommand.h"
 #include "Render/RenderUtil.h"
@@ -29,9 +30,9 @@ bool FForwardLightTileGrid::Init()
 	LightingInfoCB = RenderCommand::CreateConstantBuffer(sizeof(FGridConstants));
 	if (!CullingCB || !LightingInfoCB || !EnsureCapacity(Allocator, 2, sizeof(uint32))) return false;
 	ComputeShader = RenderCommand::CreateComputeShader(
-		RenderUtil::CompileShader("Resources/Shader/TileBasedLightCulling.hlsl", "mainCS", EShaderType::Compute));
+		RenderUtil::CompileShader(HITORI_ENGINE_SHADER("TileBasedLightCulling.hlsl"), "mainCS", EShaderType::Compute));
 	Tiled25DComputeShader = RenderCommand::CreateComputeShader(
-		RenderUtil::CompileShader("Resources/Shader/TiledLightCulling25D.hlsl", "mainCS", EShaderType::Compute));
+		RenderUtil::CompileShader(HITORI_ENGINE_SHADER("TiledLightCulling25D.hlsl"), "mainCS", EShaderType::Compute));
 	return ComputeShader && ComputeShader->IsValid() && Tiled25DComputeShader && Tiled25DComputeShader->IsValid();
 }
 

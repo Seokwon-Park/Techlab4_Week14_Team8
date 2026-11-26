@@ -56,7 +56,7 @@ bool UGameEngine::Start()
 	if (!OpenStartupMap(Settings.StartupMap))
 	{
 		const FString Message = "Cannot open startup map:\n" + Settings.StartupMap +
-			"\n\nCheck GameDefaultMap in Config/DefaultGame.ini and the Scenes folder.";
+			"\n\nCheck GameDefaultMap in Config/DefaultGame.ini and the Content/Scenes folder.";
 		MessageBoxA(GetEngineLoop().GetMainWindow()->GetHandle(), Message.c_str(), "Hitori", MB_OK | MB_ICONERROR);
 		return false;
 	}

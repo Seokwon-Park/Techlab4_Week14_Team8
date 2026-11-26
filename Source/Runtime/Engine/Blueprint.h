@@ -23,7 +23,7 @@ struct FBPGraphSet;
 // 부모는 액터(Actor Blueprint) 또는 액터 컴포넌트(Component Blueprint)다. 컴포넌트 BP의 Defaults는
 // 컴포넌트 하나의 Serialize 형식이고, AActor::AddComponent가 만든 컴포넌트에 적용한다. 노드 그래프는 액터 BP만 갖는다.
 //
-// 엔진이 시작할 때 Assets 아래 .bp를 모두 읽어 파일 이름("BP_Door")으로 UClass를 만들어 등록한다.
+// 엔진이 시작할 때 Content 아래 .bp를 모두 읽어 파일 이름("BP_Door")으로 UClass를 만들어 등록한다.
 // 그래서 FindClass, SpawnActor, 클래스 목록, 씬 파일이 BP 클래스를 C++ 클래스처럼 쓴다.
 // BP 클래스는 부모의 생성자와 크기를 그대로 쓰고, 만든 뒤에 기본값을 덮어쓴다.
 namespace FBlueprint
@@ -60,7 +60,7 @@ namespace FBlueprint
 	bool IsBlueprintClass(const UClass* Class);
 	// 부모가 UActorComponent 계열인 BP 클래스인가.
 	bool IsComponentBlueprint(const UClass* Class);
-	// BP 클래스의 에셋 경로(Assets 기준). BP가 아니면 빈 문자열.
+	// BP 클래스의 에셋 경로(Content 기준). BP가 아니면 빈 문자열.
 	FString GetAssetPath(const UClass* Class);
 	// BP가 아닌 가장 가까운 조상 (C++ 클래스). BP가 아니면 자기 자신.
 	UClass* GetNativeClass(UClass* Class);

@@ -5,6 +5,8 @@
 #include "Editor/AnimBlueprintEditor/AnimBlueprintAssetCreator.h"
 
 #include <filesystem>
+
+#include "Core/Misc/Paths.h"
 #include <functional>
 #include <vector>
 
@@ -112,15 +114,14 @@ private:
 	// NewAssetName 이름으로 ParentClass를 부모로 하는 .bp를 만들고 Blueprint 에디터로 연다.
 	void CreateBlueprintAsset(UClass* ParentClass);
 
-	fs::path AssetRootPath = "Assets";
-	fs::path SceneRootPath = "Scenes";
-	fs::path CurrentPath = "Assets";
+	fs::path AssetRootPath = FPaths::ProjectContentDir();
+	fs::path CurrentPath = FPaths::ProjectContentDir();
 	std::vector<fs::path> BackHistory;
 	std::vector<fs::path> ForwardHistory;
 	std::vector<fs::path> FavoritePaths;   // 이번 실행 동안만 기억한다
 	bool bRevealCurrentFolder = true;      // 이동한 직후 한 번, 트리에서 지금 폴더의 조상 노드를 연다
 
-	// 선택(테두리) 표시할 파일. 그리드 항목 경로와 같은 형식("Scenes/A.scene").
+	// 선택(테두리) 표시할 파일. 그리드 항목 경로와 같은 형식("Content/Scenes/A.scene").
 	FString HighlightPath;
 	bool bScrollToHighlight = false;
 

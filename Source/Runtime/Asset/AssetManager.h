@@ -44,7 +44,7 @@ public:
 	static void Init(const FAssetLoadProgress& OnProgress = nullptr);
 	static void Shutdown();
 
-	// KeyPrefix가 있으면 키와 경로를 KeyPrefix + 상대 경로로 등록한다 (엔진 콘텐츠의 "Engine/").
+	// KeyPrefix가 있으면 키와 경로를 KeyPrefix + 상대 경로로 등록한다 (엔진 리소스의 "Engine/").
 	void ScanAssets(const fs::path& AssetRoot, const FAssetLoadProgress& OnProgress, const FString& KeyPrefix = {});
 	void LoadAsset(const FString& Key, const FString& Path);
 
@@ -55,7 +55,7 @@ public:
 	void CreateParticleMaterial();
 	void CreateEditorArrowMaterial();
 
-	// 경로는 "Assets/Models/a.obj"와 "Models/a.obj"를 같은 에셋으로 본다.
+	// 경로는 "Content/Models/a.obj"와 "Models/a.obj"를 같은 에셋으로 본다.
 	// 아직 로드되지 않았으면 여기서 로드하므로 GPU 자원을 만들 수 있는 메인 스레드에서만 부른다.
 	template <typename T>
 	static T* GetAssetByPath(const FString& Path)
@@ -89,7 +89,7 @@ public:
 	static UAnimSequence* LoadAnimSequence(const FString& Path);
 	static UBlendSpace1D* LoadBlendSpace(const FString& Path);
 	static UParticleSystem* LoadParticleSystem(const FString& Path);
-	// 로드된 파티클 시스템의 키(Assets 기준 경로). 로드된 적이 없으면 빈 문자열
+	// 로드된 파티클 시스템의 키(Content 기준 경로). 로드된 적이 없으면 빈 문자열
 	static FString FindParticleSystemPath(const UParticleSystem* System);
 
 	FLODGenerateResult GenerateStaticMeshLODs(UStaticMesh& Mesh,const FLODGenerateRequest& Request);
@@ -106,7 +106,7 @@ public:
 private:
 	URenderAsset* FindOrLoadAsset(const FString& Path);
 
-	// 키는 Assets 기준 상대 경로. 로드 가능한 파일의 키 -> 실제 파일 경로
+	// 키는 Content 기준 상대 경로. 로드 가능한 파일의 키 -> 실제 파일 경로
 	TMap<FString, FString> AssetPathMap;
 	TMap<FString, URenderAsset*> AssetMap;
 	TMap<FString, USoundWave*> SoundMap;

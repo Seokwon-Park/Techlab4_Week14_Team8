@@ -91,5 +91,5 @@ private:
 	char PropertyNameBuffer[64] = "FieldOfView";
 	FGuid NewCutCamera;
 	FMovieSceneEvent NewEvent;
-	char AssetPath[260] = "Assets/Sequences/Demo.sequence";
+	char AssetPath[260] = "Content/Sequences/Demo.sequence";
 };

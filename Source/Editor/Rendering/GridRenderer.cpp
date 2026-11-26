@@ -1,4 +1,5 @@
 #include "EnginePCH.h"
+#include "Core/Misc/Paths.h"
 #include "Editor/Rendering/GridRenderer.h"
 #include "Asset/AssetManager.h"
 #include "Render/RenderCommand.h"
@@ -143,7 +144,7 @@ bool FGridRenderer::Init(FRenderer *InRenderer) {
   static_assert(sizeof(FBatchGridData) == 96,
                 "Grid line constant buffer layout mismatch");
   BatchGridShader = FRenderResourceManager::GetShaderProgram(
-      "Resources/Shader/GridShaderBatch.hlsl");
+      HITORI_ENGINE_SHADER("GridShaderBatch.hlsl"));
   MaxVertices = 100000;
   BatchGridVertices = new FGridLineVertex[MaxVertices];
   BatchGridVertexBuffer = RenderCommand::CreateDynamicVertexBuffer(
@@ -152,7 +153,7 @@ bool FGridRenderer::Init(FRenderer *InRenderer) {
       RenderCommand::CreateConstantBuffer(sizeof(FBatchGridData));
 
   PSGridShader = FRenderResourceManager::GetShaderProgram(
-      "Resources/Shader/GridShader.hlsl");
+      HITORI_ENGINE_SHADER("GridShader.hlsl"));
   PSGridConstantBuffer =
       RenderCommand::CreateConstantBuffer(sizeof(FPSGridData));
 
