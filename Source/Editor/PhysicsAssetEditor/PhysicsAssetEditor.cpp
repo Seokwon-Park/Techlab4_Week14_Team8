@@ -10,6 +10,7 @@
 #include "Physics/PhysicsDebugDraw.h"
 #include "Render/SkeletalMesh.h"
 #include "Render/LineBatcher.h"
+#include "Render/SceneView.h"
 #include "Collision/Ray.h"
 #include "Engine/World.h"
 #include "Physics/PhysicsScene.h"
@@ -74,6 +75,8 @@ bool FPhysicsAssetEditor::InitializeResources()
 	{
 		return false;
 	}
+
+	DebugRenderer = MakeUnique<FPhysicsAssetDebugRenderer>();
 
 	GizmoTarget = Cast<USceneComponent>(PreviewScene.AddComponent(USceneComponent::StaticClass()));
 	if (!GizmoTarget)
@@ -205,6 +208,7 @@ void FPhysicsAssetEditor::ShutdownResources()
 	PhysicsGizmo.EndDrag();
 	PhysicsGizmo.SetTarget(nullptr);
 	GizmoTarget = nullptr;
+	DebugRenderer.reset();
 	PhysicsAsset = nullptr;
 	SelectionType = EPhysicsAssetSelection::None;
 	SelectionIndex = INDEX_NONE;
@@ -641,6 +645,177 @@ void FPhysicsAssetEditor::OnBoneSelected()
 	}
 }
 
+namespace
+{
+	float ConstraintLimitAngleRadians(EAngularConstraintMotion Motion, float Degrees)
+	{
+		if (Motion == ACM_Locked) return 0.0f;
+		if (Motion == ACM_Free) return PI;
+		return FMath::DegreesToRadians(FMath::Clamp(Degrees, 0.0f, 180.0f));
+	}
+}
+
+void FPhysicsAssetEditor::OnRenderSceneOverlay(const FSceneView& View)
+{
+	const bool bSolidMode = BodyDrawMode == EPhysicsBodyDrawMode::Solid || BodyDrawMode == EPhysicsBodyDrawMode::SolidWireframe;
+	if (!bShowBodies || !bSolidMode || !PhysicsAsset || !MeshComponent || !DebugRenderer)
+	{
+		return;
+	}
+
+	DebugRenderer->Begin(View.ViewProjectionMatrix, true);
+
+	const float Opacity = FMath::Clamp(BodyOpacity, 0.0f, 1.0f);
+	const FVector4 BodyColor(PhysicsDebugColors::Body.X, PhysicsDebugColors::Body.Y, PhysicsDebugColors::Body.Z, Opacity);
+	const FVector4 SelectedColor(PhysicsDebugColors::SelectedBody.X, PhysicsDebugColors::SelectedBody.Y, PhysicsDebugColors::SelectedBody.Z,
+		FMath::Min(Opacity + 0.1f, 1.0f));
+
+	FPhysicsDebugDraw DebugDraw;
+	const int32 SelectedBody = GetSelectedBodyIndex();
+
+	// 선택한 바디를 마지막에 그려 반투명 섞임에서 앞에 보이게 한다
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+	{
+		for (int32 BodyIndex = 0; BodyIndex < PhysicsAsset->SkeletalBodySetups.Num(); ++BodyIndex)
+		{
+			const bool bSelected = BodyIndex == SelectedBody;
+			if (bSelected != (Pass == 1))
+			{
+				continue;
+			}
+
+			const USkeletalBodySetup* Setup = PhysicsAsset->SkeletalBodySetups[BodyIndex];
+			FTransform BoneWorld;
+			if (!Setup || !DebugDraw.GetBoneWorldTransform(MeshComponent, Setup->BoneName.ToString(), BoneWorld))
+			{
+				continue;
+			}
+
+			const FMatrix BoneMatrix = BoneWorld.GetLocalMatrix();
+			const FVector4& DrawColor = bSelected ? SelectedColor : BodyColor;
+			for (const FKSphylElem& S : Setup->AggGeom.SphylElems)
+			{
+				DebugRenderer->DrawCapsule(DebugDraw.MakeElemMatrix(S.Center, S.Rotation) * BoneMatrix, S.Radius, S.Length, DrawColor);
+			}
+			for (const FKBoxElem& B : Setup->AggGeom.BoxElems)
+			{
+				DebugRenderer->DrawBox(DebugDraw.MakeElemMatrix(B.Center, B.Rotation) * BoneMatrix,
+					FVector(B.X * 0.5f, B.Y * 0.5f, B.Z * 0.5f), DrawColor);
+			}
+			for (const FKSphereElem& S : Setup->AggGeom.SphereElems)
+			{
+				DebugRenderer->DrawSphere(DebugDraw.MakeElemMatrix(S.Center, FRotator{}) * BoneMatrix, S.Radius, DrawColor);
+			}
+		}
+	}
+}
+
+void FPhysicsAssetEditor::OnRenderForegroundOverlay(const FSceneView& View)
+{
+	if (!bShowConstraints || !bShowShadedConstraints || !PhysicsAsset || !MeshComponent || !DebugRenderer)
+	{
+		return;
+	}
+
+	DebugRenderer->Begin(View.ViewProjectionMatrix, false);
+
+	const FVector4 SwingLimitColor(0.25f, 0.85f, 0.35f, 0.32f);
+	const FVector4 SwingDialColor(0.25f, 0.95f, 0.40f, 0.95f);
+	const FVector4 TwistLimitColor(0.90f, 0.28f, 0.90f, 0.32f);
+	const FVector4 TwistDialColor(0.95f, 0.38f, 0.95f, 0.95f);
+	const FVector4 AxisColors[3] = {
+		FVector4(0.95f, 0.25f, 0.25f, 0.95f),
+		FVector4(0.25f, 0.95f, 0.35f, 0.95f),
+		FVector4(0.25f, 0.55f, 1.00f, 0.95f)
+	};
+
+	FPhysicsDebugDraw DebugDraw;
+	const float BaseDrawSize = DebugDraw.GetConstraintDrawSize(MeshComponent, ConstraintDrawSize);
+	const int32 SelectedConstraint = GetSelectedConstraintIndex();
+
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+	{
+		for (int32 Index = 0; Index < PhysicsAsset->ConstraintSetup.Num(); ++Index)
+		{
+			const bool bSelected = Index == SelectedConstraint;
+			if (bSelected != (Pass == 1))
+			{
+				continue;
+			}
+			const UPhysicsConstraintTemplate* Template = PhysicsAsset->ConstraintSetup[Index];
+			if (!Template)
+			{
+				continue;
+			}
+
+			const FConstraintInstance& CI = Template->DefaultInstance;
+			FMatrix ParentFrameWorld, ChildFrameWorld;
+			if (!DebugDraw.GetConstraintFrames(MeshComponent, CI, ParentFrameWorld, ChildFrameWorld))
+			{
+				continue;
+			}
+
+			const FVector ParentPos(ParentFrameWorld.M[3][0], ParentFrameWorld.M[3][1], ParentFrameWorld.M[3][2]);
+			const FVector ChildPos(ChildFrameWorld.M[3][0], ChildFrameWorld.M[3][1], ChildFrameWorld.M[3][2]);
+			const FVector ParentX = FVector(ParentFrameWorld.M[0][0], ParentFrameWorld.M[0][1], ParentFrameWorld.M[0][2]).GetSafeNormal();
+			const FVector ParentY = FVector(ParentFrameWorld.M[1][0], ParentFrameWorld.M[1][1], ParentFrameWorld.M[1][2]).GetSafeNormal();
+			const FVector ParentZ = FVector(ParentFrameWorld.M[2][0], ParentFrameWorld.M[2][1], ParentFrameWorld.M[2][2]).GetSafeNormal();
+			const FVector ChildX = FVector(ChildFrameWorld.M[0][0], ChildFrameWorld.M[0][1], ChildFrameWorld.M[0][2]).GetSafeNormal();
+			const FVector ChildY = FVector(ChildFrameWorld.M[1][0], ChildFrameWorld.M[1][1], ChildFrameWorld.M[1][2]).GetSafeNormal();
+			const FVector ChildZ = FVector(ChildFrameWorld.M[2][0], ChildFrameWorld.M[2][1], ChildFrameWorld.M[2][2]).GetSafeNormal();
+
+			const float Length = bSelected ? BaseDrawSize * 1.25f : BaseDrawSize;
+			const float LimitSize = Length * 0.9f;
+			const FMatrix LimitFrame = FPhysicsAssetDebugRenderer::MakeBasis(
+				ParentX * LimitSize, ParentY * LimitSize, ParentZ * LimitSize, ParentPos);
+
+			const FConeConstraint& Cone = CI.ProfileInstance.ConeLimit;
+			const FTwistConstraint& Twist = CI.ProfileInstance.TwistLimit;
+
+			// Swing1 = Z축 회전(Y 방향 벌어짐), Swing2 = Y축 회전(Z 방향 벌어짐)
+			const bool bSwingLocked = Cone.Swing1Motion == ACM_Locked && Cone.Swing2Motion == ACM_Locked;
+			if (!bSwingLocked)
+			{
+				const float AngleY = ConstraintLimitAngleRadians(Cone.Swing1Motion, Cone.Swing1LimitDegrees);
+				const float AngleZ = ConstraintLimitAngleRadians(Cone.Swing2Motion, Cone.Swing2LimitDegrees);
+				if (Cone.Swing1Motion == ACM_Free && Cone.Swing2Motion == ACM_Free)
+				{
+					DebugRenderer->DrawSphere(FPhysicsAssetDebugRenderer::MakeBasis(
+						ParentX, ParentY, ParentZ, ParentPos), LimitSize, SwingLimitColor);
+				}
+				else
+				{
+					DebugRenderer->DrawCone(LimitFrame, AngleY, AngleZ, SwingLimitColor);
+				}
+				DebugRenderer->DrawArrow(ParentPos, ChildX, Length, SwingDialColor);
+			}
+
+			// Twist: 부모 X축 둘레 ±각도 부채꼴 (부모 YZ 평면)
+			if (Twist.TwistMotion != ACM_Locked)
+			{
+				const float TwistAngle = ConstraintLimitAngleRadians(Twist.TwistMotion, Twist.TwistLimitDegrees);
+				DebugRenderer->DrawFan(LimitFrame, TwistAngle, TwistLimitColor);
+				const FVector TwistIndicator = (ChildY - ParentX * ParentX.Dot(ChildY)).GetSafeNormal();
+				if (TwistIndicator.SizeSquared() > 0.0f)
+				{
+					DebugRenderer->DrawArrow(ParentPos, TwistIndicator, Length, TwistDialColor);
+				}
+			}
+
+			// 자식·부모 프레임 축 (X 빨강, Y 초록, Z 파랑)
+			const float AxisLength = Length * 0.25f;
+			const float AxisRadius = Length * 0.025f;
+			const FVector ChildAxes[3] = { ChildX, ChildY, ChildZ };
+			const FVector ParentAxes[3] = { ParentX, ParentY, ParentZ };
+			for (int32 Axis = 0; Axis < 3; ++Axis)
+			{
+				DebugRenderer->DrawStick(ChildPos, ChildPos + ChildAxes[Axis] * AxisLength, AxisRadius, AxisColors[Axis]);
+				DebugRenderer->DrawStick(ParentPos, ParentPos + ParentAxes[Axis] * AxisLength, AxisRadius, AxisColors[Axis]);
+			}
+		}
+	}
+}
+
 void FPhysicsAssetEditor::OnRenderLine(FLineBatcher& LineBatcher)
 {
 	FSkeletalPreviewEditor::OnRenderLine(LineBatcher);
@@ -651,11 +826,12 @@ void FPhysicsAssetEditor::OnRenderLine(FLineBatcher& LineBatcher)
 	}
 
 	FPhysicsDebugDraw DebugDraw;
-	if (bShowBodies)
+	const bool bWireMode = BodyDrawMode == EPhysicsBodyDrawMode::Wireframe || BodyDrawMode == EPhysicsBodyDrawMode::SolidWireframe;
+	if (bShowBodies && bWireMode)
 	{
 		DebugDraw.DrawPhysicsAssetBodies(&LineBatcher, MeshComponent, *PhysicsAsset, false, GetSelectedBodyIndex(), true);
 	}
-	if (bShowConstraints)
+	if (bShowConstraints && !bShowShadedConstraints)
 	{
 		DebugDraw.DrawPhysicsAssetConstraints(&LineBatcher, MeshComponent, *PhysicsAsset, GetSelectedConstraintIndex(), ConstraintDrawSize);
 	}

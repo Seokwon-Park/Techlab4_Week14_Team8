@@ -429,13 +429,41 @@ int32 FAnimSequenceEditor::GetNumFrames() const
 
 void FAnimSequenceEditor::Play()
 {
-    // 루프가 아니고 끝에 멈춰 있으면 처음부터 다시 재생한다
-    if (!bLooping && CurrentTime >= GetPlayLength())
+    // 루프가 아니고 끝에 멈춰 있으면 처음(역재생이면 끝)부터 다시 재생한다
+    if (!bLooping)
     {
-        CurrentTime = 0.0f;
-        bPoseDirty = true;
+        if (PlayRate >= 0.0f && CurrentTime >= GetPlayLength())
+        {
+            CurrentTime = 0.0f;
+            bPoseDirty = true;
+        }
+        else if (PlayRate < 0.0f && CurrentTime <= 0.0f)
+        {
+            CurrentTime = GetPlayLength();
+            bPoseDirty = true;
+        }
     }
     bPlaying = true;
+}
+
+void FAnimSequenceEditor::PlayForward()
+{
+    PlayRate = std::abs(PlayRate);
+    if (PlayRate <= 0.0f)
+    {
+        PlayRate = 1.0f;
+    }
+    Play();
+}
+
+void FAnimSequenceEditor::PlayReverse()
+{
+    PlayRate = -std::abs(PlayRate);
+    if (PlayRate >= 0.0f)
+    {
+        PlayRate = -1.0f;
+    }
+    Play();
 }
 
 void FAnimSequenceEditor::Pause()

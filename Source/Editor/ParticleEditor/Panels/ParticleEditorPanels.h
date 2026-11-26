@@ -50,22 +50,70 @@ protected:
 	void DrawContent() override;
 	ImGuiWindowFlags GetWindowFlags() const override { return ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse; }
 private:
+	struct FKeyRef
+	{
+		int32 Track = -1;
+		int32 Channel = 0;
+		int32 Key = -1;
+		bool operator==(const FKeyRef&) const = default;
+	};
+
+	struct FKeyDragOrigin
+	{
+		FKeyRef Ref;
+		float Time = 0.0f;
+		float Value = 0.0f;
+	};
+
+	enum class ETangentHandle : uint8 { None, Arrive, Leave };
+
 	void DrawToolbar();
 	void DrawTrackList();
 	void DrawGraph();
+	void DrawContextMenu();
 	void FitHorizontal();
 	void FitVertical();
 	struct FParticleCurve* GetSelectedCurve() const;
+	struct FParticleCurve* ResolveCurve(int32 Track, int32 Channel) const;
+	bool IsKeySelected(int32 Track, int32 Channel, int32 Key) const;
+	void SelectSingleKey(int32 Track, int32 Channel, int32 Key);
+	void ToggleKeySelection(int32 Track, int32 Channel, int32 Key);
+	void ClearKeySelection();
+	void PruneInvalidSelection();
+	void DeleteSelectedKeys();
+	template <typename Fn>
+	void ApplyToSelectedKeys(Fn&& Edit);
 
 	// 보이는 범위 (시간, 값)
 	float ViewMinT = -0.05f, ViewMaxT = 1.05f;
 	float ViewMinV = -0.1f, ViewMaxV = 1.1f;
 
-	// 선택: 트랙 · 채널 · 키
+	// 주 선택 + 다중 선택
 	int32 SelectedTrack = -1;
 	int32 SelectedChannel = 0;
 	int32 SelectedKey = -1;
+	TArray<FKeyRef> SelectedKeys;
+
+	// 키 다중 드래그
 	bool bDraggingKey = false;
+	float DragAnchorT = 0.0f;
+	float DragAnchorV = 0.0f;
+	TArray<FKeyDragOrigin> DragOrigins;
+
+	// 탄젠트 핸들 드래그
+	ETangentHandle DraggingTangent = ETangentHandle::None;
+	FKeyRef TangentDragKey;
+
+	// 마키(박스) 다중 선택 (Shift + 빈 곳 좌드래그)
+	bool bBoxSelecting = false;
+	ImVec2 BoxSelectStart{};
+	ImVec2 BoxSelectEnd{};
+
+	// 우클릭 컨텍스트 메뉴
+	bool bRightClickPending = false;
+	ImVec2 RightClickStart{};
+	float ContextTime = 0.0f;
+	float ContextValue = 0.0f;
 
 	// 툴바 Pan / Zoom: 빈 곳을 왼쪽으로 끌 때 할 일
 	bool bZoomMode = false;

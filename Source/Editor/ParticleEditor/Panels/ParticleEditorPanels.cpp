@@ -669,17 +669,152 @@ FParticleCurveEditorPanel::FParticleCurveEditorPanel(FParticleSystemEditor& InEd
 {
 }
 
-FParticleCurve* FParticleCurveEditorPanel::GetSelectedCurve() const
+FParticleCurve* FParticleCurveEditorPanel::ResolveCurve(int32 Track, int32 Channel) const
 {
 	TArray<FParticleSystemEditor::FCurveTrack>& Tracks = Editor.GetCurveTracks();
-	if (SelectedTrack < 0 || SelectedTrack >= static_cast<int32>(Tracks.Num())) return nullptr;
-	return Tracks[SelectedTrack].GetChannel(SelectedChannel);
+	if (Track < 0 || Track >= static_cast<int32>(Tracks.Num())) return nullptr;
+	if (Channel < 0 || Channel >= Tracks[Track].NumChannels) return nullptr;
+	return Tracks[Track].GetChannel(Channel);
+}
+
+FParticleCurve* FParticleCurveEditorPanel::GetSelectedCurve() const
+{
+	return ResolveCurve(SelectedTrack, SelectedChannel);
+}
+
+bool FParticleCurveEditorPanel::IsKeySelected(int32 Track, int32 Channel, int32 Key) const
+{
+	const FKeyRef Target{ Track, Channel, Key };
+	for (const FKeyRef& Ref : SelectedKeys)
+		if (Ref == Target) return true;
+	return false;
+}
+
+void FParticleCurveEditorPanel::SelectSingleKey(int32 Track, int32 Channel, int32 Key)
+{
+	SelectedKeys.Empty();
+	SelectedTrack = Track;
+	SelectedChannel = Channel;
+	SelectedKey = Key;
+	if (Track >= 0 && Key >= 0)
+	{
+		SelectedKeys.Add({ Track, Channel, Key });
+	}
+}
+
+void FParticleCurveEditorPanel::ToggleKeySelection(int32 Track, int32 Channel, int32 Key)
+{
+	const FKeyRef Target{ Track, Channel, Key };
+	for (int32 i = 0; i < static_cast<int32>(SelectedKeys.Num()); ++i)
+	{
+		if (SelectedKeys[i] == Target)
+		{
+			SelectedKeys.RemoveAt(i);
+			if (SelectedKeys.IsEmpty())
+			{
+				SelectedKey = -1;
+			}
+			else
+			{
+				const FKeyRef& Last = SelectedKeys[SelectedKeys.Num() - 1];
+				SelectedTrack = Last.Track;
+				SelectedChannel = Last.Channel;
+				SelectedKey = Last.Key;
+			}
+			return;
+		}
+	}
+	SelectedKeys.Add(Target);
+	SelectedTrack = Track;
+	SelectedChannel = Channel;
+	SelectedKey = Key;
+}
+
+void FParticleCurveEditorPanel::ClearKeySelection()
+{
+	SelectedKeys.Empty();
+	SelectedKey = -1;
+}
+
+void FParticleCurveEditorPanel::PruneInvalidSelection()
+{
+	TArray<FParticleSystemEditor::FCurveTrack>& Tracks = Editor.GetCurveTracks();
+	if (SelectedTrack >= static_cast<int32>(Tracks.Num()))
+	{
+		SelectedTrack = -1;
+		SelectedChannel = 0;
+		ClearKeySelection();
+		return;
+	}
+
+	for (int32 i = static_cast<int32>(SelectedKeys.Num()) - 1; i >= 0; --i)
+	{
+		const FKeyRef& Ref = SelectedKeys[i];
+		FParticleCurve* Curve = ResolveCurve(Ref.Track, Ref.Channel);
+		if (!Curve || !Tracks[Ref.Track].bChannelVisible[Ref.Channel] ||
+			Ref.Key < 0 || Ref.Key >= static_cast<int32>(Curve->Keys.Num()))
+		{
+			SelectedKeys.RemoveAt(i);
+		}
+	}
+
+	if (SelectedKeys.IsEmpty())
+	{
+		SelectedKey = -1;
+	}
+	else if (!IsKeySelected(SelectedTrack, SelectedChannel, SelectedKey))
+	{
+		const FKeyRef& Last = SelectedKeys[SelectedKeys.Num() - 1];
+		SelectedTrack = Last.Track;
+		SelectedChannel = Last.Channel;
+		SelectedKey = Last.Key;
+	}
+}
+
+template <typename Fn>
+void FParticleCurveEditorPanel::ApplyToSelectedKeys(Fn&& Edit)
+{
+	if (SelectedKeys.IsEmpty()) return;
+	TArray<FParticleCurve*> Touched;
+	for (const FKeyRef& Ref : SelectedKeys)
+	{
+		FParticleCurve* Curve = ResolveCurve(Ref.Track, Ref.Channel);
+		if (!Curve || Ref.Key < 0 || Ref.Key >= static_cast<int32>(Curve->Keys.Num())) continue;
+		Edit(Curve->Keys[Ref.Key]);
+		if (Touched.Find(Curve) == INDEX_NONE) Touched.Add(Curve);
+	}
+	for (FParticleCurve* Curve : Touched) Curve->AutoSetTangents();
+	if (!Touched.IsEmpty()) Editor.NotifyPropertyChanged();
+}
+
+void FParticleCurveEditorPanel::DeleteSelectedKeys()
+{
+	if (SelectedKeys.IsEmpty()) return;
+	TArray<FKeyRef> Sorted = SelectedKeys;
+	std::sort(Sorted.begin(), Sorted.end(), [](const FKeyRef& A, const FKeyRef& B)
+		{
+			if (A.Track != B.Track) return A.Track < B.Track;
+			if (A.Channel != B.Channel) return A.Channel < B.Channel;
+			return A.Key > B.Key; // 뒤 인덱스부터 지워야 앞 인덱스가 밀리지 않는다
+		});
+
+	TArray<FParticleCurve*> Touched;
+	for (const FKeyRef& Ref : Sorted)
+	{
+		FParticleCurve* Curve = ResolveCurve(Ref.Track, Ref.Channel);
+		if (!Curve || Ref.Key < 0 || Ref.Key >= static_cast<int32>(Curve->Keys.Num())) continue;
+		Curve->RemoveKeyAt(Ref.Key);
+		if (Touched.Find(Curve) == INDEX_NONE) Touched.Add(Curve);
+	}
+	ClearKeySelection();
+	bDraggingKey = false;
+	DraggingTangent = ETangentHandle::None;
+	if (!Touched.IsEmpty()) Editor.NotifyPropertyChanged();
 }
 
 void FParticleCurveEditorPanel::DrawContent()
 {
-	// 트랙 목록이 바뀌었으면(모듈 삭제 등) 선택을 버린다
-	if (SelectedTrack >= static_cast<int32>(Editor.GetCurveTracks().Num())) { SelectedTrack = -1; SelectedKey = -1; }
+	PruneInvalidSelection();
 
 	DrawToolbar();
 
@@ -705,14 +840,12 @@ void FParticleCurveEditorPanel::DrawToolbar()
 	ImGui::GetWindowDrawList()->AddRectFilled(Start, ImVec2(Start.x + BarW, Start.y + BarH), IM_COL32(30, 31, 34, 255));
 
 	FParticleCurve* Curve = GetSelectedCurve();
-	const bool bHasKey = Curve && SelectedKey >= 0 && SelectedKey < static_cast<int32>(Curve->Keys.Num());
+	const bool bHasKey = !SelectedKeys.IsEmpty() && Curve && SelectedKey >= 0 && SelectedKey < static_cast<int32>(Curve->Keys.Num());
 	const FParticleCurveKey* Key = bHasKey ? &Curve->Keys[SelectedKey] : nullptr;
 	const bool bCubic = Key && Key->InterpMode == EParticleCurveInterp::Cubic;
 	auto Apply = [&](auto&& Edit)
 		{
-			Edit(Curve->Keys[SelectedKey]);
-			Curve->AutoSetTangents();
-			Editor.NotifyPropertyChanged();
+			ApplyToSelectedKeys(Edit);
 		};
 
 	// ── 버튼 목록 ── 한 번 만들어 두고, 툴바에 들어가는 만큼만 그리고 나머지는 ≡ 메뉴로 보낸다 (UE 툴바처럼)
@@ -730,12 +863,12 @@ void FParticleCurveEditorPanel::DrawToolbar()
 		{ "Horizontal", ECurveTool::FitH, false, true, false, "Fit time range to visible keys", [&] { FitHorizontal(); } },
 		{ "Vertical", ECurveTool::FitV, false, true, false, "Fit value range to visible curves", [&] { FitVertical(); } },
 		{ "Fit", ECurveTool::Fit, false, true, false, "Fit both", [&] { FitHorizontal(); FitVertical(); } },
-		{ "Pan", ECurveTool::Pan, !bZoomMode, true, true, "Left-drag on empty space pans", [&] { bZoomMode = false; } },
+		{ "Pan", ECurveTool::Pan, !bZoomMode, true, true, "Left-drag on empty space pans (Shift+drag: box select)", [&] { bZoomMode = false; } },
 		{ "Zoom", ECurveTool::Zoom, bZoomMode, true, false, "Left-drag on empty space zooms (right/up = in)", [&] { bZoomMode = true; } },
 
 		{ "Auto", ECurveTool::Auto, bCubic && Key->bAutoTangent, bHasKey, true, "Smooth curve, tangents computed from neighbours",
 			[&] { Apply([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Cubic; K.bAutoTangent = true; }); } },
-		{ "User", ECurveTool::User, bCubic && !Key->bAutoTangent, bHasKey, false, "Smooth curve, keep current tangents",
+		{ "User", ECurveTool::User, bCubic && !Key->bAutoTangent, bHasKey, false, "Smooth curve, drag tangent handles freely",
 			[&] { Apply([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Cubic; K.bAutoTangent = false; }); } },
 		{ "Linear", ECurveTool::Linear, Key && Key->InterpMode == EParticleCurveInterp::Linear, bHasKey, false, "Straight line to next key",
 			[&] { Apply([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Linear; }); } },
@@ -757,8 +890,8 @@ void FParticleCurveEditorPanel::DrawToolbar()
 				for (FParticleSystemEditor::FCurveTrack& Track : Editor.GetCurveTracks())
 					for (bool& bVisible : Track.bChannelVisible) bVisible = true;
 			} },
-		{ "Delete", ECurveTool::Delete, false, bHasKey, false, "Delete selected key (Del)",
-			[&] { Curve->RemoveKeyAt(SelectedKey); SelectedKey = -1; Editor.NotifyPropertyChanged(); } },
+		{ "Delete", ECurveTool::Delete, false, bHasKey, false, "Delete selected key(s) (Del)",
+			[&] { DeleteSelectedKeys(); } },
 	};
 	constexpr int32 NumItems = static_cast<int32>(sizeof(Items) / sizeof(Items[0]));
 
@@ -929,12 +1062,12 @@ void FParticleCurveEditorPanel::DrawTrackList()
 			if (ClickedChannel >= 0)               // 상자: 보이기 / 숨기기
 			{
 				Track.bChannelVisible[ClickedChannel] = !Track.bChannelVisible[ClickedChannel];
-				if (SelectedTrack == t && SelectedChannel == ClickedChannel) SelectedKey = -1;
+				PruneInvalidSelection();
 			}
 			else                                   // 줄: 트랙 선택 (키 추가 대상)
 			{
 				SelectedTrack = t;
-				SelectedKey = -1;
+				ClearKeySelection();
 				if (SelectedChannel >= Track.NumChannels || !Track.bChannelVisible[SelectedChannel]) SelectedChannel = 0;
 			}
 		}
@@ -979,7 +1112,7 @@ void FParticleCurveEditorPanel::DrawTrackList()
 	{
 		Tracks.RemoveAt(RemoveIndex);
 		SelectedTrack = -1;
-		SelectedKey = -1;
+		ClearKeySelection();
 	}
 }
 
@@ -1067,9 +1200,27 @@ void FParticleCurveEditorPanel::DrawGraph()
 		DL->AddText(ImVec2(Origin.x + 4, Y + 1), IM_COL32(175, 178, 186, 255), Buf);
 	}
 
-	// ── 곡선과 키 그리기 + 마우스 아래 키 찾기 ──
+	// ── 곡선·탄젠트 핸들·키 그리기 + 마우스 아래 항목 찾기 ──
+	const float Scale = UIScale();
+	const float PixelsPerT = Size.x / std::max(ViewMaxT - ViewMinT, 1e-6f);
+	const float PixelsPerV = Size.y / std::max(ViewMaxV - ViewMinV, 1e-6f);
+	const float HandleLen = 42.0f * Scale;
+	const float HandleRadius = 4.5f * Scale;
+
+	auto TangentHandlePos = [&](const ImVec2& KeyPos, float Tangent, float Dir) -> ImVec2
+		{
+			const float Vx = Dir * PixelsPerT;
+			const float Vy = -Dir * Tangent * PixelsPerV;
+			const float Len = std::sqrt(Vx * Vx + Vy * Vy);
+			if (Len < 1e-5f) return ImVec2(KeyPos.x + Dir * HandleLen, KeyPos.y);
+			return ImVec2(KeyPos.x + (Vx / Len) * HandleLen, KeyPos.y + (Vy / Len) * HandleLen);
+		};
+
 	const ImVec2 Mouse = ImGui::GetMousePos();
 	int32 HoverTrack = -1, HoverChannel = -1, HoverKey = -1;
+	ETangentHandle HoverTangent = ETangentHandle::None;
+	FKeyRef HoverTangentKey;
+
 	TArray<FParticleSystemEditor::FCurveTrack>& Tracks = Editor.GetCurveTracks();
 	for (int32 t = 0; t < static_cast<int32>(Tracks.Num()); ++t)
 	{
@@ -1093,30 +1244,67 @@ void FParticleCurveEditorPanel::DrawGraph()
 
 			for (int32 k = 0; k < static_cast<int32>(Curve->Keys.Num()); ++k)
 			{
-				const ImVec2 P = ToScreen(Curve->Keys[k].Time, Curve->Keys[k].Value);
-				const bool bSel = bSelectedCurve && k == SelectedKey;
+				const FParticleCurveKey& KeyData = Curve->Keys[k];
+				const ImVec2 P = ToScreen(KeyData.Time, KeyData.Value);
+				const bool bSel = IsKeySelected(t, c, k);
+
+				// 선택된 Cubic 키의 Arrive / Leave 탄젠트 핸들
+				if (bSel)
+				{
+					const bool bShowArrive = KeyData.InterpMode == EParticleCurveInterp::Cubic ||
+						(k > 0 && Curve->Keys[k - 1].InterpMode == EParticleCurveInterp::Cubic);
+					const bool bShowLeave = KeyData.InterpMode == EParticleCurveInterp::Cubic;
+
+					auto DrawHandle = [&](ETangentHandle Side, float Tangent, float Dir)
+						{
+							const ImVec2 HPos = TangentHandlePos(P, Tangent, Dir);
+							const bool bHit = bHovered && std::fabs(Mouse.x - HPos.x) <= HandleRadius + 3.0f &&
+								std::fabs(Mouse.y - HPos.y) <= HandleRadius + 3.0f;
+							const bool bActiveHandle = DraggingTangent == Side && TangentDragKey == FKeyRef{ t, c, k };
+							if (bHit)
+							{
+								HoverTangent = Side;
+								HoverTangentKey = { t, c, k };
+							}
+							const ImU32 LineCol = (bHit || bActiveHandle) ? IM_COL32(255, 225, 110, 255) : IM_COL32(210, 214, 224, 190);
+							const ImU32 FillCol = (bHit || bActiveHandle) ? IM_COL32(255, 210, 75, 255) : IM_COL32(240, 242, 248, 230);
+							DL->AddLine(P, HPos, LineCol, (bHit || bActiveHandle) ? 1.8f : 1.2f);
+							DL->AddCircleFilled(HPos, HandleRadius + 1.0f, IM_COL32(15, 15, 18, 255));
+							DL->AddCircleFilled(HPos, HandleRadius, FillCol);
+						};
+
+					if (bShowArrive && k > 0) DrawHandle(ETangentHandle::Arrive, KeyData.ArriveTangent, -1.0f);
+					if (bShowLeave && k + 1 < static_cast<int32>(Curve->Keys.Num())) DrawHandle(ETangentHandle::Leave, KeyData.LeaveTangent, +1.0f);
+				}
+
 				const bool bKeyHovered = bHovered && std::fabs(Mouse.x - P.x) <= 6.0f && std::fabs(Mouse.y - P.y) <= 6.0f;
 				if (bKeyHovered) { HoverTrack = t; HoverChannel = c; HoverKey = k; }
 
-				// 키: 검은 테두리 사각형. 선택은 흰색, 마우스를 올리면 조금 크게
+				// 키: 검은 테두리 사각형. 선택은 흰색(주 선택은 노란 테두리), 마우스를 올리면 조금 크게
+				const bool bPrimary = bSelectedCurve && k == SelectedKey;
 				const float H = (bSel || bKeyHovered) ? 5.0f : 4.0f;
-				DL->AddRectFilled(ImVec2(P.x - H - 1, P.y - H - 1), ImVec2(P.x + H + 1, P.y + H + 1), IM_COL32(15, 15, 18, 255));
+				DL->AddRectFilled(ImVec2(P.x - H - 1, P.y - H - 1), ImVec2(P.x + H + 1, P.y + H + 1),
+					bPrimary ? IM_COL32(255, 200, 70, 255) : IM_COL32(15, 15, 18, 255));
 				DL->AddRectFilled(ImVec2(P.x - H, P.y - H), ImVec2(P.x + H, P.y + H), bSel ? IM_COL32(255, 255, 255, 255) : Color);
 			}
 		}
 	}
 
+	if (HoverTangent != ETangentHandle::None && DraggingTangent == ETangentHandle::None && !bDraggingKey)
+	{
+		ImGui::SetTooltip("Drag tangent handle (Hold Shift to mirror both)");
+	}
+
 	const ImGuiIO& IO = ImGui::GetIO();
 
-	// ── 왼쪽 클릭: 키 선택 / Ctrl+클릭 · 더블클릭: 키 추가 ──
-	const bool bAddKey = bHovered && HoverKey < 0 &&
+	// ── 왼쪽 클릭: 탄젠트 핸들 → 키 선택/다중선택 → Ctrl+클릭/더블클릭 키 추가 → Shift+드래그 박스선택 / Pan·Zoom ──
+	const bool bAddKey = bHovered && HoverTangent == ETangentHandle::None && HoverKey < 0 &&
 		((ImGui::IsMouseClicked(ImGuiMouseButton_Left) && IO.KeyCtrl) || ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left));
 	if (bAddKey)
 	{
 		float T, V;
 		ToCurve(Mouse, T, V);
 
-		// 넣을 커브: 선택한 커브가 보이면 그것, 아니면 마우스 시간에서 세로로 가장 가까운 보이는 커브
 		const bool bSelectedVisible = GetSelectedCurve() && Tracks[SelectedTrack].bChannelVisible[SelectedChannel];
 		if (!bSelectedVisible)
 		{
@@ -1132,31 +1320,155 @@ void FParticleCurveEditorPanel::DrawGraph()
 
 		if (FParticleCurve* Curve = GetSelectedCurve())
 		{
-			SelectedKey = Curve->AddKey(T, V);      // 클릭한 자리에 찍는다
-			bDraggingKey = true;                    // 누른 채로 끌면 바로 옮겨진다
+			const int32 NewKey = Curve->AddKey(T, V);
+			SelectSingleKey(SelectedTrack, SelectedChannel, NewKey);
+			bDraggingKey = true;
+			DragAnchorT = T;
+			DragAnchorV = V;
+			DragOrigins.Empty();
+			DragOrigins.Add({ { SelectedTrack, SelectedChannel, NewKey }, Curve->Keys[NewKey].Time, Curve->Keys[NewKey].Value });
 			Editor.NotifyPropertyChanged();
 		}
 	}
 	else if (bHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 	{
-		if (HoverKey >= 0)
+		if (HoverTangent != ETangentHandle::None)
 		{
-			SelectedTrack = HoverTrack; SelectedChannel = HoverChannel; SelectedKey = HoverKey;
-			bDraggingKey = true;
+			DraggingTangent = HoverTangent;
+			TangentDragKey = HoverTangentKey;
+		}
+		else if (HoverKey >= 0)
+		{
+			if (IO.KeyShift)
+			{
+				ToggleKeySelection(HoverTrack, HoverChannel, HoverKey);
+			}
+			else if (!IsKeySelected(HoverTrack, HoverChannel, HoverKey))
+			{
+				SelectSingleKey(HoverTrack, HoverChannel, HoverKey);
+			}
+			else
+			{
+				SelectedTrack = HoverTrack;
+				SelectedChannel = HoverChannel;
+				SelectedKey = HoverKey;
+			}
+
+			if (!SelectedKeys.IsEmpty() && IsKeySelected(HoverTrack, HoverChannel, HoverKey))
+			{
+				float MouseT, MouseV;
+				ToCurve(Mouse, MouseT, MouseV);
+				bDraggingKey = true;
+				DragAnchorT = MouseT;
+				DragAnchorV = MouseV;
+				DragOrigins.Empty();
+				for (const FKeyRef& Ref : SelectedKeys)
+				{
+					if (FParticleCurve* C = ResolveCurve(Ref.Track, Ref.Channel);
+						C && Ref.Key >= 0 && Ref.Key < static_cast<int32>(C->Keys.Num()))
+					{
+						DragOrigins.Add({ Ref, C->Keys[Ref.Key].Time, C->Keys[Ref.Key].Value });
+					}
+				}
+			}
+		}
+		else if (IO.KeyShift)
+		{
+			bBoxSelecting = true;
+			BoxSelectStart = Mouse;
+			BoxSelectEnd = Mouse;
 		}
 		else
 		{
-			SelectedKey = -1;                        // 빈 곳: 선택 해제 + 툴바 Pan / Zoom 드래그 시작
+			ClearKeySelection();
 			bDraggingView = true;
 			ViewDragAnchorX = Mouse.x;
 			ViewDragAnchorY = Mouse.y;
 		}
 	}
 
+	// ── 탄젠트 핸들 드래그 ──
+	if (DraggingTangent != ETangentHandle::None)
+	{
+		FParticleCurve* Curve = ResolveCurve(TangentDragKey.Track, TangentDragKey.Channel);
+		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || !Curve ||
+			TangentDragKey.Key < 0 || TangentDragKey.Key >= static_cast<int32>(Curve->Keys.Num()))
+		{
+			DraggingTangent = ETangentHandle::None;
+		}
+		else
+		{
+			FParticleCurveKey& K = Curve->Keys[TangentDragKey.Key];
+			float MouseT, MouseV;
+			ToCurve(Mouse, MouseT, MouseV);
+			const float Dir = DraggingTangent == ETangentHandle::Arrive ? -1.0f : 1.0f;
+			const float MinDt = std::max(1e-4f, (ViewMaxT - ViewMinT) * 0.002f);
+			const float SignedDt = std::max(Dir * (MouseT - K.Time), MinDt) * Dir;
+			const float NewTangent = (MouseV - K.Value) / SignedDt;
+
+			K.bAutoTangent = false;
+			if (DraggingTangent == ETangentHandle::Arrive)
+			{
+				K.ArriveTangent = NewTangent;
+				if (IO.KeyShift) K.LeaveTangent = NewTangent;
+			}
+			else
+			{
+				K.LeaveTangent = NewTangent;
+				if (IO.KeyShift) K.ArriveTangent = NewTangent;
+			}
+			Curve->AutoSetTangents();
+			Editor.NotifyPropertyChanged();
+
+			char Buf[48];
+			snprintf(Buf, sizeof(Buf), "%s: %.3f", DraggingTangent == ETangentHandle::Arrive ? "Arrive" : "Leave", NewTangent);
+			const ImVec2 TS = ImGui::CalcTextSize(Buf);
+			const ImVec2 A(Mouse.x + 12.0f, Mouse.y - TS.y - 8.0f);
+			DL->AddRectFilled(ImVec2(A.x - 4, A.y - 2), ImVec2(A.x + TS.x + 4, A.y + TS.y + 2), IM_COL32(20, 20, 24, 220), 3.0f);
+			DL->AddText(A, IM_COL32(255, 225, 110, 255), Buf);
+		}
+	}
+
+	// ── 마키(박스) 다중 선택 (Shift + 빈 곳 좌드래그) ──
+	if (bBoxSelecting)
+	{
+		BoxSelectEnd = Mouse;
+		const ImVec2 BMin(std::min(BoxSelectStart.x, BoxSelectEnd.x), std::min(BoxSelectStart.y, BoxSelectEnd.y));
+		const ImVec2 BMax(std::max(BoxSelectStart.x, BoxSelectEnd.x), std::max(BoxSelectStart.y, BoxSelectEnd.y));
+		DL->AddRectFilled(BMin, BMax, IM_COL32(90, 170, 255, 45));
+		DL->AddRect(BMin, BMax, IM_COL32(120, 190, 255, 210), 0.0f, 0, 1.2f);
+
+		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		{
+			bBoxSelecting = false;
+			ClearKeySelection();
+			for (int32 t = 0; t < static_cast<int32>(Tracks.Num()); ++t)
+			{
+				const FParticleSystemEditor::FCurveTrack& Track = Tracks[t];
+				for (int32 c = 0; c < Track.NumChannels; ++c)
+				{
+					if (!Track.bChannelVisible[c]) continue;
+					const FParticleCurve* Curve = Track.GetChannel(c);
+					for (int32 k = 0; k < static_cast<int32>(Curve->Keys.Num()); ++k)
+					{
+						const ImVec2 P = ToScreen(Curve->Keys[k].Time, Curve->Keys[k].Value);
+						if (P.x >= BMin.x && P.x <= BMax.x && P.y >= BMin.y && P.y <= BMax.y)
+						{
+							SelectedKeys.Add({ t, c, k });
+							SelectedTrack = t;
+							SelectedChannel = c;
+							SelectedKey = k;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// ── 빈 곳 왼쪽 드래그: Pan 모드는 이동, Zoom 모드는 누른 점을 고정점으로 확대 ──
 	if (bDraggingView)
 	{
-		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || bDraggingKey)
+		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || bDraggingKey || DraggingTangent != ETangentHandle::None)
 		{
 			bDraggingView = false;
 		}
@@ -1181,52 +1493,94 @@ void FParticleCurveEditorPanel::DrawGraph()
 		}
 	}
 
-	// ── 드래그: 선택한 키 이동 (이웃 키 사이로 시간을 제한해 순서를 유지) ──
+	// ── 드래그: 선택한 모든 키 일괄 이동 (이웃 키 사이로 시간을 제한해 순서를 유지) ──
 	if (bDraggingKey)
 	{
-		FParticleCurve* Curve = GetSelectedCurve();
-		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || !Curve || SelectedKey < 0 || SelectedKey >= static_cast<int32>(Curve->Keys.Num()))
+		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) || DragOrigins.IsEmpty())
 		{
 			bDraggingKey = false;
+			DragOrigins.Empty();
 		}
 		else if (IO.MouseDelta.x != 0.0f || IO.MouseDelta.y != 0.0f)
 		{
-			float T, V;
-			ToCurve(Mouse, T, V);
-			const int32 Num = static_cast<int32>(Curve->Keys.Num());
-			const float MinT = SelectedKey > 0 ? Curve->Keys[SelectedKey - 1].Time + 1e-3f : -1e9f;
-			const float MaxT = SelectedKey < Num - 1 ? Curve->Keys[SelectedKey + 1].Time - 1e-3f : 1e9f;
-			Curve->Keys[SelectedKey].Time = std::clamp(T, MinT, MaxT);
-			Curve->Keys[SelectedKey].Value = V;
-			Curve->AutoSetTangents();
-			Editor.NotifyPropertyChanged();     // 손을 뗄 때까지 재시작은 미뤄진다 (InvisibleButton이 active)
+			float MouseT, MouseV;
+			ToCurve(Mouse, MouseT, MouseV);
+			const float DeltaT = MouseT - DragAnchorT;
+			const float DeltaV = MouseV - DragAnchorV;
+
+			// 오른쪽 이동이면 뒤 키부터, 왼쪽 이동이면 앞 키부터 옮겨 인접 선택 키끼리 막히지 않게 한다
+			TArray<FKeyDragOrigin> Ordered = DragOrigins;
+			std::sort(Ordered.begin(), Ordered.end(), [DeltaT](const FKeyDragOrigin& A, const FKeyDragOrigin& B)
+				{
+					if (A.Ref.Track != B.Ref.Track) return A.Ref.Track < B.Ref.Track;
+					if (A.Ref.Channel != B.Ref.Channel) return A.Ref.Channel < B.Ref.Channel;
+					return DeltaT > 0.0f ? (A.Ref.Key > B.Ref.Key) : (A.Ref.Key < B.Ref.Key);
+				});
+
+			TArray<FParticleCurve*> Touched;
+			for (const FKeyDragOrigin& OriginItem : Ordered)
+			{
+				FParticleCurve* Curve = ResolveCurve(OriginItem.Ref.Track, OriginItem.Ref.Channel);
+				if (!Curve || OriginItem.Ref.Key < 0 || OriginItem.Ref.Key >= static_cast<int32>(Curve->Keys.Num())) continue;
+				const int32 KIdx = OriginItem.Ref.Key;
+				const int32 Num = static_cast<int32>(Curve->Keys.Num());
+				const float MinT = KIdx > 0 ? Curve->Keys[KIdx - 1].Time + 1e-3f : -1e9f;
+				const float MaxT = KIdx < Num - 1 ? Curve->Keys[KIdx + 1].Time - 1e-3f : 1e9f;
+				Curve->Keys[KIdx].Time = std::clamp(OriginItem.Time + DeltaT, MinT, MaxT);
+				Curve->Keys[KIdx].Value = OriginItem.Value + DeltaV;
+				if (Touched.Find(Curve) == INDEX_NONE) Touched.Add(Curve);
+			}
+			for (FParticleCurve* Curve : Touched) Curve->AutoSetTangents();
+			if (!Touched.IsEmpty()) Editor.NotifyPropertyChanged();
 		}
 
-		// 끄는 동안 키 옆에 값 표시
-		if (bDraggingKey && Curve)
+		// 끄는 동안 주 선택 키 옆에 값 표시
+		if (bDraggingKey)
 		{
-			const FParticleCurveKey& K = Curve->Keys[SelectedKey];
-			char Buf[48]; snprintf(Buf, sizeof(Buf), "%.3f, %.3f", K.Time, K.Value);
-			const ImVec2 P = ToScreen(K.Time, K.Value);
-			const ImVec2 TS = ImGui::CalcTextSize(Buf);
-			const ImVec2 A(P.x + 10, P.y - TS.y - 10);
-			DL->AddRectFilled(ImVec2(A.x - 4, A.y - 2), ImVec2(A.x + TS.x + 4, A.y + TS.y + 2), IM_COL32(20, 20, 24, 220), 3.0f);
-			DL->AddText(A, IM_COL32(240, 240, 245, 255), Buf);
+			if (FParticleCurve* Curve = GetSelectedCurve(); Curve && SelectedKey >= 0 && SelectedKey < static_cast<int32>(Curve->Keys.Num()))
+			{
+				const FParticleCurveKey& K = Curve->Keys[SelectedKey];
+				char Buf[64];
+				if (SelectedKeys.Num() > 1)
+					snprintf(Buf, sizeof(Buf), "%.3f, %.3f (%d keys)", K.Time, K.Value, SelectedKeys.Num());
+				else
+					snprintf(Buf, sizeof(Buf), "%.3f, %.3f", K.Time, K.Value);
+				const ImVec2 P = ToScreen(K.Time, K.Value);
+				const ImVec2 TS = ImGui::CalcTextSize(Buf);
+				const ImVec2 A(P.x + 10, P.y - TS.y - 10);
+				DL->AddRectFilled(ImVec2(A.x - 4, A.y - 2), ImVec2(A.x + TS.x + 4, A.y + TS.y + 2), IM_COL32(20, 20, 24, 220), 3.0f);
+				DL->AddText(A, IM_COL32(240, 240, 245, 255), Buf);
+			}
 		}
 	}
 
-	// ── Delete: 선택한 키 삭제 ──
+	// ── Delete: 선택한 키(들) 삭제 ──
 	if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Delete, false))
 	{
-		if (FParticleCurve* Curve = GetSelectedCurve(); Curve && SelectedKey >= 0)
-		{
-			Curve->RemoveKeyAt(SelectedKey);
-			SelectedKey = -1;
-			Editor.NotifyPropertyChanged();
-		}
+		DeleteSelectedKeys();
 	}
 
-	// ── 오른쪽 · 가운데 드래그: 이동 ──
+	// ── 오른쪽 클릭(드래그 없이 떼면): 컨텍스트 메뉴 / 오른쪽·가운데 드래그: 패닝 ──
+	if (bHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+	{
+		bRightClickPending = true;
+		RightClickStart = Mouse;
+		ToCurve(Mouse, ContextTime, ContextValue);
+		if (HoverKey >= 0 && !IsKeySelected(HoverTrack, HoverChannel, HoverKey))
+		{
+			SelectSingleKey(HoverTrack, HoverChannel, HoverKey);
+		}
+	}
+	if (bRightClickPending && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+	{
+		bRightClickPending = false;
+		const float Dx = Mouse.x - RightClickStart.x;
+		const float Dy = Mouse.y - RightClickStart.y;
+		if (Dx * Dx + Dy * Dy < 16.0f)
+		{
+			ImGui::OpenPopup("##CurveContextMenu");
+		}
+	}
 	if (bActive && (ImGui::IsMouseDragging(ImGuiMouseButton_Right) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
 	{
 		const float DT = -IO.MouseDelta.x / Size.x * (ViewMaxT - ViewMinT);
@@ -1238,20 +1592,79 @@ void FParticleCurveEditorPanel::DrawGraph()
 	// ── 휠: 마우스 위치를 고정점으로 확대 (Ctrl이면 세로) ──
 	if (bHovered && IO.MouseWheel != 0.0f)
 	{
-		const float Scale = IO.MouseWheel > 0.0f ? 0.85f : 1.0f / 0.85f;
+		const float WheelScale = IO.MouseWheel > 0.0f ? 0.85f : 1.0f / 0.85f;
 		float T, V;
 		ToCurve(Mouse, T, V);
 		if (IO.KeyCtrl)
 		{
-			ViewMinV = V + (ViewMinV - V) * Scale;
-			ViewMaxV = V + (ViewMaxV - V) * Scale;
+			ViewMinV = V + (ViewMinV - V) * WheelScale;
+			ViewMaxV = V + (ViewMaxV - V) * WheelScale;
 		}
 		else
 		{
-			ViewMinT = T + (ViewMinT - T) * Scale;
-			ViewMaxT = T + (ViewMaxT - T) * Scale;
+			ViewMinT = T + (ViewMinT - T) * WheelScale;
+			ViewMaxT = T + (ViewMaxT - T) * WheelScale;
 		}
 	}
 
 	DL->PopClipRect();
+	DrawContextMenu();
+}
+
+void FParticleCurveEditorPanel::DrawContextMenu()
+{
+	if (!ImGui::BeginPopup("##CurveContextMenu")) return;
+
+	if (ImGui::MenuItem("Add Key Here"))
+	{
+		TArray<FParticleSystemEditor::FCurveTrack>& Tracks = Editor.GetCurveTracks();
+		const bool bSelectedVisible = GetSelectedCurve() && Tracks[SelectedTrack].bChannelVisible[SelectedChannel];
+		if (!bSelectedVisible)
+		{
+			float Best = FLT_MAX;
+			for (int32 t = 0; t < static_cast<int32>(Tracks.Num()); ++t)
+				for (int32 c = 0; c < Tracks[t].NumChannels; ++c)
+				{
+					if (!Tracks[t].bChannelVisible[c]) continue;
+					const float D = std::fabs(Tracks[t].GetChannel(c)->Eval(ContextTime, 0.0f) - ContextValue);
+					if (D < Best) { Best = D; SelectedTrack = t; SelectedChannel = c; }
+				}
+		}
+		if (FParticleCurve* Curve = GetSelectedCurve())
+		{
+			const int32 NewKey = Curve->AddKey(ContextTime, ContextValue);
+			SelectSingleKey(SelectedTrack, SelectedChannel, NewKey);
+			Editor.NotifyPropertyChanged();
+		}
+	}
+
+	const bool bHasSel = !SelectedKeys.IsEmpty();
+	if (bHasSel)
+	{
+		ImGui::Separator();
+		if (ImGui::MenuItem("Auto Tangent"))
+			ApplyToSelectedKeys([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Cubic; K.bAutoTangent = true; });
+		if (ImGui::MenuItem("User Tangent"))
+			ApplyToSelectedKeys([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Cubic; K.bAutoTangent = false; });
+		if (ImGui::MenuItem("Linear"))
+			ApplyToSelectedKeys([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Linear; });
+		if (ImGui::MenuItem("Constant"))
+			ApplyToSelectedKeys([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Constant; });
+		ImGui::Separator();
+		if (ImGui::MenuItem("Flatten Tangents"))
+			ApplyToSelectedKeys([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Cubic; K.bAutoTangent = false; K.ArriveTangent = K.LeaveTangent = 0.0f; });
+		if (ImGui::MenuItem("Straighten Tangents"))
+			ApplyToSelectedKeys([](FParticleCurveKey& K) { K.InterpMode = EParticleCurveInterp::Cubic; K.bAutoTangent = false; K.ArriveTangent = K.LeaveTangent = (K.ArriveTangent + K.LeaveTangent) * 0.5f; });
+		ImGui::Separator();
+		char DelLabel[48];
+		snprintf(DelLabel, sizeof(DelLabel), SelectedKeys.Num() > 1 ? "Delete %d Keys" : "Delete Key", SelectedKeys.Num());
+		if (ImGui::MenuItem(DelLabel, "Del"))
+		{
+			DeleteSelectedKeys();
+		}
+	}
+
+	ImGui::Separator();
+	if (ImGui::MenuItem("Fit View")) { FitHorizontal(); FitVertical(); }
+	ImGui::EndPopup();
 }

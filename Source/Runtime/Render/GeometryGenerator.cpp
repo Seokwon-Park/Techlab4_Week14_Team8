@@ -506,6 +506,129 @@ TUniquePtr<FStaticMeshData> FGeometryGenerator::CreateUnitQuad(const FVector4& C
 	return Data;
 }
 
+TUniquePtr<FStaticMeshData> FGeometryGenerator::CreateHemisphere(float Radius, uint32 NumSlices, uint32 NumStacks)
+{
+	TUniquePtr<FStaticMeshData> MeshData = MakeUnique<FStaticMeshData>();
+
+	// CreateSphere와 같은 감김 순서로 위(+Z)에서 적도까지만 만든다
+	const float SliceStep = PI * 2.0f / NumSlices;
+	const float StackStep = (PI * 0.5f) / NumStacks;
+
+	for (uint32 i = 0; i <= NumStacks; i++)
+	{
+		const float Phi = i * StackStep;
+		const float z = cosf(Phi);
+		const float r = sinf(Phi);
+
+		for (uint32 j = 0; j <= NumSlices; j++)
+		{
+			const float Theta = j * SliceStep;
+			const FVector Normal(r * cosf(Theta), r * sinf(Theta), z);
+
+			FVertex Vertex;
+			Vertex.Position = Normal * Radius;
+			Vertex.Normal = Normal;
+			Vertex.UV = FVector2(float(j) / NumSlices, float(i) / NumStacks);
+			MeshData->Vertices.Add(Vertex);
+		}
+	}
+
+	for (uint32 i = 0; i < NumStacks; i++)
+	{
+		const uint32 Offset = (NumSlices + 1) * i;
+		for (uint32 j = 0; j < NumSlices; j++)
+		{
+			const uint32 TopL = Offset + j;
+			const uint32 TopR = Offset + j + 1;
+			const uint32 BotL = Offset + NumSlices + 1 + j;
+			const uint32 BotR = Offset + NumSlices + 1 + j + 1;
+
+			MeshData->Indices.Add(TopL);
+			MeshData->Indices.Add(BotL);
+			MeshData->Indices.Add(BotR);
+
+			MeshData->Indices.Add(TopL);
+			MeshData->Indices.Add(BotR);
+			MeshData->Indices.Add(TopR);
+		}
+	}
+
+	MeshData->AABB = CalculateAABB(MeshData->Vertices);
+	return MeshData;
+}
+
+TUniquePtr<FStaticMeshData> FGeometryGenerator::CreateOpenCylinder(float Radius, uint32 NumSlices)
+{
+	TUniquePtr<FStaticMeshData> MeshData = MakeUnique<FStaticMeshData>();
+
+	// 반구 적도와 같은 각도로 둘레를 나눈다. 위 고리(z=+0.5)를 먼저 둬 반구와 같은 감김이 되게 한다
+	const float SliceStep = PI * 2.0f / NumSlices;
+	for (uint32 Ring = 0; Ring < 2; Ring++)
+	{
+		const float z = Ring == 0 ? 0.5f : -0.5f;
+		for (uint32 j = 0; j <= NumSlices; j++)
+		{
+			const float Theta = j * SliceStep;
+			const FVector Normal(cosf(Theta), sinf(Theta), 0.0f);
+
+			FVertex Vertex;
+			Vertex.Position = FVector(Normal.X * Radius, Normal.Y * Radius, z);
+			Vertex.Normal = Normal;
+			Vertex.UV = FVector2(float(j) / NumSlices, float(Ring));
+			MeshData->Vertices.Add(Vertex);
+		}
+	}
+
+	for (uint32 j = 0; j < NumSlices; j++)
+	{
+		const uint32 TopL = j;
+		const uint32 TopR = j + 1;
+		const uint32 BotL = NumSlices + 1 + j;
+		const uint32 BotR = NumSlices + 1 + j + 1;
+
+		MeshData->Indices.Add(TopL);
+		MeshData->Indices.Add(BotL);
+		MeshData->Indices.Add(BotR);
+
+		MeshData->Indices.Add(TopL);
+		MeshData->Indices.Add(BotR);
+		MeshData->Indices.Add(TopR);
+	}
+
+	MeshData->AABB = CalculateAABB(MeshData->Vertices);
+	return MeshData;
+}
+
+TUniquePtr<FStaticMeshData> FGeometryGenerator::CreateFanParameterMesh(uint32 Segments)
+{
+	TUniquePtr<FStaticMeshData> MeshData = MakeUnique<FStaticMeshData>();
+
+	// 조각마다 꼭짓점을 따로 둬 UV.x가 조각 사이에서 끊기지 않게 한다
+	for (uint32 i = 0; i <= Segments; i++)
+	{
+		const float U = float(i) / Segments;
+
+		FVertex Apex;
+		Apex.UV = FVector2(U, 0.0f);
+		MeshData->Vertices.Add(Apex);
+
+		FVertex Rim;
+		Rim.UV = FVector2(U, 1.0f);
+		Rim.Position = FVector(1.0f, 0.0f, 0.0f);   // 실제 위치는 셰이더가 정한다. 바운드용 값
+		MeshData->Vertices.Add(Rim);
+	}
+
+	for (uint32 i = 0; i < Segments; i++)
+	{
+		MeshData->Indices.Add(i * 2);
+		MeshData->Indices.Add(i * 2 + 1);
+		MeshData->Indices.Add((i + 1) * 2 + 1);
+	}
+
+	MeshData->AABB = CalculateAABB(MeshData->Vertices);
+	return MeshData;
+}
+
 FStaticMeshData* FGeometryGenerator::GetMeshData(const FString& InName)
 {
 	TUniquePtr<FStaticMeshData>* MeshData = MeshDataMap.Find(InName);
@@ -538,4 +661,10 @@ void FGeometryGenerator::CreateDefaultMeshDatas()
 	MeshDataMap["GizmoCenterCube"] = CreateCube(0.14f, White);
 	MeshDataMap["GizmoDisc"] = CreateDisc(1.2f, 128, White);
 	MeshDataMap["GizmoQuad"] = CreateUnitQuad(White);
+
+	// 물리 디버그 3D 셰이딩용 기본 메시
+	MeshDataMap["UnitSphere"] = CreateSphere(1.0f, 32, 16, White);
+	MeshDataMap["PhysicsHemisphere"] = CreateHemisphere(1.0f, 32, 8);
+	MeshDataMap["PhysicsCylinder"] = CreateOpenCylinder(1.0f, 32);
+	MeshDataMap["PhysicsFan"] = CreateFanParameterMesh(48);
 }
