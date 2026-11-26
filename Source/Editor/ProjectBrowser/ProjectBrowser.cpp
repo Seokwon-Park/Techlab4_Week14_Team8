@@ -128,7 +128,7 @@ namespace
 			"; 씬의 GameMode Override가 비어 있을 때 쓸 GameMode 클래스. 비워 두면 AGameModeBase\n"
 			"GlobalDefaultGameMode=" + DefaultGameMode + "\n"
 			"; 비워 두면 하늘을 그리지 않는다\n"
-			"SkyPanorama=\n"
+			"SkyPanorama=Engine/SkySphere/Sky.hdr\n"
 			"\n"
 			"[Window]\n"
 			"Title=" + Name + "\n"

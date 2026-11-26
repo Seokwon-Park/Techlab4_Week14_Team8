@@ -45,10 +45,13 @@ bool FSkyboxRenderer::Init(const FString& PanoramaPath)
 		return false;
 	}
 
-	FImageData Image = ImageLoader::LoadAuto(PanoramaPath);
+	FString ResolvedPath = FPaths::ResolveEngineResourcePath(PanoramaPath);
+	ResolvedPath = FPaths::ToUtf8(FPaths::ResolveEngineRelative(ResolvedPath));
+
+	FImageData Image = ImageLoader::LoadAuto(ResolvedPath);
 	if (!Image.IsValid())
 	{
-		HTR_LOG(Error, "[Skybox] panorama load failed: {}", PanoramaPath);
+		HTR_LOG(Error, "[Skybox] panorama load failed: {} (resolved: {})", PanoramaPath, ResolvedPath);
 		return false;
 	}
 
