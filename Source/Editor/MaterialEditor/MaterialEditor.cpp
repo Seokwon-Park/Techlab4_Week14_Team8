@@ -162,7 +162,7 @@ void FMaterialEditor::Tick(float DeltaTime)
 		FViewportCameraInput AdjustedInput = CameraInput;
 		if (AdjustedInput.bCaptured && AdjustedInput.Wheel != 0.0f)
 		{
-			CameraSpeed = FMath::Clamp(CameraSpeed * powf(1.2f, AdjustedInput.Wheel / 120.0f), 0.1f, 50.0f);
+			CameraSpeed = FMath::Clamp(CameraSpeed * powf(1.2f, AdjustedInput.Wheel / 120.0f), 0.1f, 100.0f);
 			AdjustedInput.Wheel = 0.0f;
 		}
 		FViewportCameraState Camera{

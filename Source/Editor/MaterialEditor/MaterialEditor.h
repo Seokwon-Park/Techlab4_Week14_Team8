@@ -40,7 +40,7 @@ public:
 	void SetPreviewShape(EMaterialPreviewShape Shape);
 	float GetCameraSpeed() const { return CameraSpeed; }
 	float* GetMutableCameraSpeed() { return &CameraSpeed; }
-	void SetCameraSpeed(float InSpeed) { CameraSpeed = FMath::Clamp(InSpeed, 0.1f, 50.0f); }
+	void SetCameraSpeed(float InSpeed) { CameraSpeed = FMath::Clamp(InSpeed, 0.1f, 100.0f); }
 
 	void MarkDirty();
 	bool Save();

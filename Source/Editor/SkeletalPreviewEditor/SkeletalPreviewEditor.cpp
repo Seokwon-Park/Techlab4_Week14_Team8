@@ -59,7 +59,7 @@ void FSkeletalPreviewEditor::Tick(float DeltaTime)
 		FViewportCameraInput AdjustedCameraInput = CameraInput;
 		if (AdjustedCameraInput.bCaptured && AdjustedCameraInput.Wheel != 0.0f)
 		{
-			CameraSpeed = FMath::Clamp(CameraSpeed * powf(1.2f, AdjustedCameraInput.Wheel / 120.0f), 0.1f, 50.0f);
+			CameraSpeed = FMath::Clamp(CameraSpeed * powf(1.2f, AdjustedCameraInput.Wheel / 120.0f), 0.1f, 100.0f);
 			AdjustedCameraInput.Wheel = 0.0f;
 		}
 		FViewportCameraState Camera{

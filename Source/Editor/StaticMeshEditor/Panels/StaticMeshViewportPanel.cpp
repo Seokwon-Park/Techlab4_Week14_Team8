@@ -58,7 +58,14 @@ void FStaticMeshViewportPanel::DrawContent()
 
 	const ImGuiIO& IO = ImGui::GetIO();
 	const bool bCameraDragging = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)
+	const bool bMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+	float EffectiveWheel = IO.MouseWheel * 120.0f;
+	if (bHovered && bMouseDown && !bCameraDragging && IO.MouseWheel != 0.0f)
+	{
+		Editor.SetCameraSpeed(Editor.GetCameraSpeed() * powf(1.2f, IO.MouseWheel));
+		EffectiveWheel = 0.0f;
+	}
+	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && bMouseDown
 		&& !bCameraDragging && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
 	FViewportCameraInput Input
 	{
@@ -75,7 +82,7 @@ void FStaticMeshViewportPanel::DrawContent()
 		.MouseY			= IO.MouseDelta.y,
 
 		// ImGui의 휠 단위를 기존 카메라 이동 함수가 사용하는 Windows 휠 단위로 변환합니다.
-		.Wheel			= IO.MouseWheel * 120.0f,
+		.Wheel			= EffectiveWheel,
 	};
 
 	// 렌더 타깃 변경은 Editor의 다음 Render에서 수행합니다.

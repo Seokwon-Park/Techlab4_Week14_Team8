@@ -186,7 +186,7 @@ void FSettingsPanel::DrawContents()
 	CamCom->SetMouseSensitivity(Settings.MouseSensitivity);
 
 	ImGui::SetNextItemWidth(200.0f);
-	ImGui::SliderFloat("Camera Speed", &Settings.CameraSpeed, 0.1f, 10.0f, "%.2f");
+	ImGui::SliderFloat("Camera Speed", &Settings.CameraSpeed, 0.1f, 100.0f, "%.2f");
 	CamCom->SetMoveSpeed(Settings.CameraSpeed);
 
 	//////////////////////////////////////////////////////////

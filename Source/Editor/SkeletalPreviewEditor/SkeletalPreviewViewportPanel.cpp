@@ -68,6 +68,13 @@ void FSkeletalPreviewViewportPanel::DrawContent()
         .bShiftDown = IO.KeyShift,
     };
 
+    float EffectiveWheel = IO.MouseWheel * 120.0f;
+    if (bHovered && bMouseDown && !bCameraDragging && !Editor.IsViewportInteractionBusy() && IO.MouseWheel != 0.0f)
+    {
+        Editor.SetCameraSpeed(FMath::Clamp(Editor.GetCameraSpeed() * powf(1.2f, IO.MouseWheel), 0.1f, 100.0f));
+        EffectiveWheel = 0.0f;
+    }
+
     const bool bLeftDrag = bFocused && ImGui::IsItemActive() && bMouseDown && !bCameraDragging
         && !Editor.IsViewportInteractionBusy() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
     const FViewportCameraInput CameraInput
@@ -84,7 +91,7 @@ void FSkeletalPreviewViewportPanel::DrawContent()
         .MouseX = IO.MouseDelta.x,
         .MouseY = IO.MouseDelta.y,
         // ImGui의 휠 단위를 카메라 이동 함수가 쓰는 Windows 휠 단위로 바꾼다
-        .Wheel = IO.MouseWheel * 120.0f,
+        .Wheel = EffectiveWheel,
     };
 
     if (SetGizmoMode && bFocused && bHovered && !bCameraDragging && !IO.WantTextInput && !Editor.IsGizmoDragging())

@@ -89,7 +89,14 @@ void FMaterialViewportPanel::DrawContent()
 
 	const ImGuiIO& IO = ImGui::GetIO();
 	const bool bCameraDragging = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)
+	const bool bMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+	float EffectiveWheel = IO.MouseWheel * 120.0f;
+	if (bHovered && bMouseDown && !bCameraDragging && IO.MouseWheel != 0.0f)
+	{
+		Editor.SetCameraSpeed(Editor.GetCameraSpeed() * powf(1.2f, IO.MouseWheel));
+		EffectiveWheel = 0.0f;
+	}
+	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && bMouseDown
 		&& !bCameraDragging && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
 	FViewportCameraInput Input
 	{
@@ -104,7 +111,7 @@ void FMaterialViewportPanel::DrawContent()
 		.bDown       = ImGui::IsKeyDown(ImGuiKey_Q),
 		.MouseX      = IO.MouseDelta.x,
 		.MouseY      = IO.MouseDelta.y,
-		.Wheel       = IO.MouseWheel * 120.0f,
+		.Wheel       = EffectiveWheel,
 	};
 
 	Editor.SetViewportState(static_cast<uint32>(Size.x), static_cast<uint32>(Size.y), Input);

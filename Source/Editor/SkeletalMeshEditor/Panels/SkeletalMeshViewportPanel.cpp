@@ -84,6 +84,13 @@ void FSkeletalMeshViewportPanel::DrawContent()
 		DrawList->PopClipRect();
 	}
 
+	float EffectiveWheel = IO.MouseWheel * 120.0f;
+	if (bHovered && bMouseDown && !bCameraDragging && !Editor.IsGizmoDragging() && !Editor.IsClothPaintMode() && IO.MouseWheel != 0.0f)
+	{
+		Editor.SetCameraSpeed(FMath::Clamp(Editor.GetCameraSpeed() * powf(1.2f, IO.MouseWheel), 0.1f, 100.0f));
+		EffectiveWheel = 0.0f;
+	}
+
 	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && bMouseDown && !bCameraDragging
 		&& !Editor.IsGizmoDragging() && !Editor.IsClothPaintMode()
 		&& ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
@@ -102,7 +109,7 @@ void FSkeletalMeshViewportPanel::DrawContent()
 		.MouseY			= IO.MouseDelta.y,
 
 		// ImGui의 휠 단위를 기존 카메라 이동 함수가 사용하는 Windows 휠 단위로 변환합니다.
-		.Wheel			= IO.MouseWheel * 120.0f,
+		.Wheel			= EffectiveWheel,
 	};
 
 	// 키보드로 Gizmo 키 변경 (Cloth Paint 중에는 비활성화)

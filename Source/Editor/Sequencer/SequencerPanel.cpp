@@ -132,6 +132,7 @@ void FSequencerPanel::Shutdown()
 
 bool FSequencerPanel::Init()
 {
+	SetOpen(false);
 	return true;
 }
 

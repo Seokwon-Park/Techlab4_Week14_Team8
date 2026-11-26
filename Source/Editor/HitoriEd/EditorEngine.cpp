@@ -705,7 +705,15 @@ void UEditorEngine::Tick(const float DeltaTime)
 			ViewportsPanel->SetActiveViewIndex(HoveredViewIndex);
 		}
 
-		const int32 WheelDelta = FInputSystem::GetWheelDelta();
+		int32 WheelDelta = FInputSystem::GetWheelDelta();
+		const bool bAnyMouseForSpeed = (CapturedViewportIndex != -1)
+			|| (HoveredViewIndex != -1 && FInputSystem::IsMouseDown(EMouseButton::Left) && (!Gizmo || !Gizmo->IsUsing()));
+		if (bAnyMouseForSpeed && WheelDelta != 0)
+		{
+			FEditorSettings& MutSettings = SettingsPanel->GetMutableSettings();
+			MutSettings.CameraSpeed = FMath::Clamp(MutSettings.CameraSpeed * powf(1.2f, static_cast<float>(WheelDelta) / 120.0f), 0.1f, 100.0f);
+			WheelDelta = 0;
+		}
 		const float MoveSpeed = 10.0f * SettingsPanel->GetSettings().CameraSpeed;
 		const float MouseSens = 0.2f * SettingsPanel->GetSettings().MouseSensitivity;
 

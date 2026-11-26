@@ -62,7 +62,7 @@ public:
 	UStaticMesh* GetMesh() const { return Mesh; }
 	float GetCameraSpeed() const { return CameraSpeed; }
 	float* GetMutableCameraSpeed() { return &CameraSpeed; }
-	void SetCameraSpeed(float InSpeed) { CameraSpeed = FMath::Clamp(InSpeed, 0.1f, 50.0f); }
+	void SetCameraSpeed(float InSpeed) { CameraSpeed = FMath::Clamp(InSpeed, 0.1f, 100.0f); }
 
 protected:
 	// 이 에디터에 연결된 탭을 생성합니다.

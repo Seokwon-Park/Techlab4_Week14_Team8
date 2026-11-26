@@ -192,7 +192,7 @@ namespace EditorViewportUI
 			(bLabels && CameraSpeed) ? SpeedLabel : nullptr, true, ImGui::IsPopupOpen("##CameraMenu"), H);
 		if (EffectiveSpeed && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 2.0f))
 		{
-			*EffectiveSpeed = FMath::Clamp(*EffectiveSpeed + ImGui::GetIO().MouseDelta.x * 0.05f, 0.1f, 50.0f);
+			*EffectiveSpeed = FMath::Clamp(*EffectiveSpeed + ImGui::GetIO().MouseDelta.x * 0.1f, 0.1f, 100.0f);
 			bSpeedButtonDragged = true;
 			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
 		}
@@ -200,7 +200,7 @@ namespace EditorViewportUI
 		{
 			OpenPopupBelow("##CameraMenu", true);
 		}
-		ImGui::SetItemTooltip("Camera Speed\nDrag horizontally or hold RMB + scroll wheel.");
+		ImGui::SetItemTooltip("Camera Speed\nDrag horizontally or hold LMB/RMB + scroll wheel.");
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 4.0f * S));
 		if (ImGui::BeginPopup("##CameraMenu"))
 		{
@@ -211,9 +211,27 @@ namespace EditorViewportUI
 				ImGui::TextUnformatted("Speed");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(160.0f * S);
-				ImGui::SliderFloat("##Speed", EffectiveSpeed, 0.1f, 50.0f, "%.2f");
+				ImGui::SliderFloat("##Speed", EffectiveSpeed, 0.1f, 100.0f, "%.2f");
 			}
-			EditorIcons::MenuNote("Hold RMB and scroll wheel to adjust speed.", 220.0f * S);
+			EditorIcons::MenuNote("Hold LMB or RMB and scroll wheel to adjust speed.", 220.0f * S);
+
+			ImGui::Spacing();
+			EditorIcons::MenuSection("Camera Position");
+			FVector Pos = Client->GetViewLocation();
+			float PosArr[3] = { Pos.X, Pos.Y, Pos.Z };
+			ImGui::SetNextItemWidth(210.0f * S);
+			if (ImGui::DragFloat3("##CamPos", PosArr, 0.5f, 0.0f, 0.0f, "%.2f"))
+				Client->SetViewLocation(FVector(PosArr[0], PosArr[1], PosArr[2]));
+
+			if (ImGui::Button("Origin (0,0,0)"))
+				Client->SetViewLocation(FVector::ZeroVector);
+			ImGui::SameLine();
+			if (ImGui::Button("Reset View"))
+			{
+				Client->SetViewLocation(FVector(-5.0f, -10.0f, 10.0f));
+				Client->SetViewRotation(FRotator(30.0f, 45.0f, 0.0f));
+			}
+
 			ImGui::EndPopup();
 		}
 		ImGui::PopStyleVar();
@@ -381,7 +399,7 @@ namespace EditorViewportUI
 				ImGui::TextUnformatted("Camera Speed");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(120.0f * S);
-				ImGui::SliderFloat("##VpCamSpeed", SpeedPtr, 0.1f, 10.0f, "%.2f");
+				ImGui::SliderFloat("##VpCamSpeed", SpeedPtr, 0.1f, 100.0f, "%.2f");
 
 				ImGui::Spacing();
 				EditorIcons::MenuSection("Grid");
