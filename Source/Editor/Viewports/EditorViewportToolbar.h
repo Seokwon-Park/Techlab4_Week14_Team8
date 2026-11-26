@@ -40,8 +40,10 @@ namespace EditorViewportUI
 	void HandleViewTypeShortcuts(FEditorViewportClient* Client);
 
 	// 에셋 에디터 뷰포트용 툴바 한 줄. SetGizmoMode가 있으면 왼쪽에 이동/회전/크기 버튼을 둔다.
+	// CameraSpeed가 있으면 우측 카메라 속도 버튼에 표시·드래그 조절·팝업 슬라이더를 연결한다.
 	// 마우스가 툴바 위에 있거나 툴바 메뉴가 열려 있으면 true (그동안 뷰포트 입력을 막는다).
 	bool DrawAssetViewportToolbar(FEditorViewportClient* Client, const ImVec2& ViewMin, const ImVec2& ViewMax,
 		UE::Widget::EWidgetMode GizmoMode = UE::Widget::WM_None,
-		const std::function<void(UE::Widget::EWidgetMode)>& SetGizmoMode = {});
+		const std::function<void(UE::Widget::EWidgetMode)>& SetGizmoMode = {},
+		float* CameraSpeed = nullptr);
 }

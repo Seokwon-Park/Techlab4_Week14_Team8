@@ -29,7 +29,9 @@ void FSkeletalMeshViewportPanel::DrawContent()
 
 	// UE5식 뷰포트 툴바(기즈모 도구, 뷰 종류, 카메라, 뷰 모드, 쇼 플래그)와 왼쪽 아래 축 표시.
 	// 입력 영역보다 먼저 그려야 툴바 버튼이 마우스를 먼저 받는다. 툴바 위에서는 뷰포트 입력을 막는다.
-	const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax, Editor.GetGizmoMode(), [this](UE::Widget::EWidgetMode Mode) { Editor.SetGizmoMode(Mode); });
+	const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax,
+		Editor.GetGizmoMode(), [this](UE::Widget::EWidgetMode Mode) { Editor.SetGizmoMode(Mode); },
+		Editor.GetMutableCameraSpeed());
 
 	// 이미지 영역을 입력 항목으로 등록하여 드래그 중에도 카메라 조작을 유지한다.
 	ImGui::SetCursorScreenPos(Origin);
@@ -82,9 +84,13 @@ void FSkeletalMeshViewportPanel::DrawContent()
 		DrawList->PopClipRect();
 	}
 
+	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && bMouseDown && !bCameraDragging
+		&& !Editor.IsGizmoDragging() && !Editor.IsClothPaintMode()
+		&& ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
 	FViewportCameraInput Input
 	{
 		.bCaptured		= bFocused && ImGui::IsItemActive() && bCameraDragging && !bMouseDown && !Editor.IsGizmoDragging(),
+		.bLeftDrag		= bLeftDrag,
 		.bAllowWheel	= bHovered && !bMouseDown && !Editor.IsGizmoDragging(),
 		.bForward		= ImGui::IsKeyDown(ImGuiKey_W),
 		.bBackward		= ImGui::IsKeyDown(ImGuiKey_S),
@@ -99,25 +105,22 @@ void FSkeletalMeshViewportPanel::DrawContent()
 		.Wheel			= IO.MouseWheel * 120.0f,
 	};
 
-	// 키보드로 Gizmo 키 변경
-	if (!bCameraDragging)
+	// 키보드로 Gizmo 키 변경 (Cloth Paint 중에는 비활성화)
+	if (bFocused && bHovered && !bCameraDragging && !IO.WantTextInput && !Editor.IsClothPaintMode() && !Editor.IsGizmoDragging())
 	{
-		if (ImGui::IsKeyDown(ImGuiKey_W))
+		if (ImGui::IsKeyPressed(ImGuiKey_W, false))
 		{
 			Editor.SetGizmoMode(UE::Widget::WM_Translate);
 		}
-		if (ImGui::IsKeyDown(ImGuiKey_E))
+		else if (ImGui::IsKeyPressed(ImGuiKey_E, false))
 		{
 			Editor.SetGizmoMode(UE::Widget::WM_Rotate);
 		}
-		if (ImGui::IsKeyDown(ImGuiKey_R))
+		else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
 		{
 			Editor.SetGizmoMode(UE::Widget::WM_Scale);
 		}
-
-		// 뷰포트에서 Space를 누를 때마다 이동, 회전, 크기 모드를 순환합니다.
-		if (bFocused && bHovered && !IO.WantTextInput && !IO.AppFocusLost &&
-			!Editor.IsGizmoDragging() && ImGui::IsKeyPressed(ImGuiKey_Space, false))
+		else if (!IO.AppFocusLost && ImGui::IsKeyPressed(ImGuiKey_Space, false))
 		{
 			const int32 NextMode = (static_cast<int32>(Editor.GetGizmoMode()) + 1) % GizmoModeCount;
 			Editor.SetGizmoMode(static_cast<UE::Widget::EWidgetMode>(NextMode));

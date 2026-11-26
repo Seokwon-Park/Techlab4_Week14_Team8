@@ -2,6 +2,7 @@
 #include "Editor/MaterialEditor/Panels/MaterialViewportPanel.h"
 #include "Editor/MaterialEditor/MaterialEditor.h"
 #include "Editor/EditorUI/EditorStyle.h"
+#include "Editor/Viewports/EditorViewportToolbar.h"
 #include "Engine/Viewport.h"
 
 FMaterialViewportPanel::FMaterialViewportPanel(FMaterialEditor& InEditor)
@@ -49,28 +50,6 @@ void FMaterialViewportPanel::DrawContent()
 		ImGui::SameLine();
 		ImGui::TextDisabled("|");
 		ImGui::SameLine();
-
-		const EViewModeIndex CurrentMode = Client->GetViewMode();
-		const char* ModeLabel = "Lit";
-		if (CurrentMode == VMI_Wireframe) ModeLabel = "Wireframe";
-		else if (CurrentMode == VMI_WorldNormal) ModeLabel = "WorldNormal";
-		else if (CurrentMode == VMI_SceneDepth) ModeLabel = "SceneDepth";
-
-		ImGui::SetNextItemWidth(EditorStyle::Scale(110.0f));
-		if (ImGui::BeginCombo("##PreviewViewMode", ModeLabel))
-		{
-			if (ImGui::Selectable("Lit", CurrentMode == VMI_Lit))
-				Client->SetViewMode(VMI_Lit);
-			if (ImGui::Selectable("Wireframe", CurrentMode == VMI_Wireframe))
-				Client->SetViewMode(VMI_Wireframe);
-			if (ImGui::Selectable("WorldNormal", CurrentMode == VMI_WorldNormal))
-				Client->SetViewMode(VMI_WorldNormal);
-			if (ImGui::Selectable("SceneDepth", CurrentMode == VMI_SceneDepth))
-				Client->SetViewMode(VMI_SceneDepth);
-			ImGui::EndCombo();
-		}
-
-		ImGui::SameLine();
 		if (ImGui::Button("Focus (F)"))
 			Editor.FocusPreviewMesh();
 	}
@@ -82,15 +61,20 @@ void FMaterialViewportPanel::DrawContent()
 		return;
 
 	const ImVec2 Origin = ImGui::GetCursorScreenPos();
-	ImGui::InvisibleButton("##MaterialPreviewViewport", Size,
-		ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+	const ImVec2 ViewMax(Origin.x + Size.x, Origin.y + Size.y);
 	if (FTexture2D* Target = Client->Viewport ? Client->Viewport->GetRenderTargetTexture() : nullptr; Target && Target->GetSRV())
 	{
-		ImGui::GetWindowDrawList()->AddImage(Target->GetSRV(), Origin,
-			ImVec2(Origin.x + Size.x, Origin.y + Size.y));
+		ImGui::GetWindowDrawList()->AddImage(Target->GetSRV(), Origin, ViewMax);
 	}
 
-	const bool bHovered = ImGui::IsItemHovered();
+	const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax,
+		UE::Widget::WM_None, {}, Editor.GetMutableCameraSpeed());
+
+	ImGui::SetCursorScreenPos(Origin);
+	ImGui::InvisibleButton("##MaterialPreviewViewport", Size,
+		ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+
+	const bool bHovered = ImGui::IsItemHovered() && !bToolbarBusy;
 	if (bHovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) ||
 		ImGui::IsMouseClicked(ImGuiMouseButton_Right)))
 	{
@@ -98,13 +82,19 @@ void FMaterialViewportPanel::DrawContent()
 	}
 
 	const bool bFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+	if (bFocused && bHovered)
+		EditorViewportUI::HandleViewTypeShortcuts(Client);
 	if (bFocused && bHovered && ImGui::IsKeyPressed(ImGuiKey_F, false))
 		Editor.FocusPreviewMesh();
 
 	const ImGuiIO& IO = ImGui::GetIO();
+	const bool bCameraDragging = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)
+		&& !bCameraDragging && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
 	FViewportCameraInput Input
 	{
-		.bCaptured   = bFocused && ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Right),
+		.bCaptured   = bFocused && ImGui::IsItemActive() && bCameraDragging,
+		.bLeftDrag   = bLeftDrag,
 		.bAllowWheel = bHovered,
 		.bForward    = ImGui::IsKeyDown(ImGuiKey_W),
 		.bBackward   = ImGui::IsKeyDown(ImGuiKey_S),

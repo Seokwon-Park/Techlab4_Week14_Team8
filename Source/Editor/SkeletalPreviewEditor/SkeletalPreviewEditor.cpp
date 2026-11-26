@@ -53,19 +53,26 @@ namespace
 void FSkeletalPreviewEditor::Tick(float DeltaTime)
 {
 	if (!ViewportClient || !ViewportClient->GetWorld()) return;
-	// 뷰포트가 보이면 카메라 이동을 적용
-	if (bViewportVisible && !IsViewportInteractionBusy() && !PointerInput.bMouseDown)
+	// 뷰포트가 보이면 카메라 이동을 적용 (Kurisu 방식: 우클릭+휠 속도 조절, 원근/직교/좌드래그 모두 지원)
+	if (bViewportVisible && !IsViewportInteractionBusy())
 	{
+		FViewportCameraInput AdjustedCameraInput = CameraInput;
+		if (AdjustedCameraInput.bCaptured && AdjustedCameraInput.Wheel != 0.0f)
+		{
+			CameraSpeed = FMath::Clamp(CameraSpeed * powf(1.2f, AdjustedCameraInput.Wheel / 120.0f), 0.1f, 50.0f);
+			AdjustedCameraInput.Wheel = 0.0f;
+		}
 		FViewportCameraState Camera{
 			.Location = ViewportClient->GetViewLocation(),
 			.Rotation = ViewportClient->GetViewRotation(),
 			.OrthoWidth = ViewportClient->GetOrthoWidth(),
 			.ViewWidth = static_cast<float>(ViewportWidth),
-			.bPerspective = true
+			.bPerspective = ViewportClient->IsPerspective()
 		};
-		ApplyViewportCameraMovement(Camera, CameraInput, DeltaTime, CameraSpeed, 0.2f);
+		ApplyViewportCameraMovement(Camera, AdjustedCameraInput, DeltaTime, CameraSpeed, 0.2f);
 		ViewportClient->SetViewLocation(Camera.Location);
 		ViewportClient->SetViewRotation(Camera.Rotation);
+		ViewportClient->SetOrthoWidth(Camera.OrthoWidth);
 	}
 
 	TickBeforeWorld(DeltaTime);              // Animation 에디터: 재생 시간 진행 후 포즈 적용

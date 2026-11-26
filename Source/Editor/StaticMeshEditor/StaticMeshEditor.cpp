@@ -123,19 +123,26 @@ void FStaticMeshEditor::Tick(float DeltaTime)
 		return;
 	}
 
-	// 뷰포트가 보이면 카메라 이동을 적용
+	// 뷰포트가 보이면 카메라 이동을 적용 (우클릭+휠 속도 조절, 원근/직교/좌드래그 지원)
 	if (bViewportVisible)
 	{
+		FViewportCameraInput AdjustedInput = CameraInput;
+		if (AdjustedInput.bCaptured && AdjustedInput.Wheel != 0.0f)
+		{
+			CameraSpeed = FMath::Clamp(CameraSpeed * powf(1.2f, AdjustedInput.Wheel / 120.0f), 0.1f, 50.0f);
+			AdjustedInput.Wheel = 0.0f;
+		}
 		FViewportCameraState Camera{
 			.Location = ViewportClient->GetViewLocation(),
 			.Rotation = ViewportClient->GetViewRotation(),
 			.OrthoWidth = ViewportClient->GetOrthoWidth(),
 			.ViewWidth = static_cast<float>(ViewportWidth),
-			.bPerspective = true
+			.bPerspective = ViewportClient->IsPerspective()
 		};
-		ApplyViewportCameraMovement(Camera, CameraInput, DeltaTime, 5.0f, 0.2f);
+		ApplyViewportCameraMovement(Camera, AdjustedInput, DeltaTime, CameraSpeed, 0.2f);
 		ViewportClient->SetViewLocation(Camera.Location);
 		ViewportClient->SetViewRotation(Camera.Rotation);
+		ViewportClient->SetOrthoWidth(Camera.OrthoWidth);
 	}
 
 	// 카메라 입력 리셋

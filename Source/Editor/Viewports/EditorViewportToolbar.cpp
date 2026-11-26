@@ -182,24 +182,36 @@ namespace EditorViewportUI
 		}
 		ImGui::PopStyleVar();
 
-		// 2. 카메라 속도
+		// 2. 카메라 속도 (Kurisu 방식: 클릭 시 팝업, 좌우 드래그 시 실시간 속도 조절)
 		ImGui::SameLine();
-		if (EditorIcons::Button("##CameraSpeed", EEditorIcon::CameraSpeed, IconColor(), (bLabels && CameraSpeed) ? SpeedLabel : nullptr, true,
-			ImGui::IsPopupOpen("##CameraMenu"), H))
+		static bool bSpeedButtonDragged = false;
+		if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+			bSpeedButtonDragged = false;
+		float* EffectiveSpeed = CameraSpeed ? CameraSpeed : (Settings ? &Settings->CameraSpeed : nullptr);
+		const bool bSpeedClicked = EditorIcons::Button("##CameraSpeed", EEditorIcon::CameraSpeed, IconColor(),
+			(bLabels && CameraSpeed) ? SpeedLabel : nullptr, true, ImGui::IsPopupOpen("##CameraMenu"), H);
+		if (EffectiveSpeed && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 2.0f))
+		{
+			*EffectiveSpeed = FMath::Clamp(*EffectiveSpeed + ImGui::GetIO().MouseDelta.x * 0.05f, 0.1f, 50.0f);
+			bSpeedButtonDragged = true;
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+		}
+		else if (bSpeedClicked && !bSpeedButtonDragged)
+		{
 			OpenPopupBelow("##CameraMenu", true);
-		ImGui::SetItemTooltip("Camera Speed");
+		}
+		ImGui::SetItemTooltip("Camera Speed\nDrag horizontally or hold RMB + scroll wheel.");
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 4.0f * S));
 		if (ImGui::BeginPopup("##CameraMenu"))
 		{
 			EditorIcons::MenuSection("Camera Speed");
-			float* SpeedPtr = CameraSpeed ? CameraSpeed : (Settings ? &Settings->CameraSpeed : nullptr);
-			if (SpeedPtr)
+			if (EffectiveSpeed)
 			{
 				ImGui::AlignTextToFramePadding();
 				ImGui::TextUnformatted("Speed");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(160.0f * S);
-				ImGui::SliderFloat("##Speed", SpeedPtr, 0.1f, 10.0f, "%.2f");
+				ImGui::SliderFloat("##Speed", EffectiveSpeed, 0.1f, 50.0f, "%.2f");
 			}
 			EditorIcons::MenuNote("Hold RMB and scroll wheel to adjust speed.", 220.0f * S);
 			ImGui::EndPopup();
@@ -496,7 +508,8 @@ namespace EditorViewportUI
 	}
 
 	bool DrawAssetViewportToolbar(FEditorViewportClient* Client, const ImVec2& ViewMin, const ImVec2& ViewMax,
-		UE::Widget::EWidgetMode GizmoMode, const std::function<void(UE::Widget::EWidgetMode)>& SetGizmoMode)
+		UE::Widget::EWidgetMode GizmoMode, const std::function<void(UE::Widget::EWidgetMode)>& SetGizmoMode,
+		float* CameraSpeed)
 	{
 		if (!Client)
 			return false;
@@ -523,10 +536,10 @@ namespace EditorViewportUI
 		}
 
 		// 오른쪽: 보기 설정. 좁으면 글자를 뺀다.
-		const bool bLabels = ViewMax.x - Pad - CalcViewSettingsWidth(Client, nullptr, true) > LeftEndX + 12.0f * S;
-		const float RightStartX = ImMax(LeftEndX + 12.0f * S, ViewMax.x - Pad - CalcViewSettingsWidth(Client, nullptr, bLabels));
+		const bool bLabels = ViewMax.x - Pad - CalcViewSettingsWidth(Client, CameraSpeed, true) > LeftEndX + 12.0f * S;
+		const float RightStartX = ImMax(LeftEndX + 12.0f * S, ViewMax.x - Pad - CalcViewSettingsWidth(Client, CameraSpeed, bLabels));
 		ImGui::SetCursorScreenPos(ImVec2(RightStartX, ButtonY));
-		DrawViewSettings(Client, nullptr, bLabels);
+		DrawViewSettings(Client, CameraSpeed, bLabels);
 
 		ImGui::PopStyleVar(2);
 		ImGui::PopID();

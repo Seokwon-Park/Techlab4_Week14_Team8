@@ -38,6 +38,9 @@ public:
 	UMaterial* GetMaterial() const { return Material; }
 	EMaterialPreviewShape GetPreviewShape() const { return PreviewShape; }
 	void SetPreviewShape(EMaterialPreviewShape Shape);
+	float GetCameraSpeed() const { return CameraSpeed; }
+	float* GetMutableCameraSpeed() { return &CameraSpeed; }
+	void SetCameraSpeed(float InSpeed) { CameraSpeed = FMath::Clamp(InSpeed, 0.1f, 50.0f); }
 
 	void MarkDirty();
 	bool Save();
@@ -57,6 +60,7 @@ private:
 	EMaterialPreviewShape PreviewShape = EMaterialPreviewShape::Sphere;
 
 	FViewportCameraInput CameraInput;
+	float CameraSpeed = 5.0f;
 	uint32 ViewportWidth = 0;
 	uint32 ViewportHeight = 0;
 	bool bViewportVisible = false;

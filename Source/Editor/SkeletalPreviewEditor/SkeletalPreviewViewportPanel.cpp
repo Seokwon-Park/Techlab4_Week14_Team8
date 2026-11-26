@@ -27,7 +27,8 @@ void FSkeletalPreviewViewportPanel::DrawContent()
     {
         SetGizmoMode = [this](UE::Widget::EWidgetMode Mode) { Editor.SetGizmoMode(Mode); };
     }
-    const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax, Editor.GetGizmoMode(), SetGizmoMode);
+    const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax,
+        Editor.GetGizmoMode(), SetGizmoMode, Editor.GetMutableCameraSpeed());
 
     // 이미지 영역을 입력 항목으로 등록하여 드래그 중에도 카메라 조작을 유지한다.
     ImGui::SetCursorScreenPos(Origin);
@@ -67,9 +68,12 @@ void FSkeletalPreviewViewportPanel::DrawContent()
         .bShiftDown = IO.KeyShift,
     };
 
+    const bool bLeftDrag = bFocused && ImGui::IsItemActive() && bMouseDown && !bCameraDragging
+        && !Editor.IsViewportInteractionBusy() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
     const FViewportCameraInput CameraInput
     {
         .bCaptured = bFocused && ImGui::IsItemActive() && bCameraDragging && !bMouseDown && !Editor.IsViewportInteractionBusy(),
+        .bLeftDrag = bLeftDrag,
         .bAllowWheel = bHovered && !bMouseDown && !Editor.IsViewportInteractionBusy(),
         .bForward = ImGui::IsKeyDown(ImGuiKey_W),
         .bBackward = ImGui::IsKeyDown(ImGuiKey_S),

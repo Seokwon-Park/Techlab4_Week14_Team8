@@ -20,46 +20,73 @@ ADefaultPawn::ADefaultPawn()
 	CameraComponent->SetExternalInputManaged(true);
 }
 
+void ADefaultPawn::SyncViewRotationFromActor()
+{
+	ViewRotation = GetActorRotation();
+	ViewRotation.Pitch = FMath::Clamp(ViewRotation.Pitch, -89.0f, 89.0f);
+	ViewRotation.Roll = 0.0f;
+	bViewRotationSynced = true;
+	if (USceneComponent* Root = GetRootComponent())
+		Root->SetRelativeRotation(ViewRotation);
+}
+
+void ADefaultPawn::BeginPlay()
+{
+	Super::BeginPlay();
+	SyncViewRotationFromActor();
+}
+
 void ADefaultPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	USceneComponent* Root = GetRootComponent();
 	if (!Root) return;
 
-	// WASD는 IA_Move로 들어와 바라보는 방향(Pitch 포함) 기준으로 누적되어 있다.
-	FVector Input = ConsumeMovementInputVector();
+	if (!bViewRotationSynced)
+		SyncViewRotationFromActor();
 
-	// 에디터 카메라처럼 E는 위, Q는 아래 (월드 Z축). Shift를 누르면 빨라진다.
-	float SpeedScale = 1.0f;
-	if (APlayerController* PC = GetController())
-	{
-		if (PC->IsKeyDown(static_cast<int32>(EKeyCode::E))) Input += FVector(0.0f, 0.0f, 1.0f);
-		if (PC->IsKeyDown(static_cast<int32>(EKeyCode::Q))) Input -= FVector(0.0f, 0.0f, 1.0f);
-		if (PC->IsKeyDown(static_cast<int32>(EKeyCode::Shift))) SpeedScale = FastSpeedScale;
-	}
+	// 남아 있을 수 있는 누적 입력을 비우고, 에디터 카메라와 동일한 기준으로 직접 이동한다.
+	ConsumeMovementInputVector();
 
-	// 대각선으로 움직여도 빨라지지 않도록 길이를 1로 묶는다.
-	const float LengthSq = Input.SizeSquared();
-	if (LengthSq <= 0.0f) return;
-	if (LengthSq > 1.0f) Input = Input / std::sqrt(LengthSq);
+	APlayerController* PC = GetController();
+	if (!PC) return;
 
-	Root->SetRelativeLocation(GetActorLocation() + Input * (MoveSpeed * SpeedScale * DeltaTime));
+	const FQuat Orientation = ViewRotation.Quaternion();
+	const FVector Forward = Orientation.GetForwardVector();
+	const FVector Right = Orientation.GetRightVector();
+	const FVector Up = Orientation.GetUpVector();
+
+	FVector Direction = FVector::ZeroVector;
+	if (PC->IsKeyDown(static_cast<int32>(EKeyCode::W))) Direction += Forward;
+	if (PC->IsKeyDown(static_cast<int32>(EKeyCode::S))) Direction -= Forward;
+	if (PC->IsKeyDown(static_cast<int32>(EKeyCode::D))) Direction += Right;
+	if (PC->IsKeyDown(static_cast<int32>(EKeyCode::A))) Direction -= Right;
+	if (PC->IsKeyDown(static_cast<int32>(EKeyCode::E))) Direction += Up;
+	if (PC->IsKeyDown(static_cast<int32>(EKeyCode::Q))) Direction -= Up;
+
+	const float LengthSq = Direction.SizeSquared();
+	if (LengthSq <= 0.000001f) return;
+
+	const float SpeedScale = PC->IsKeyDown(static_cast<int32>(EKeyCode::Shift)) ? FastSpeedScale : 1.0f;
+	Root->SetRelativeLocation(GetActorLocation() + (Direction / std::sqrt(LengthSq)) * (MoveSpeed * SpeedScale * DeltaTime));
 }
 
 void ADefaultPawn::AddControllerYawInput(float Value)
 {
 	if (!GetRootComponent()) return;
-	FRotator Rotation = GetActorRotation();
-	Rotation.Yaw += Value;
-	Rotation.Roll = 0.0f;
-	GetRootComponent()->SetRelativeRotation(Rotation);
+	if (!bViewRotationSynced)
+		SyncViewRotationFromActor();
+	ViewRotation.Yaw += Value;
+	ViewRotation.Roll = 0.0f;
+	GetRootComponent()->SetRelativeRotation(ViewRotation);
 }
 
 void ADefaultPawn::AddControllerPitchInput(float Value)
 {
 	if (!GetRootComponent()) return;
-	FRotator Rotation = GetActorRotation();
-	Rotation.Pitch = FMath::Clamp(Rotation.Pitch + Value, -89.0f, 89.0f);
-	Rotation.Roll = 0.0f;
-	GetRootComponent()->SetRelativeRotation(Rotation);
+	if (!bViewRotationSynced)
+		SyncViewRotationFromActor();
+	ViewRotation.Pitch = FMath::Clamp(ViewRotation.Pitch + Value, -89.0f, 89.0f);
+	ViewRotation.Roll = 0.0f;
+	GetRootComponent()->SetRelativeRotation(ViewRotation);
 }

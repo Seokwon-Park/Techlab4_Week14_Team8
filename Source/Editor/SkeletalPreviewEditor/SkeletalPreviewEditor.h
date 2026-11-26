@@ -59,6 +59,7 @@ public:
 	USkeletalMesh* GetMesh() const { return Mesh; }
 	USkeletalMeshComponent* GetMeshComponent() const { return MeshComponent; }
 	float GetCameraSpeed() const { return CameraSpeed; }
+	float* GetMutableCameraSpeed() { return &CameraSpeed; }
 	const TArray<int32>& GetRootBoneIndices() const { return RootBoneIndices; }
 	const TArray<FEditorBoneItem>& GetBoneItems() const { return BoneItems; }
 	int32 GetSelectedBoneIndex() const { return SelectedBoneIndex; }

@@ -26,7 +26,8 @@ void FStaticMeshViewportPanel::DrawContent()
 
 	// UE5식 뷰포트 툴바(기즈모 도구, 뷰 종류, 카메라, 뷰 모드, 쇼 플래그)와 왼쪽 아래 축 표시.
 	// 입력 영역보다 먼저 그려야 툴바 버튼이 마우스를 먼저 받는다. 툴바 위에서는 뷰포트 입력을 막는다.
-	const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax);
+	const bool bToolbarBusy = EditorViewportUI::DrawAssetViewportToolbar(Client, Origin, ViewMax,
+		UE::Widget::WM_None, {}, Editor.GetMutableCameraSpeed());
 
 	// 이미지 영역을 입력 항목으로 등록하여 드래그 중에도 카메라 조작을 유지한다.
 	ImGui::SetCursorScreenPos(Origin);
@@ -56,9 +57,13 @@ void FStaticMeshViewportPanel::DrawContent()
 	// ImGui가 생성하는 HWND에 직접 WndProc을 연결하고 FInputSystem에 전달시켜야함
 
 	const ImGuiIO& IO = ImGui::GetIO();
+	const bool bCameraDragging = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+	const bool bLeftDrag = bFocused && ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)
+		&& !bCameraDragging && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f);
 	FViewportCameraInput Input
 	{
-		.bCaptured		= bFocused && ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Right),
+		.bCaptured		= bFocused && ImGui::IsItemActive() && bCameraDragging,
+		.bLeftDrag		= bLeftDrag,
 		.bAllowWheel	= bHovered,
 		.bForward		= ImGui::IsKeyDown(ImGuiKey_W),
 		.bBackward		= ImGui::IsKeyDown(ImGuiKey_S),
