@@ -1,0 +1,5 @@
+refactor: Phase 0 기반 정비 (FrameTime 통합, PhysX 스코프 락, 물리 스탯, LuaBindings 분할)
+
+- MovieScene에 있던 FFrameNumber/FFrameTime/FFrameRate를 Core/FrameTime.h로 옮겨 애니메이션·시퀀서가 같이 쓰도록 정리
+- PxSceneRead/WriteLock 직접 사용 30곳을 null-safe SCOPED_SCENE_*_LOCK 매크로로 교체하고, 물리/래그돌 구간 CPU 스탯(PhysicsStats.h)을 Profile 오버레이에 노출
+- 1500줄짜리 LuaBindings.cpp를 코어/Actor/Input/Animation 파일로 분할 (바인딩 API 변경 없음)

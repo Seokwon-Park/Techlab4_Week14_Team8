@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "GameFramework/Actor/VehiclePawn.h"
+#include "Physics/PhysicsLock.h"
 
 #include "Asset/AssetManager.h"
 #include "Camera/CameraComponent.h"
@@ -223,7 +224,7 @@ void AVehiclePawn::BeginPlay()
 	if (!Scene || !Scene->GetPxScene() || !Body)
 		return;
 
-	PxSceneWriteLock Lock(*Scene->GetPxScene());
+	SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
 
 	PxShape* Shape = nullptr;
 	PxBoxGeometry Box;
@@ -415,7 +416,7 @@ void AVehiclePawn::TickVehiclePhysics(float StepDelta)
 	}
 	FVehiclePhysics& State = *VehiclePhysics;
 	PxScene& Scene = *State.Scene->GetPxScene();
-	PxSceneWriteLock Lock(Scene);
+	SCOPED_SCENE_WRITE_LOCK(&Scene);
 
 	const PxVec3 Gravity = Scene.getGravity();
 	if (Gravity.magnitudeSquared() == 0.0f)
@@ -755,7 +756,7 @@ void AVehiclePawn::EndPlay()
 		FPhysicsScene& Scene = *VehiclePhysics->Scene;
 		Scene.OnPreStep.Remove(VehiclePhysics->PreStepHandle);
 		Scene.OnPostStep.Remove(VehiclePhysics->PostStepHandle);
-		PxSceneWriteLock Lock(*Scene.GetPxScene());
+		SCOPED_SCENE_WRITE_LOCK(Scene.GetPxScene());
 		VehiclePhysics.reset();
 	}
 

@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "PhysicsHandle.h"
+#include "Physics/PhysicsLock.h"
 #include "Physics/PhysicsScene.h"
 #include "Physics/BodyInstance.h"
 #include "Physics/PhysXConversion.h"
@@ -20,7 +21,7 @@ bool FPhysicsHandle::GrabComponentAtLocation(FPhysicsScene& InScene, FBodyInstan
 		return false;
 	}
 
-	const physx::PxSceneWriteLock WriteLock(*NativeScene);
+	SCOPED_SCENE_WRITE_LOCK(NativeScene);
 	if (Dynamic->getRigidBodyFlags() & physx::PxRigidBodyFlag::eKINEMATIC)
 	{
 		return false;
@@ -73,7 +74,7 @@ void FPhysicsHandle::SetTargetLocation(const FVector& NewLocation)
 	}
 
 	TargetLocation = NewLocation;
-	const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+	SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
 	KinActorData->setKinematicTarget(physx::PxTransform(U2PVector(TargetLocation)));
 	// 끌려가는 바디가 잠들면 드라이브가 멈춘다
 	if (physx::PxRigidDynamic* Dynamic = GrabbedBody->GetRigidDynamic())
@@ -90,7 +91,7 @@ void FPhysicsHandle::ReleaseComponent()
 	}
 
 	{
-		const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+		SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
 		if (HandleData)
 		{
 			HandleData->release();

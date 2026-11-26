@@ -1,6 +1,8 @@
 #include "EnginePCH.h"
 #include "Physics/PhysicsScene.h"
+#include "Physics/PhysicsLock.h"
 #include "Physics/PhysicsSettings.h"
+#include "Physics/PhysicsStats.h"
 #include "Core/EngineLog.h"
 #include "Physics/PhysXSDK.h"
 #include "Collision/HitResult.h"
@@ -96,7 +98,7 @@ void FPhysicsScene::SetGravityZ(float GravityZ)
 
 	// 중력 조회와 갱신의 쓰기 잠금
 	const physx::PxVec3 Gravity(0.0f, 0.0f, GravityZ);
-	const physx::PxSceneWriteLock WriteLock(*Scene);
+	SCOPED_SCENE_WRITE_LOCK(Scene);
 	//유효 중력이 바뀐 경우의 네이티브 씬 갱신
 	if (Scene->getGravity() != Gravity)
 	{
@@ -133,7 +135,8 @@ void FPhysicsScene::Tick(float DeltaSeconds)
 		bool bFetchedResults = false;
 		{
 			// 고정 스텝의 네이티브 씬 쓰기 잠금
-			const physx::PxSceneWriteLock WriteLock(*Scene);
+			SCOPED_SCENE_WRITE_LOCK(Scene);
+			SCOPE_CYCLE_COUNTER(PhysicsStats::STAT_PhysSimulate);
 			const uint64 StartCycles = bMeasurePhysicsTime ? FPlatformTime::GetCycles64() : 0;
 			Scene->simulate(StepDelta);
 			bFetchedResults = Scene->fetchResults(true);
@@ -150,7 +153,10 @@ void FPhysicsScene::Tick(float DeltaSeconds)
 			AccumulatedSeconds = 0.0;
 			return;
 		}
-		SyncComponentsToBodies();
+		{
+			SCOPE_CYCLE_COUNTER(PhysicsStats::STAT_PhysSyncActors);
+			SyncComponentsToBodies();
+		}
 		// 완료된 스텝의 시간 차감과 결과 전달
 		++LastTickStepCount;
 		AccumulatedSeconds -= FixedStepSeconds;
@@ -159,6 +165,7 @@ void FPhysicsScene::Tick(float DeltaSeconds)
 	// 마지막 스텝 이후의 게임 이벤트 전달 비용 별도 측정
 	if (SimulationEvents->HasPendingEvents())
 	{
+		SCOPE_CYCLE_COUNTER(PhysicsStats::STAT_PhysNotifies);
 		const uint64 StartCycles = bMeasurePhysicsTime ? FPlatformTime::GetCycles64() : 0;
 		SimulationEvents->DispatchPending();
 		if (bMeasurePhysicsTime)
@@ -197,7 +204,7 @@ void FPhysicsScene::GatherSimulationShapes(const physx::PxBoxGeometry& Box,
 
 	{
 		// 겹침 검색과 네이티브 형상 복사까지의 읽기 잠금
-		const physx::PxSceneReadLock ReadLock(*Scene);
+		SCOPED_SCENE_READ_LOCK(Scene);
 		physx::PxOverlapHit Buffer[32];
 		FSimulationOverlapBuffer Result(Buffer, 32);
 		const physx::PxQueryFilterData Filter(physx::PxQueryFlag::eSTATIC
@@ -326,7 +333,7 @@ bool FPhysicsScene::QuerySingle(const FRay& WorldRay, float MaxDistance,
 		physx::PxQueryFlag::eDYNAMIC | physx::PxQueryFlag::ePREFILTER);
 
 	// 쿼리 실행과 히트 대상 역참조의 읽기 잠금
-	const physx::PxSceneReadLock ReadLock(*Scene);
+	SCOPED_SCENE_READ_LOCK(Scene);
 
 	// 최근접 블로킹 히트 하나의 수집과 복수 Touch 결과의 확장 지점
 	physx::PxLocationHit Hit;
@@ -383,7 +390,7 @@ void FPhysicsScene::SyncComponentsToBodies()
 	TArray<UPrimitiveComponent*> Components;
 
 	{
-		const physx::PxSceneReadLock ReadLock(*Scene);
+		SCOPED_SCENE_READ_LOCK(Scene);
 		// fetchResults 직후에만 유효한 목록. 다음 simulate 전에 다 읽는다
 		physx::PxU32 NumActors = 0;
 		physx::PxActor** Actors = Scene->getActiveActors(NumActors);

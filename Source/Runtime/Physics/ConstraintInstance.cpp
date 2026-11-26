@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "ConstraintInstance.h"
+#include "Physics/PhysicsLock.h"
 #include "Physics/PhysicsScene.h"
 #include "Physics/BodyInstance.h"
 #include "Physics/PhysXConversion.h"
@@ -65,7 +66,7 @@ bool FConstraintInstance::InitConstraint(FBodyInstance* Body1, FBodyInstance* Bo
 
     // 씬 등록 확인과 D6 조인트 설정의 쓰기 잠금
     physx::PxScene* NativeScene = BodyScene->GetPxScene();
-    const physx::PxSceneWriteLock WriteLock(*NativeScene);
+    SCOPED_SCENE_WRITE_LOCK(NativeScene);
     if (Actor1->getScene() != NativeScene || Actor2->getScene() != NativeScene ||
         (!Actor1->is<physx::PxRigidDynamic>() && !Actor2->is<physx::PxRigidDynamic>()))
     {
@@ -150,7 +151,7 @@ void FConstraintInstance::TermConstraint()
     // 네이티브 조인트 반환과 핸들 초기화
     if (ConstraintHandle)
     {
-        const physx::PxSceneWriteLock WriteLock(*ConstraintScene);
+        SCOPED_SCENE_WRITE_LOCK(ConstraintScene);
         // 조인트 해제 전 연결 액터 조회
         physx::PxRigidActor* Actor0 = nullptr;
         physx::PxRigidActor* Actor1 = nullptr;

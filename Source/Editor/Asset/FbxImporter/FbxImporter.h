@@ -3,7 +3,7 @@
 #include <fbxsdk.h>
 #include "Animation/AnimDataModel.h"
 #include "Core/EngineString.h"
-#include "MovieScene/MovieSceneFrameTime.h"
+#include "Core/FrameTime.h"
 #include "Render/SkeletalMeshData.h"
 #include "Asset/FbxImporter/FbxMeshBake.h"
 

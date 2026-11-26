@@ -6,7 +6,7 @@
 class AActor;
 class UWorld;
 
-// 엔진 API를 Lua에 노출한다. 빌드 시간 때문에 바인딩은 LuaBindings.cpp 한 파일에 모은다. 담당: B, 소비자: A
+// 엔진 API를 Lua에 노출한다. 바인딩 구현은 LuaBindings*.cpp에 도메인별로 나뉘어 있다(LuaBindingsInternal.h 참고). 담당: B, 소비자: A
 namespace FLuaBindings
 {
 	// FVector, FRotator, AActor(안전 핸들), Input, Time

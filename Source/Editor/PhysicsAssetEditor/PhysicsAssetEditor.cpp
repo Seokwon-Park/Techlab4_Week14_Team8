@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "PhysicsAssetEditor.h"
+#include "Physics/PhysicsLock.h"
 #include "Core/Misc/Paths.h"
 #include "PhysicsAssetEditorTab.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -849,7 +850,7 @@ void FPhysicsAssetEditor::UpdateGrab()
 	// 바닥은 정적 액터라 eDYNAMIC만 검사하면 바디만 맞는다
 	physx::PxRaycastBuffer Hits;
 	{
-		const physx::PxSceneReadLock ReadLock(*NativeScene);
+		SCOPED_SCENE_READ_LOCK(NativeScene);
 		if (!NativeScene->raycast(Origin, UnitDir, 1.0e6f, Hits, physx::PxHitFlag::eDEFAULT,
 			physx::PxQueryFilterData(physx::PxQueryFlag::eDYNAMIC)) || !Hits.hasBlock)
 		{

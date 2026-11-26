@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "Physics/BodyInstance.h"
+#include "Physics/PhysicsLock.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
@@ -197,7 +198,7 @@ bool FBodyInstance::InitBody(const UBodySetup& InBodySetup, const FTransform& In
     ApplyCollisionSettings(*NewActor, InOwnerComponent);
 
     // 씬 등록과 바디 역참조 설정의 쓰기 잠금
-    const physx::PxSceneWriteLock WriteLock(*NativeScene);
+    SCOPED_SCENE_WRITE_LOCK(NativeScene);
     NativeScene->addActor(*NewActor);
     if (NewActor->getScene() != NativeScene)
     {
@@ -217,7 +218,7 @@ void FBodyInstance::TermBody()
     // 콜백 역참조 해제와 네이티브 액터 반환
     if (Actor)
     {
-        const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+        SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
         Actor->userData = nullptr;
         Actor->release();
         Actor = nullptr;
@@ -276,7 +277,7 @@ void FBodyInstance::UpdateCollisionSettings()
 {
     if (Actor)
     {
-        const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+        SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
         ApplyCollisionSettings(*Actor, OwnerComponent);
         Scene->RefreshOverlapEvents(OwnerComponent);
     }
@@ -290,7 +291,7 @@ FTransform FBodyInstance::GetWorldTransform() const
     }
 
     // 네이티브 바디 자세 조회의 읽기 잠금
-    const physx::PxSceneReadLock ReadLock(*Scene->GetPxScene());
+    SCOPED_SCENE_READ_LOCK(Scene->GetPxScene());
     return P2UTransform(Actor->getGlobalPose());
 }
 
@@ -303,7 +304,7 @@ void FBodyInstance::SetBodyTransform(const FTransform& InWorldTransform)
         return;
     }
 
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
 
     // 키네마틱 순간 이동 시 이전 목표 덮어쓰기
     physx::PxRigidDynamic* DynamicActor = GetRigidDynamic();
@@ -328,7 +329,7 @@ void FBodyInstance::SetInstanceSimulatePhysics(bool bSimulate)
     }
 
     // 바디 플래그 조회와 모드 전환의 쓰기 잠금
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
     if (DynamicActor->getActorFlags().isSet(physx::PxActorFlag::eDISABLE_SIMULATION))
     {
         return;
@@ -366,7 +367,7 @@ void FBodyInstance::SetKinematicTarget(const FTransform& InWorldTransform)
     }
 
     // 바디 플래그 조회와 키네마틱 목표 설정의 쓰기 잠금
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
     if (!DynamicActor->getRigidBodyFlags().isSet(physx::PxRigidBodyFlag::eKINEMATIC) ||
         DynamicActor->getActorFlags().isSet(physx::PxActorFlag::eDISABLE_SIMULATION))
     {
@@ -392,7 +393,7 @@ void FBodyInstance::SetUseCCD(bool bInUseCCD)
     }
 
     // 등록된 바디의 CCD 설정과 플래그 변경 잠금
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
     bUseCCD = bInUseCCD;
 
     if (!DynamicActor->getRigidBodyFlags().isSet(physx::PxRigidBodyFlag::eKINEMATIC))
@@ -418,7 +419,7 @@ void FBodyInstance::SetLinearVelocity(const FVector& NewVel, bool bAddToCurrent)
     }
 
     // 바디 플래그 조회와 선속도 갱신의 쓰기 잠금
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
     if (DynamicActor->getRigidBodyFlags().isSet(physx::PxRigidBodyFlag::eKINEMATIC) ||
         DynamicActor->getActorFlags().isSet(physx::PxActorFlag::eDISABLE_SIMULATION))
     {
@@ -453,7 +454,7 @@ namespace
 void FBodyInstance::AddImpulseAtPosition(const FVector& Impulse, const FVector& Position)
 {
     if (!Actor) return;
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
     physx::PxRigidDynamic* DynamicActor = GetSimulatingActor(Actor);
     const physx::PxVec3 PxImpulse = U2PVector(Impulse);
     if (DynamicActor && PxImpulse.isFinite())
@@ -463,7 +464,7 @@ void FBodyInstance::AddImpulseAtPosition(const FVector& Impulse, const FVector& 
 void FBodyInstance::AddForceAtPosition(const FVector& Force, const FVector& Position)
 {
     if (!Actor) return;
-    const physx::PxSceneWriteLock WriteLock(*Scene->GetPxScene());
+    SCOPED_SCENE_WRITE_LOCK(Scene->GetPxScene());
     physx::PxRigidDynamic* DynamicActor = GetSimulatingActor(Actor);
     const physx::PxVec3 PxForce = U2PVector(Force);
     if (DynamicActor && PxForce.isFinite())
@@ -473,14 +474,14 @@ void FBodyInstance::AddForceAtPosition(const FVector& Force, const FVector& Posi
 bool FBodyInstance::IsInstanceSimulatingPhysics() const
 {
     if (!Actor) return false;
-    const physx::PxSceneReadLock ReadLock(*Scene->GetPxScene());
+    SCOPED_SCENE_READ_LOCK(Scene->GetPxScene());
     return GetSimulatingActor(Actor) != nullptr;
 }
 
 FVector FBodyInstance::GetUnrealWorldVelocity() const
 {
     if (!Actor) return FVector::ZeroVector;
-    const physx::PxSceneReadLock ReadLock(*Scene->GetPxScene());
+    SCOPED_SCENE_READ_LOCK(Scene->GetPxScene());
     const physx::PxRigidDynamic* DynamicActor = Actor->is<physx::PxRigidDynamic>();
     return DynamicActor ? P2UVector(DynamicActor->getLinearVelocity()) : FVector::ZeroVector;
 }
@@ -488,7 +489,7 @@ FVector FBodyInstance::GetUnrealWorldVelocity() const
 FBox FBodyInstance::GetBodyBounds() const
 {
     if (!Actor) return FBox{ FVector(1.0f, 1.0f, 1.0f), FVector(-1.0f, -1.0f, -1.0f) };
-    const physx::PxSceneReadLock ReadLock(*Scene->GetPxScene());
+    SCOPED_SCENE_READ_LOCK(Scene->GetPxScene());
     const physx::PxBounds3 Bounds = Actor->getWorldBounds();
     return FBox{ P2UVector(Bounds.minimum), P2UVector(Bounds.maximum) };
 }
@@ -496,7 +497,7 @@ FBox FBodyInstance::GetBodyBounds() const
 float FBodyInstance::GetBodyMass() const
 {
     if (!Actor) return 0.0f;
-    const physx::PxSceneReadLock ReadLock(*Scene->GetPxScene());
+    SCOPED_SCENE_READ_LOCK(Scene->GetPxScene());
     const physx::PxRigidDynamic* DynamicActor = Actor->is<physx::PxRigidDynamic>();
     return DynamicActor ? DynamicActor->getMass() : 0.0f;
 }

@@ -1,5 +1,6 @@
 #include "EnginePCH.h"
 #include "SkeletalMeshComponent.h"
+#include "Physics/PhysicsLock.h"
 #include "Serialization/MathSerialization.h"
 #include "Animation/BonePose.h"
 #include "Animation/AnimNodeBase.h"
@@ -38,6 +39,7 @@
 #include <algorithm>
 #include <cmath>
 #include "Physics/PhysicsSettings.h"
+#include "Physics/PhysicsStats.h"
 #include <NvCloth/Factory.h>
 #include <NvCloth/Solver.h>
 
@@ -1518,6 +1520,7 @@ void USkeletalMeshComponent::OnDestroyPhysicsState()
 }
 void USkeletalMeshComponent::InstantiatePhysicsAssetBodies_Internal(const UPhysicsAsset& PhysAsset, FPhysicsScene& PhysScene)
 {
+	SCOPE_CYCLE_COUNTER(PhysicsStats::STAT_RagdollInit);
 	physx::PxSetGroupCollisionFlag(RagdollCollisionGroup, RagdollCollisionGroup, false);
 
 	Bodies.Init(nullptr, PhysAsset.SkeletalBodySetups.Num());
@@ -1541,7 +1544,7 @@ void USkeletalMeshComponent::InstantiatePhysicsAssetBodies_Internal(const UPhysi
 		if (physx::PxRigidDynamic* Dyn = BI->GetRigidDynamic())
 		{
 			// 등록된 래그돌 Shape 필터 갱신의 쓰기 잠금
-			const physx::PxSceneWriteLock WriteLock(*PhysScene.GetPxScene());
+			SCOPED_SCENE_WRITE_LOCK(PhysScene.GetPxScene());
 			physx::PxSetGroup(*Dyn, RagdollCollisionGroup);
 		}
 		Bodies[i] = BI;
@@ -1549,6 +1552,7 @@ void USkeletalMeshComponent::InstantiatePhysicsAssetBodies_Internal(const UPhysi
 }
 void USkeletalMeshComponent::UpdateKinematicBonesToAnim()
 {
+	SCOPE_CYCLE_COUNTER(PhysicsStats::STAT_RagdollKinematic);
 	if (bBlendPhysics) return;
 	for (FBodyInstance* BI : Bodies)
 	{
@@ -1560,6 +1564,7 @@ void USkeletalMeshComponent::UpdateKinematicBonesToAnim()
 }
 void USkeletalMeshComponent::BlendPhysicsBones()
 {
+	SCOPE_CYCLE_COUNTER(PhysicsStats::STAT_RagdollBonePose);
 	const TArray<FBoneInfo>& Bones = GetBones();
 	if (BoneSpaceTransforms.Num() != Bones.Num()) return;
 
