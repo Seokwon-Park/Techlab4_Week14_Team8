@@ -228,14 +228,31 @@ void FBodyInstance::TermBody()
     OwnerComponent = nullptr;
 }
 
+void FBodyInstance::SetCollisionProfile(ECollisionPreset Preset)
+{
+    CollisionPreset = Preset;
+    if (const FCollisionPresetInfo* Info = CollisionProfile::FindPreset(Preset))
+    {
+        CollisionEnabled = Info->CollisionEnabled;
+        ObjectType = Info->ObjectType;
+        CollisionResponses = Info->Responses;
+    }
+    UpdateCollisionSettings();
+}
+
 void FBodyInstance::ApplyCollisionSettings(physx::PxRigidActor& RigidActor, const UPrimitiveComponent* Component) const
 {
     using namespace physx;
     const AActor* Owner = Component ? Component->GetOwner() : nullptr;
-    const bool bEnabled = !Owner || Owner->GetActorEnableCollision();
+    const bool bEnabled = (!Owner || Owner->GetActorEnableCollision())
+        && CollisionEnabled != ECollisionEnabled::NoCollision;
     const bool bQueryOnly = CollisionEnabled == ECollisionEnabled::QueryOnly;
+    const bool bPhysicsOnly = CollisionEnabled == ECollisionEnabled::PhysicsOnly;
     const bool bTrigger = bEnabled && bQueryOnly && Component && !Component->bBlockComponent
         && Component->bGenerateOverlapEvents;
+    const uint32 CategoryMask = CategoryBit(ObjectType);
+    const uint32 BlockMask = CollisionResponses.GetMask(ECollisionResponse::Block);
+    const uint32 OverlapMask = CollisionResponses.GetMask(ECollisionResponse::Overlap);
     const PxU32 ShapeCount = RigidActor.getNbShapes();
     for (PxU32 Index = 0; Index < ShapeCount; ++Index)
     {
@@ -248,7 +265,10 @@ void FBodyInstance::ApplyCollisionSettings(physx::PxRigidActor& RigidActor, cons
         Flags.clear(PxShapeFlag::eSCENE_QUERY_SHAPE);
         if (bEnabled)
         {
-            Flags |= PxShapeFlag::eSCENE_QUERY_SHAPE;
+            if (!bPhysicsOnly)
+            {
+                Flags |= PxShapeFlag::eSCENE_QUERY_SHAPE;
+            }
             if (!bQueryOnly)
             {
                 Flags |= PxShapeFlag::eSIMULATION_SHAPE;
@@ -261,6 +281,17 @@ void FBodyInstance::ApplyCollisionSettings(physx::PxRigidActor& RigidActor, cons
         if (Flags != Shape->getFlags())
         {
             Shape->setFlags(Flags);
+        }
+
+        // Simulation FilterData: UE CollisionProfile 채널 응답 적용 (기존 word2/word3 상위 비트 보존)
+        PxFilterData SimFilter = Shape->getSimulationFilterData();
+        const uint32 NewSimWord3 = CollisionFilterBits::PackOverlap(SimFilter.word3, OverlapMask);
+        if (SimFilter.word0 != CategoryMask || SimFilter.word1 != BlockMask || SimFilter.word3 != NewSimWord3)
+        {
+            SimFilter.word0 = CategoryMask;
+            SimFilter.word1 = BlockMask;
+            SimFilter.word3 = NewSimWord3;
+            Shape->setSimulationFilterData(SimFilter);
         }
 
         // 차량 쿼리에서 센서 제외 및 차체 전용 비트 보존

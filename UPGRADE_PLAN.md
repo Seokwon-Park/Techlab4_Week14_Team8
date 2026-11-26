@@ -191,16 +191,16 @@
 ### Phase 6. 런타임 모듈 구조 정리 (Physics Profile / Clothing / Audio)
 **목표**: 런타임 서브시스템 경계 정리 및 에셋화 마무리.
 
-- [ ] **Physics `CollisionProfile` & `PhysicalMaterialFile`**
+- [x] **Physics `CollisionProfile` & `PhysicalMaterialFile`**
   - 참조: `Kurisu\Source\Runtime\Physics\CollisionProfile.{h,cpp}`, `PhysicsFiltering.{h,cpp}`, `PhysicalMaterialFile.{h,cpp}`, `BodySetupCore.{h,cpp}`
   - 대상: `Hitori\Source\Runtime\Physics\` (14주차 `PhysicsSettings`, `PhysicsHandle`, `Collision.h` 유지하면서 UE식 `ECollisionPreset` + 채널 응답 매트릭스 + `.pmat` 파일화 통합)
-- [ ] **`Runtime/Clothing` 모듈 독립화**
+- [x] **`Runtime/Clothing` 모듈 독립화**
   - 참조: `Kurisu\Source\Runtime\Clothing\**`
   - 대상: `Hitori\Source\Runtime\Clothing\**` 신규 구성 + 14주차 `SkeletalMeshData` / `SkeletalMeshComponent`에 분산된 NvCloth 시뮬레이션 로직을 `FClothingSimulationNv` / `UClothingAssetCommon`으로 캡슐화
-- [ ] **`Runtime/Audio` UObject 에셋화**
+- [x] **`Runtime/Audio` UObject 에셋화**
   - 참조: `Kurisu\Source\Runtime\Audio\SoundBase.h`, `SoundWave.{h,cpp}`
-  - 대상: `Hitori\Source\Runtime\Audio\SoundBase.h`, `SoundWave.{h,cpp}`
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` & `Release|x64` 최종 빌드 통과
+  - 대상: `Hitori\Source\Runtime\Engine\Classes\Sound\SoundBase.h`, `SoundWave.{h,cpp}` (이미 14주차에 반영됨 확인)
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` & `Release|x64` 최종 빌드 통과
 
 ---
 

@@ -4,6 +4,7 @@
 #include "Components/ShapeComponent.h"
 #include "GameFramework/Actor.h"
 #include "Physics/PhysicsScene.h"
+#include "Physics/CollisionProfile.h"
 #include "Physics/PhysXConversion.h"
 #include "UObject/UObjectHash.h"
 #include <extensions/PxDefaultSimulationFilterShader.h>
@@ -19,6 +20,31 @@ physx::PxFilterFlags FPhysXSimEventCallback::FilterShader(
     physx::PxPairFlags& OutPairFlags, const void* ConstantBlock, physx::PxU32 ConstantBlockSize)
 {
     using namespace physx;
+
+    // UE CollisionProfile 채널 응답 필터링 (양쪽 모두 카테고리가 설정된 경우)
+    if (FilterDataA.word0 != 0 && FilterDataB.word0 != 0)
+    {
+        const PxU32 AcceptA = FilterDataA.word1 | CollisionFilterBits::ExtractOverlapMask(FilterDataA.word3);
+        const PxU32 AcceptB = FilterDataB.word1 | CollisionFilterBits::ExtractOverlapMask(FilterDataB.word3);
+        if ((FilterDataA.word0 & AcceptB) == 0 || (FilterDataB.word0 & AcceptA) == 0)
+            return PxFilterFlag::eSUPPRESS;
+
+        if (PxFilterObjectIsTrigger(AttributesA) || PxFilterObjectIsTrigger(AttributesB))
+        {
+            OutPairFlags = PxPairFlag::eTRIGGER_DEFAULT;
+            return PxFilterFlag::eDEFAULT;
+        }
+
+        const bool bMutualBlock = (FilterDataA.word0 & FilterDataB.word1) != 0
+            && (FilterDataB.word0 & FilterDataA.word1) != 0;
+        if (!bMutualBlock)
+        {
+            OutPairFlags = PxPairFlag::eDETECT_DISCRETE_CONTACT
+                | PxPairFlag::eNOTIFY_TOUCH_FOUND
+                | PxPairFlag::eNOTIFY_TOUCH_LOST;
+            return PxFilterFlag::eDEFAULT;
+        }
+    }
 
     // SDK 기본 필터 정책 유지
     const PxFilterFlags Result = PxDefaultSimulationFilterShader(AttributesA, FilterDataA,

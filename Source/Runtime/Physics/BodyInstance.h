@@ -2,6 +2,7 @@
 
 #include "Math/Transform.h"
 #include "Math/Box.h"
+#include "Physics/CollisionProfile.h"
 
 class FPhysicsScene;
 class UPrimitiveComponent;
@@ -20,12 +21,6 @@ enum class EPhysicsBodyType
     Static,
     Dynamic,
     Kinematic
-};
-
-enum class ECollisionEnabled : uint8
-{
-    QueryOnly,
-    QueryAndPhysics
 };
 
 // QueryOnly 바디의 Shape는 query filter data word3에 이 비트를 켠다.
@@ -70,6 +65,12 @@ struct FBodyInstance
 
     // InitBody 전에 정한다. 바꾸려면 바디를 다시 만든다
     ECollisionEnabled CollisionEnabled = ECollisionEnabled::QueryAndPhysics;
+
+    // UE Collision Profile / 채널 응답 매트릭스
+    ECollisionPreset CollisionPreset = ECollisionPreset::BlockAllDynamic;
+    ECollisionCategory ObjectType = ECollisionCategory::WorldDynamic;
+    FCollisionResponseContainer CollisionResponses;
+    void SetCollisionProfile(ECollisionPreset Preset);
 
     int32 InstanceBodyIndex = INDEX_NONE;
     int32 InstanceBoneIndex = INDEX_NONE;
