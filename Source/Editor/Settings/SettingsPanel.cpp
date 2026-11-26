@@ -120,6 +120,10 @@ void FSettingsPanel::OnRender()
 	ImGui::SetNextItemWidth(200.0f);
 	ImGui::SliderFloat("Display Gamma", &Settings.DisplayGamma, 1.0f, 3.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 	ImGui::EndDisabled();
+	ImGui::SetNextItemWidth(200.0f);
+	ImGui::SliderFloat("Exposure (EV)", &Settings.ExposureCompensation, -4.0f, 4.0f, "%+.2f EV", ImGuiSliderFlags_AlwaysClamp);
+	ImGui::Checkbox("Eye Adaptation (Auto Exposure)", &Settings.ShowFlags.EyeAdaptation);
+	ImGui::Checkbox("Lens Flares", &Settings.ShowFlags.LensFlares);
 	ImGui::Checkbox("Depth of Field", &Settings.ShowFlags.DepthOfField);
 	ImGui::BeginDisabled(!Settings.ShowFlags.DepthOfField);
 	ImGui::Checkbox("Visualize DOF (PIE)", &Settings.ShowFlags.VisualizeDOF);
@@ -259,6 +263,7 @@ bool FSettingsPanel::SaveSettings() const
 	File << "SceneDepthMaxRange=" << Settings.SceneDepthMaxRange << "\n";
 	File << "GammaCorrection=" << Settings.bGammaCorrection << "\n";
 	File << "DisplayGamma=" << Settings.DisplayGamma << "\n";
+	File << "ExposureCompensation=" << Settings.ExposureCompensation << "\n";
 
 	for (const FShowFlagInfo& Info : FEngineShowFlags::GetAll())
 	{
@@ -436,6 +441,7 @@ bool FSettingsPanel::LoadSettings()
 
 				else if (Key == "GammaCorrection")   Settings.bGammaCorrection = std::stoi(ValueStr) != 0;
 				else if (Key == "DisplayGamma")      Settings.DisplayGamma = std::stof(ValueStr);
+				else if (Key == "ExposureCompensation") Settings.ExposureCompensation = std::clamp(std::stof(ValueStr), -4.0f, 4.0f);
 				else if (Key == "ShowDepthOfField")  Settings.ShowFlags.DepthOfField = std::stoi(ValueStr) != 0;
 				else if (Key == "ShowVignette")      Settings.ShowFlags.Vignette = std::stoi(ValueStr) != 0;
 				else if (Key == "ShowCameraOverlay") Settings.ShowFlags.CameraOverlay = std::stoi(ValueStr) != 0;

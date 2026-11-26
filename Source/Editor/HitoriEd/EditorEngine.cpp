@@ -822,6 +822,9 @@ void UEditorEngine::Tick(const float DeltaTime)
 					Options.SpotShadowMapSize = S.GetSpotShadowMapSize();
 					Options.bGammaCorrection = S.bGammaCorrection;
 					Options.DisplayGamma = S.DisplayGamma;
+					Options.ExposureCompensation = S.ExposureCompensation;
+					ShowFlags.LensFlares = S.ShowFlags.LensFlares;
+					ShowFlags.EyeAdaptation = S.ShowFlags.EyeAdaptation;
 					ShowFlags.DepthOfField = S.ShowFlags.DepthOfField;
 					ShowFlags.VisualizeDOF = S.ShowFlags.VisualizeDOF;
 					ShowFlags.Vignette = S.ShowFlags.Vignette;

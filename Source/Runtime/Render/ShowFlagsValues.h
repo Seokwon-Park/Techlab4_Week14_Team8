@@ -25,6 +25,8 @@ SHOWFLAG(Constraints,     false, false, Physics,     "Bounds",         "Physics 
 // ---------- Post Process ----------
 SHOWFLAG(Fog,             true,  true,  PostProcess, "ShowFog",           "Height Fog")
 SHOWFLAG(DepthOfField,    true,  true,  PostProcess, "Camera",            "Depth of Field")
+SHOWFLAG(LensFlares,      true,  true,  PostProcess, "Camera",            "Lens Flares")
+SHOWFLAG(EyeAdaptation,   true,  false, PostProcess, "Camera",            "Eye Adaptation (Auto Exposure)")
 SHOWFLAG(Vignette,        true,  true,  PostProcess, "ShowVignette",      "Vignette")
 SHOWFLAG(CameraOverlay,   true,  true,  PostProcess, "ShowCameraOverlay", "Camera Fade / Letterbox")
 

@@ -22,6 +22,7 @@ struct FSceneRenderOptions
 
 	bool bGammaCorrection = true;
 	float DisplayGamma = 2.2f;
+	float ExposureCompensation = 0.0f;
 
 	ERenderingPath RenderingPath = ERenderingPath::Deferred;
 	ELightingModel LightingModel = ELightingModel::Gouraud;

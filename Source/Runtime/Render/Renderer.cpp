@@ -13,6 +13,9 @@
 #include "Render/PostProcess/ToneMapData.h"
 #include "Render/DecalData.h"
 #include "Render/PostProcess/CameraOverlayRenderer.h"
+#include "Render/PostProcess/DepthOfFieldRenderer.h"
+#include "Render/PostProcess/LensFlareRenderer.h"
+#include "Render/PostProcess/ExposureMeterRenderer.h"
 #include "Render/PostProcess/DepthOfFieldSetupData.h"
 
 #include "Text/TextRenderer.h"
@@ -219,6 +222,12 @@ void FRenderer::InitScenePasses(const FString& SkyPanoramaPath)
 	FXAA->Init(this);
 	CameraOverlay = MakeUnique<FCameraOverlayRenderer>();   // FXAA->Init(this); 아래
 	CameraOverlay->Init(this);
+	DepthOfField = MakeUnique<FDepthOfFieldRenderer>();
+	DepthOfField->Init(this);
+	LensFlare = MakeUnique<FLensFlareRenderer>();
+	LensFlare->Init(this);
+	ExposureMeter = MakeUnique<FExposureMeterRenderer>();
+	ExposureMeter->Init(this);
 	ToneMapConstants = RenderCommand::CreateConstantBuffer(sizeof(FToneMapData));
 	DecalConstants = RenderCommand::CreateConstantBuffer(sizeof(FDecalData));
 	TireMarkViewConstants = RenderCommand::CreateConstantBuffer(sizeof(FTireMarkViewData));

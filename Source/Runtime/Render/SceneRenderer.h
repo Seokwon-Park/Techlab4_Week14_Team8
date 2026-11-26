@@ -110,7 +110,9 @@ public:
 	
 private:
 	bool AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Renderer, FSceneViewTargets& Targets,
-		const FSceneRenderOptions& Options, FSkyboxRenderer* Skybox);
+		const FSceneRenderOptions& Options, FSkyboxRenderer* Skybox, FRenderGraphTextureRef& OutLightingHDR);
+	bool AddToneMapPasses(FRenderGraphBuilder& Graph, FRenderer* Renderer, const FSceneRenderOptions& Options,
+		FRenderGraphTextureRef LightingHDR, FRenderGraphTextureRef SceneColor);
 	bool AddWorldNormalPass(FRenderGraphBuilder& Graph, FRenderer* Renderer, FSceneViewTargets& Targets,
 		const FSceneRenderOptions& Options);
 

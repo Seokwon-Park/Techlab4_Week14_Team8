@@ -197,6 +197,14 @@ FSceneView FGameViewportClient::CalcSceneView(const FRect& InViewRect)
 			OutView.bIsPerspective = !POV.bIsOrthogonal;
 			OutView.bIsWireframe = false;
 			OutView.DepthOfField = POV.DepthOfField;
+			if (POV.PostProcessBlendWeight > 0.0f)
+				OutView.FinalPostProcessSettings.OverrideBlend(POV.PostProcessSettings, POV.PostProcessBlendWeight);
+			if (POV.DepthOfField.FocusDistance > 0.0f && OutView.FinalPostProcessSettings.DepthOfFieldFocalDistance <= 0.0f)
+			{
+				OutView.FinalPostProcessSettings.DepthOfFieldFocalDistance = POV.DepthOfField.FocusDistance;
+				OutView.FinalPostProcessSettings.DepthOfFieldFstop = POV.DepthOfField.FStop;
+				OutView.FinalPostProcessSettings.DepthOfFieldSensorWidth = POV.DepthOfField.SensorWidthMm;
+			}
 
 			// 프러스텀 후 반환
 			OutView.Frustum = ExtractFrustumPlanes(OutView.ViewProjectionMatrix);
@@ -240,6 +248,14 @@ FSceneView FGameViewportClient::CalcSceneView(const FRect& InViewRect)
 		OutView.FarClip = CameraComponent->GetFarZ();
 		OutView.OrthoWidth = CameraComponent->GetOrthoWidth();
 		OutView.DepthOfField = CameraComponent->GetDepthOfFieldSettings();
+		if (CameraComponent->GetPostProcessBlendWeight() > 0.0f)
+			OutView.FinalPostProcessSettings.OverrideBlend(CameraComponent->GetPostProcessSettings(), CameraComponent->GetPostProcessBlendWeight());
+		if (OutView.DepthOfField.FocusDistance > 0.0f && OutView.FinalPostProcessSettings.DepthOfFieldFocalDistance <= 0.0f)
+		{
+			OutView.FinalPostProcessSettings.DepthOfFieldFocalDistance = OutView.DepthOfField.FocusDistance;
+			OutView.FinalPostProcessSettings.DepthOfFieldFstop = OutView.DepthOfField.FStop;
+			OutView.FinalPostProcessSettings.DepthOfFieldSensorWidth = OutView.DepthOfField.SensorWidthMm;
+		}
 		OutView.bIsPerspective = !CameraComponent->GetIsOrthogonal();
 		OutView.bIsWireframe = false;
 	}

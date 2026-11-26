@@ -60,6 +60,11 @@ void FMinimalViewInfo::BlendViewInfo(const FMinimalViewInfo& Other, float Alpha)
 	NearClip = FMath::Lerp(NearClip, Other.NearClip, Alpha);
 	FarClip = FMath::Lerp(FarClip, Other.FarClip, Alpha);
 	if (Alpha >= 0.5f) bIsOrthogonal = Other.bIsOrthogonal;
+	if (Other.PostProcessBlendWeight > 0.0f)
+	{
+		PostProcessSettings.OverrideBlend(Other.PostProcessSettings, Alpha * Other.PostProcessBlendWeight);
+		PostProcessBlendWeight = std::max(PostProcessBlendWeight, Alpha * Other.PostProcessBlendWeight);
+	}
 }
 // =======================FViewTargetTransitionParams===============
 float FViewTargetTransitionParams::GetBlendAlpha(float TimePct) const

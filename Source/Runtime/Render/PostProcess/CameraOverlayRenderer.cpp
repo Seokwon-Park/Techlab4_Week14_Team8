@@ -31,10 +31,19 @@ bool FCameraOverlayRenderer::OnRender(const FSceneView& View, uint32 Width, uint
     Data.FadeColor.V[3] = bOverlay ? FMath::Clamp(View.OverlayColor.A, 0.0f, 1.0f) : 0.0f;
     Data.ViewSize.V[0] = static_cast<float>(Width);
     Data.ViewSize.V[1] = static_cast<float>(Height);
-    Data.VignetteIntensity = bVignette ? View.VignetteIntensity : 0.0f;
+    const FPostProcessSettings& PP = View.FinalPostProcessSettings;
+    const float EffectiveVignette = PP.VignetteIntensity > 0.0f ? PP.VignetteIntensity : View.VignetteIntensity;
+    Data.VignetteIntensity = bVignette ? EffectiveVignette : 0.0f;
     Data.VignettePower = 2.0f;
     Data.LetterboxAmount = bOverlay ? FMath::Clamp(View.LetterboxAmount, 0.0f, 1.0f) : 0.0f;
     Data.LetterboxAspect = std::max(View.LetterboxAspect, 0.1f);
+
+    const bool bLens = bVignette && View.bIsPerspective && PP.LensVignetteAmount > 0.0f;
+    Data.TanHalfFov.V[0] = bLens ? 1.0f / std::max(std::abs(View.ProjectionMatrix.M[1][0]), 1e-4f) : 0.0f;
+    Data.TanHalfFov.V[1] = bLens ? 1.0f / std::max(std::abs(View.ProjectionMatrix.M[2][1]), 1e-4f) : 0.0f;
+    Data.PupilRadius = PP.LensMaxAperture / std::max(PP.DepthOfFieldFstop, 0.5f);
+    Data.LensVignetteAmount = bLens ? PP.LensVignetteAmount : 0.0f;
+    Data.BarrelRadius = std::max(PP.LensBarrelRadius, 1.0f);
 
     RenderCommand::BindPipelineState(PipelineState);
     RenderCommand::BindVertexBuffer(nullptr);

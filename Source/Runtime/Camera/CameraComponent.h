@@ -5,6 +5,7 @@
 #include "../Math/EngineMath.h"
 #include "../Math/Rotator.h"
 #include "Camera/DepthOfFieldSettings.h"
+#include "Engine/PostProcessSettings.h"
 #include "CameraComponent.generated.h"
 
 struct FMinimalViewInfo;
@@ -70,6 +71,9 @@ public:
 	void UpdateZoom(float DeltaTime);     // 마우스 휠 줌
 
 	const FDepthOfFieldSettings& GetDepthOfFieldSettings() const { return DepthOfField; }
+	const FPostProcessSettings& GetPostProcessSettings() const { return PostProcessSettings; }
+	FPostProcessSettings& GetMutablePostProcessSettings() { return PostProcessSettings; }
+	float GetPostProcessBlendWeight() const { return PostProcessBlendWeight; }
 
 protected:
 	float FieldOfView = 60.0f;
@@ -82,6 +86,12 @@ protected:
 
 	UPROPERTY(EditAnywhere)
 	FDepthOfFieldSettings DepthOfField;
+
+	UPROPERTY(EditAnywhere, meta=(ClampMin=0, ClampMax=1, Delta=0.01))
+	float PostProcessBlendWeight = 1.0f;
+
+	UPROPERTY(EditAnywhere)
+	FPostProcessSettings PostProcessSettings;
 	
 	float MoveSpeed = 10.0f;
 	float MouseSensitivity = 0.05f;

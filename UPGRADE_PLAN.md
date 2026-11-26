@@ -75,24 +75,24 @@
 ### Phase 1. ShowFlags·설정 단일화 & 에디터 체감 UX
 **목표**: 중복 ShowFlag 정리, 기즈모 스냅, 콘솔 자동완성, 하단 드로어 바, 테마 시스템 도입.
 
-- [ ] **X-Macro 기반 `FEngineShowFlags` 단일화**
+- [x] **X-Macro 기반 `FEngineShowFlags` 단일화**
   - 참조: `Kurisu\Source\Runtime\Render\ShowFlags.h`, `ShowFlags.cpp`, `ShowFlagsValues.h`, `Kurisu\Source\Editor\Settings\EditorSettings.{h,cpp}`, `Kurisu\Source\Editor\Viewports\ViewportShowMenu.cpp`
   - 대상: `Hitori\Source\Runtime\Render\ShowFlags.h`, `ShowFlags.cpp`(신규), `ShowFlagsValues.h`(신규), `Hitori\Source\Editor\Settings\SettingsPanel.{h,cpp}`
   - 주의: 14주차 고유 플래그(`VisualizeDOF`, `Constraints`, `ShadowMask`, `Deferred` 관련 옵션 등)를 빠짐없이 `ShowFlagsValues.h` 또는 `FEditorSettings`에 보존하고, `SettingsPanel` UI가 깨지지 않게 연동.
-- [ ] **트랜스폼 기즈모 스냅 추가 (Location / Rotation / Scale)**
+- [x] **트랜스폼 기즈모 스냅 추가 (Location / Rotation / Scale)**
   - 참조: `Kurisu\Source\Editor\Settings\EditorSettings.h` (`bLocationSnap`, `LocationSnapSize`, `bRotationSnap`, `RotationSnapDegrees`, `bScaleSnap`, `ScaleSnapSize`), `Kurisu\Source\Editor\Gizmo\Gizmo.cpp`
   - 대상: `Hitori\Source\Editor\Settings\SettingsPanel.{h,cpp}`, `Hitori\Source\Editor\Gizmo\Gizmo.{h,cpp}`, `Hitori\Source\Editor\Viewports\EditorViewportToolbar.{h,cpp}`
-- [ ] **Output Log 고도화**
+- [x] **Output Log 고도화**
   - 참조: `Kurisu\Source\Editor\OutputLog\OutputLogPanel.{h,cpp}`
   - 대상: `Hitori\Source\Editor\OutputLog\OutputLogPanel.{h,cpp}`
   - 기능: 콘솔/CVar 자동완성 팝업(`FConsoleSuggestion`), Verbosity 필터(Message/Warning/Error/Command), 필터 로그 파일 저장, 고정폭 폰트(`LoadLogFont`)
-- [ ] **UE5식 하단 드로어 바 (`FBottomDrawerBar`)**
+- [x] **UE5식 하단 드로어 바 (`FBottomDrawerBar`)**
   - 참조: `Kurisu\Source\Editor\EditorUI\BottomDrawerBar.{h,cpp}`
   - 대상: `Hitori\Source\Editor\EditorUI\BottomDrawerBar.{h,cpp}` 및 `LevelEditorTab` / `EditorEngine` 연동
-- [ ] **에디터 테마/팔레트 시스템 (`EditorStyle.h`)**
+- [x] **에디터 테마/팔레트 시스템 (`EditorStyle.h`)**
   - 참조: `Kurisu\Source\Editor\EditorUI\EditorStyle.h`
   - 대상: `Hitori\Source\Editor\EditorUI\EditorStyle.h` (Dark/Mid/Light/Hitori 테마, 기본 Dark)
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + ShowFlags INI 저장/복원·스냅·자동완성·하단 드로어 동작 확인
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + ShowFlags INI 저장/복원·스냅·자동완성·하단 드로어 동작 확인
 
 ---
 
@@ -114,29 +114,29 @@
   - 대상: `Hitori\Source\Runtime\Render\Material.{h,cpp}`, `MaterialFile.{h,cpp}`(신규)
   - 기능: `EMaterialDomain`, `EMaterialBlendMode`(Opaque/**Masked**+`OpacityMaskClipValue`/Translucent/**Additive**), `EMaterialShadingModel`(DefaultLit/Unlit), `SyncLegacyStates()`, `bRenderBeforeDOF` 보존, DepthPrepass & GBuffer Masked 알파 클립 지원
   - 주의: `EPSOType` 기존 번호 순서 유지.
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + **Forward 및 Deferred 양쪽 경로**에서 StaticMesh(LOD 포함)/SkeletalMesh(Cloth 포함)/MeshParticle/Sprite/Trail/Decal/Shadow 정상 렌더링 확인
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + **Forward 및 Deferred 양쪽 경로**에서 StaticMesh(LOD 포함)/SkeletalMesh(Cloth 포함)/MeshParticle/Sprite/Trail/Decal/Shadow 정상 렌더링 확인
 
 ---
 
 ### Phase 3. HDR Post-Process 파이프라인 통합 & 신규 효과
 **목표**: `SceneRenderer.cpp` 인라인 DOF 분리, `FPostProcessSettings` 도입, HDR 공간 통일 + 단일 ToneMap, LensFlare/AutoExposure 추가.
 
-- [ ] **`FPostProcessSettings` 도입**
+- [x] **`FPostProcessSettings` 도입**
   - 참조: `Kurisu\Source\Runtime\Engine\PostProcessSettings.{h,cpp}`
   - 대상: `Hitori\Source\Runtime\Engine\PostProcessSettings.{h,cpp}`(신규) + `SceneView` / `CameraComponent` 연동
-- [ ] **인라인 DOF → `FDepthOfFieldRenderer` 추출**
+- [x] **인라인 DOF → `FDepthOfFieldRenderer` 추출**
   - 참조: `Kurisu\Source\Runtime\Render\PostProcess\DepthOfFieldRenderer.{h,cpp}`, `Kurisu\EngineResources\Shaders\DepthOfField*.hlsl`, `DepthCommon.hlsli`
   - 대상: `Hitori\Source\Runtime\Render\PostProcess\DepthOfFieldRenderer.{h,cpp}`(신규), `Hitori\Source\Runtime\Render\SceneRenderer.cpp` (L536~L700 인라인 코드 제거), 다각형 보케(`BladeCount`) 지원
-- [ ] **HDR 파이프라인 통일 & 단일 `AddToneMapPasses`**
+- [x] **HDR 파이프라인 통일 & 단일 `AddToneMapPasses`**
   - 참조: `Kurisu\Source\Runtime\Render\SceneRenderer.cpp` (`AddToneMapPasses`), `ToneMapData.h`, `ToneMapShader.hlsl`
   - 대상: `Hitori\Source\Runtime\Render\SceneRenderer.{h,cpp}`
   - 변경: `HeightFog`와 `TranslucentBeforeDOF`/`TranslucentAfterDOF`를 모두 `LightingHDR`에서 처리한 뒤 마지막에 단일 `AddToneMapPasses` 실행 (물리 노출 + 광학 비네팅 포함)
-- [ ] **LensFlare & ExposureMeter (Auto Exposure) 추가**
+- [x] **LensFlare & ExposureMeter (Auto Exposure) 추가**
   - 참조:
     - `Kurisu\Source\Runtime\Render\PostProcess\LensFlareRenderer.{h,cpp}`, `ExposureMeterRenderer.{h,cpp}`
     - `Kurisu\EngineResources\Shaders\LensFlare*.hlsl`, `ExposureMeter.hlsl`
   - 대상: `Hitori\Source\Runtime\Render\PostProcess\` 및 `Renderer.{h,cpp}`, `SceneRenderer.{h,cpp}`
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + Deferred/Forward 양쪽에서 DOF, Fog, 반투명, LensFlare, AutoExposure, ToneMap 정상 동작 확인
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드 + Deferred/Forward 양쪽에서 DOF, Fog, 반투명, LensFlare, AutoExposure, ToneMap 정상 동작 확인
 
 ---
 
@@ -172,16 +172,16 @@
 - [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드
 
 #### Phase 5-B: PhysicsDebug / Skeletal / AnimTimeline / ParticleCurve UX 보강
-- [ ] **PhysicsAssetEditor 3D 셰이딩 디버그 렌더러**
+- [x] **PhysicsAssetEditor 3D 셰이딩 디버그 렌더러**
   - 참조: `Kurisu\Source\Editor\PhysicsAssetEditor\PhysicsAssetDebugRenderer.{h,cpp}`, `Kurisu\EngineResources\Shaders\PhysicsDebugShader.hlsl`
   - 대상: `Hitori\Source\Editor\PhysicsAssetEditor\**`
 - [ ] **SkeletalMeshEditor 보강**
   - 참조: `Kurisu\Source\Editor\SkeletalMeshEditor\SkeletalMeshEditor.{h,cpp}`, `Panels\SkeletalMeshClothingPanel.{h,cpp}`, `Kurisu\Source\Runtime\Render\SceneRenderer.cpp` (본 가중치 히트맵 와이어 오버레이)
   - 대상: `Hitori\Source\Editor\SkeletalMeshEditor\**` (본 포즈 Undo/Redo, 본 가중치 히트맵, Cloth Paint Brush/Fill/Smooth + Undo/Redo)
-- [ ] **AnimTimelinePanel 보강**
+- [x] **AnimTimelinePanel 보강**
   - 참조: `Kurisu\Source\Editor\AnimSequenceEditor\Panels\AnimTimelinePanel.{h,cpp}`
   - 대상: `Hitori\Source\Editor\AnimSequenceEditor\Panels\AnimTimelinePanel.{h,cpp}` (트랙 필터, 아이콘 트랜스포트 바, Notify Record 팝업)
-- [ ] **ParticleCurveEditor 보강**
+- [x] **ParticleCurveEditor 보강**
   - 참조: `Kurisu\Source\Runtime\Curves\CurveKeyUtils.{h,cpp}`, `Kurisu\Source\Editor\ParticleSystemEditor\Panels\ParticleSystemCurveEditorPanel.{h,cpp}`
   - 대상: `Hitori\Source\Runtime\Curves\CurveKeyUtils.{h,cpp}`(신규), `Hitori\Source\Editor\ParticleEditor\Panels\ParticleEditorPanels.{h,cpp}` (Arrive/Leave 탄젠트 핸들, 다중 키 선택, 트랙 숨김 토글)
 - [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드

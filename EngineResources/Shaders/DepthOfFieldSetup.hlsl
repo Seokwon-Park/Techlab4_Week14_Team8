@@ -1,31 +1,63 @@
-Texture2D<float> SceneDepthTexture : register(t0);
+#include "DepthCommon.hlsli"
 
-cbuffer DepthOfFieldSetupConstants : register(b0)
+cbuffer DepthOfFieldConstants : register(b0)
 {
-    float ProjectionA;
-    float ProjectionB;
-    float FocusDistance;
-    float InfinityCoCRadius;
+    float ZScale;
+    float ZOffset;
+    float FocalDistance;
+    float FocusRange;
+
+    // 렌즈 값은 모두 월드 단위(m)
+    float FocalLength;
+    float Fstop;
+    float SensorWidth;
+    float ViewWidthPx;
 };
 
-float4 mainVS(uint VertexID : SV_VertexID) : SV_Position
+Texture2D<float> SceneDepthTexture : register(t0);
+
+struct VSOutput
 {
-    float2 uv = float2((VertexID << 1) & 2, VertexID & 2);
-    return float4(uv * float2(2.0f, -2.0f) + float2(-1.0f, 1.0f), 0.0f, 1.0f);
+    float4 Position : SV_Position;
+};
+
+VSOutput mainVS(uint VertexID : SV_VertexID)
+{
+    static const float2 Positions[6] =
+    {
+        float2(-1, 1),
+        float2(1, 1),
+        float2(-1, -1),
+
+        float2(-1, -1),
+        float2(1, 1),
+        float2(1, -1)
+    };
+
+    VSOutput Output;
+    Output.Position = float4(Positions[VertexID], 0, 1);
+    return Output;
 }
 
-float mainPS(float4 Position : SV_Position) : SV_Target0
+// 얇은 렌즈 CoC를 픽셀 반경으로 돌려준다. 부호 약속: 음수 = near(초점 앞), 양수 = far(초점 뒤).
+float ComputeThinLensCoC(float LinearDepth)
 {
-    int2 Pixel = int2(Position.xy);
-    float DeviceZ = SceneDepthTexture.Load(int3(Pixel, 0));
-    
-    float CoC = InfinityCoCRadius;
-    if (DeviceZ < 1.0f)
-    {
-        float ViewDepth = ProjectionB / (DeviceZ - ProjectionA);
-        CoC *= 1.0f - FocusDistance / ViewDepth;
-    }
-    
-    const float MaxCoCRadius = 16.0f;
-    return clamp(CoC, -MaxCoCRadius, MaxCoCRadius);
+    if (FocalDistance <= 0.0f || FocalLength <= 0.0f || Fstop <= 0.0f || SensorWidth <= 0.0f)
+        return 0.0f;
+
+    float Aperture = FocalLength / Fstop;
+    float S = max(FocalDistance, FocalLength + 0.01f); // m
+    float CoC = Aperture * FocalLength * (LinearDepth - S) / (max(LinearDepth, 1e-4f) * (S - FocalLength));
+    float CoCPixel = CoC / SensorWidth * ViewWidthPx * 0.5f;
+    return CoCPixel;
+}
+
+// R16_Float CoC 텍스처에 부호 있는 CoC 하나만 쓴다.
+float mainPS(VSOutput Input) : SV_Target
+{
+    int2 PixelPosition = int2(Input.Position.xy);
+    float DeviceZ = SceneDepthTexture.Load(int3(PixelPosition, 0));
+
+    float LinearDepth = ConvertFromDeviceZ(DeviceZ, ZScale, ZOffset, true);
+    return ComputeThinLensCoC(LinearDepth);
 }

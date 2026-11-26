@@ -3,6 +3,7 @@
 
 #include "CameraModifier_CameraShake.h"
 #include "Camera/DepthOfFieldSettings.h"
+#include "Engine/PostProcessSettings.h"
 
 #include "PlayerCameraManager.generated.h"
 
@@ -17,6 +18,8 @@ struct FMinimalViewInfo
 	float FarClip = 10000.0f;
 	bool bIsOrthogonal = false;
 	FDepthOfFieldSettings DepthOfField;
+	FPostProcessSettings PostProcessSettings;
+	float PostProcessBlendWeight = 0.0f;
 
 	void BlendViewInfo(const FMinimalViewInfo& Other, float Alpha);
 	FMatrix CalculateViewMatrix() const;

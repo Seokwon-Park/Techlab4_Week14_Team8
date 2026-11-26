@@ -11,6 +11,7 @@
 #include "Render/ShowFlags.h"
 #include "Render/SceneRenderOptions.h"
 #include "Camera/DepthOfFieldSettings.h"
+#include "Engine/PostProcessSettings.h"
 #include <algorithm>
 
 // Immutable description of one camera view for the duration of a render.
@@ -35,6 +36,7 @@ struct FSceneView
 	bool bIsWireframe = false;
 	bool bGameView = false;
 	FDepthOfFieldSettings DepthOfField;
+	FPostProcessSettings FinalPostProcessSettings;
 
 	FLinearColor OverlayColor{ 0.0f, 0.0f, 0.0f, 0.0f };   // rgb = 페이드 색, a = FadeAmount
 	float LetterboxAmount = 0.0f;                        // 0~1 진행도
@@ -43,8 +45,11 @@ struct FSceneView
 
 	bool NeedsCameraOverlay(bool bVignette, bool bOverlay) const
 	{
+		const float EffectiveVignette = FinalPostProcessSettings.VignetteIntensity > 0.0f
+			? FinalPostProcessSettings.VignetteIntensity : VignetteIntensity;
+		const bool bLensVignette = bIsPerspective && FinalPostProcessSettings.LensVignetteAmount > 0.0f;
 		return (bOverlay && (OverlayColor.A > 0.0f || LetterboxAmount > 0.0f))
-			|| (bVignette && VignetteIntensity > 0.0f);
+			|| (bVignette && (EffectiveVignette > 0.0f || bLensVignette));
 	}
 
 	FViewContext ToViewContext() const

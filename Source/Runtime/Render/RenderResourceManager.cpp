@@ -55,8 +55,8 @@ constexpr FPipelineTableEntry PipelineTable[] =
 	{ EPSOType::ParticleTrail_Additive,   HITORI_ENGINE_SHADER("ParticleTrailShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,   EDepthStencilState::ReadOnly },
 	{ EPSOType::DepthOfFieldSetup, HITORI_ENGINE_SHADER("DepthOfFieldSetup.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
 	{ EPSOType::DepthOfFieldGather, HITORI_ENGINE_SHADER("DepthOfFieldGather.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::DepthOfFieldPostfilter, HITORI_ENGINE_SHADER("DepthOfFieldPostfilter.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
-	{ EPSOType::DepthOfFieldRecombine, HITORI_ENGINE_SHADER("DepthOfFieldRecombine.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::DepthOfFieldPostfilter, HITORI_ENGINE_SHADER("DepthOfFieldPostFilter.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
+	{ EPSOType::DepthOfFieldRecombine, HITORI_ENGINE_SHADER("DepthOfFieldComposite.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
 	{ EPSOType::DepthOfFieldVisualize, HITORI_ENGINE_SHADER("DepthOfFieldVisualize.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque, EDepthStencilState::Disabled },
 	{ EPSOType::StaticMesh_Additive,  HITORI_ENGINE_SHADER("StaticMeshTranslucentShader.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::Additive, EDepthStencilState::ReadOnly },
 };

@@ -1,35 +1,48 @@
-Texture2D<float4> LightingHDR : register(t0);
-Texture2D<float> CoCTexture : register(t1);
+// Setup 패스가 만든 부호 있는 CoC(음수 = near, 양수 = far)를 색으로 칠한다.
+Texture2D<float> CoCTexture : register(t0);
+Texture2D SceneColorTexture : register(t1);
 
-static const float MaxCoCRadius = 16.0f;
+// CoC는 픽셀 반경이라, 블러가 허용할 최대 반경으로 나눠야 near/far 모두 0~1 색으로 구별된다
+static const float MaxCoCRadiusPx = 32.f;
 
-float4 mainVS(uint VertexID : SV_VertexID) : SV_Position
+struct VSOutput
 {
-    float2 UV = float2((VertexID << 1) & 2, VertexID & 2);
-    return float4(UV * float2(2.0f, -2.0f) + float2(-1.0f, 1.0f), 0.0f, 1.0f);
+    float4 Position : SV_Position;
+};
+
+VSOutput mainVS(uint VertexID : SV_VertexID)
+{
+    static const float2 Positions[6] =
+    {
+        float2(-1, 1),
+        float2(1, 1),
+        float2(-1, -1),
+
+        float2(-1, -1),
+        float2(1, 1),
+        float2(1, -1)
+    };
+
+    VSOutput Output;
+    Output.Position = float4(Positions[VertexID], 0, 1);
+    return Output;
 }
 
-float4 mainPS(float4 Position : SV_Position) : SV_Target0
+float4 mainPS(VSOutput Input) : SV_Target
 {
-    int2 Pixel = int2(Position.xy);
-    float3 HDR = max(LightingHDR.Load(int3(Pixel, 0)).rgb, 0.0f);
-    float CoC = CoCTexture.Load(int3(Pixel, 0));
+    int3 PixelPosition = int3(int2(Input.Position.xy), 0);
+    float CoCPx = CoCTexture.Load(PixelPosition);
+    float3 SceneColor = SceneColorTexture.Load(PixelPosition).rgb;
 
-    // 배경 지오메트리가 식별되도록 ACES 근사 톤매핑 후 휘도(sRGB) 계산
-    float3 Mapped = saturate((HDR * (2.51f * HDR + 0.03f)) / (HDR * (2.43f * HDR + 0.59f) + 0.14f));
-    float3 DisplayScene = pow(Mapped, 1.0f / 2.2f);
-    float Luma = dot(DisplayScene, float3(0.2126f, 0.7152f, 0.0722f));
-    float3 BaseGray = Luma.xxx;
+    // 장면을 어둡게 깔아야 CoC 색과 원래 물체 색이 헷갈리지 않는다
+    float Luma = dot(SceneColor, float3(0.2126, 0.7152, 0.0722));
+    float3 Gray = Luma.xxx * 0.3;
 
-    float AbsCoC = abs(CoC);
-    float LayerMask = smoothstep(0.5f, 2.0f, AbsCoC);
-    float Normalized = saturate((AbsCoC - 0.5f) / (MaxCoCRadius - 0.5f));
-    float Strength = LayerMask * lerp(0.35f, 1.0f, pow(Normalized, 0.6f));
+    // 작은 CoC도 눈에 띄게 제곱근으로 끌어올린다 (보기만 바뀌고 블러는 그대로)
+    float Amount = sqrt(saturate(abs(CoCPx) / MaxCoCRadiusPx));
+    float3 CoCColor = CoCPx < 0 ? float3(0, 1, 0) : float3(0, 0, 1);
 
-    // Near(음수) = 초록, Far(양수) = 파랑, In-Focus(|CoC| <= 0.5) = 무채색
-    float3 LayerTint = (CoC < 0.0f) ? float3(0.05f, 0.95f, 0.25f) : float3(0.10f, 0.45f, 1.00f);
-    float3 ShadedLayer = LayerTint * (0.35f + 0.65f * Luma);
-    float3 OutputColor = lerp(BaseGray, ShadedLayer, Strength);
-
-    return float4(OutputColor, 1.0f);
+    // 강도는 lerp에서 한 번만 써야 제곱으로 약해지지 않는다
+    float3 Result = lerp(Gray, CoCColor, Amount);
+    return float4(Result, 1);
 }

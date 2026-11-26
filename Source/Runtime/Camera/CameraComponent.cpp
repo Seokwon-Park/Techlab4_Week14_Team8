@@ -199,4 +199,22 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& OutPOV) 
     OutPOV.FarClip = FarClipPlane;
     OutPOV.bIsOrthogonal = bIsOrthogonal;
 	OutPOV.DepthOfField = DepthOfField;
+	OutPOV.PostProcessSettings = PostProcessSettings;
+	OutPOV.PostProcessBlendWeight = PostProcessBlendWeight;
+	// 기존 DepthOfField 필드와의 하위 호환: PostProcessSettings에 명시적 오버라이드가 없으면 기존 값 전달
+	if (DepthOfField.FocusDistance > 0.0f && !OutPOV.PostProcessSettings.bOverride_DepthOfFieldFocalDistance)
+	{
+		OutPOV.PostProcessSettings.bOverride_DepthOfFieldFocalDistance = true;
+		OutPOV.PostProcessSettings.DepthOfFieldFocalDistance = DepthOfField.FocusDistance;
+		if (!OutPOV.PostProcessSettings.bOverride_DepthOfFieldFstop)
+		{
+			OutPOV.PostProcessSettings.bOverride_DepthOfFieldFstop = true;
+			OutPOV.PostProcessSettings.DepthOfFieldFstop = DepthOfField.FStop;
+		}
+		if (!OutPOV.PostProcessSettings.bOverride_DepthOfFieldSensorWidth)
+		{
+			OutPOV.PostProcessSettings.bOverride_DepthOfFieldSensorWidth = true;
+			OutPOV.PostProcessSettings.DepthOfFieldSensorWidth = DepthOfField.SensorWidthMm;
+		}
+	}
 }
