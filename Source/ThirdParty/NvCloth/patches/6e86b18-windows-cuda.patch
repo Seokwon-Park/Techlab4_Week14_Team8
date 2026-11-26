@@ -1,0 +1,34 @@
+Base: NVIDIAGameWorks/NvCloth 6e86b1838ae185c527744d475d34777ff69c1b8a
+Apply from the SDK root: git apply --unidiff-zero <path-to>/6e86b18-windows-cuda.patch
+
+diff --git a/NvCloth/compiler/cmake/windows/CMakeLists.txt b/NvCloth/compiler/cmake/windows/CMakeLists.txt
+index 30f2a65..7c4509e 100644
+--- a/NvCloth/compiler/cmake/windows/CMakeLists.txt
++++ b/NvCloth/compiler/cmake/windows/CMakeLists.txt
+@@ -22 +22 @@ ENDIF()
+-SET(CMAKE_CXX_FLAGS "/Wall /wd4514 /wd4820 /wd4127 /wd4710 /wd4711 /wd4577 /wd4530 /d2Zi+ /MP /WX /W4 /GF /GS- /GR- /Gd /fp:fast /fp:except- /Zi  ${WIN32_CXX_FLAGS}")
++SET(CMAKE_CXX_FLAGS "/utf-8 /Wall /wd4514 /wd4820 /wd4127 /wd4710 /wd4711 /wd4577 /wd4530 /d2Zi+ /MP /WX /W4 /GF /GS- /GR- /Gd /fp:fast /fp:except- /Zi  ${WIN32_CXX_FLAGS}")
+diff --git a/NvCloth/compiler/cmake/windows/NvCloth.cmake b/NvCloth/compiler/cmake/windows/NvCloth.cmake
+index 065ea18..cd35b4e 100644
+--- a/NvCloth/compiler/cmake/windows/NvCloth.cmake
++++ b/NvCloth/compiler/cmake/windows/NvCloth.cmake
+@@ -115 +115 @@ set(
+-	-use_fast_math -ftz=true -prec-div=false -prec-sqrt=false -lineinfo -gencode arch=compute_30,code=sm_30 -gencode arch=compute_35,code=sm_35 -gencode arch=compute_50,code=sm_50 -gencode arch=compute_50,code=compute_50 -gencode arch=compute_60,code=sm_60 -D_USE_MATH_DEFINES -DNDEBUG -DPX_PROFILE=1
++	-use_fast_math -ftz=true -prec-div=false -prec-sqrt=false -lineinfo -gencode arch=compute_75,code=sm_75 -gencode arch=compute_80,code=sm_80 -gencode arch=compute_89,code=sm_89 -gencode arch=compute_120,code=sm_120 -D_USE_MATH_DEFINES -DNDEBUG -DPX_PROFILE=1
+diff --git a/NvCloth/include/NvCloth/ps/PsAllocator.h b/NvCloth/include/NvCloth/ps/PsAllocator.h
+index 7d61bee..b6a975e 100644
+--- a/NvCloth/include/NvCloth/ps/PsAllocator.h
++++ b/NvCloth/include/NvCloth/ps/PsAllocator.h
+@@ -40 +40 @@
+-#include <typeinfo.h>
++#include <typeinfo>
+diff --git a/NvCloth/src/cuda/CuSelfCollision.h b/NvCloth/src/cuda/CuSelfCollision.h
+index 9b8c216..10f6637 100644
+--- a/NvCloth/src/cuda/CuSelfCollision.h
++++ b/NvCloth/src/cuda/CuSelfCollision.h
+@@ -300,0 +301,5 @@ __device__ void CuSelfCollision::buildAcceleration(const CurrentT& current)
++		// Exclusive end of the last occupied cell
++		if (i == numIndices - 1)
++		{
++			cellStart[key + 1] = numIndices;
++		}

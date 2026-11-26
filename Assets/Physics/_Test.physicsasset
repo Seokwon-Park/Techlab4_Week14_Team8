@@ -1,0 +1,109 @@
+{
+    "CollisionDisableTable": [
+        {
+            "A": 0,
+            "B": 1
+        }
+    ],
+    "ConstraintSetup": [
+        {
+            "ConstraintBone1": "spine_01",
+            "ConstraintBone2": "pelvis",
+            "Pos1": {
+                "X": 0.0,
+                "Y": 0.0,
+                "Z": 0.0
+            },
+            "Pos2": {
+                "X": 0.0,
+                "Y": 0.0,
+                "Z": 10.0
+            },
+            "PriAxis1": {
+                "X": 1.0,
+                "Y": 0.0,
+                "Z": 0.0
+            },
+            "PriAxis2": {
+                "X": 1.0,
+                "Y": 0.0,
+                "Z": 0.0
+            },
+            "Properties": {},
+            "SecAxis1": {
+                "X": 0.0,
+                "Y": 1.0,
+                "Z": 0.0
+            },
+            "SecAxis2": {
+                "X": 0.0,
+                "Y": 1.0,
+                "Z": 0.0
+            },
+            "Swing1LimitDegrees": 45.0,
+            "Swing1Motion": 1,
+            "Swing2LimitDegrees": 45.0,
+            "Swing2Motion": 1,
+            "TwistLimitDegrees": 45.0,
+            "TwistMotion": 1,
+            "bDisableCollision": true
+        }
+    ],
+    "Properties": {},
+    "SkeletalBodySetups": [
+        {
+            "BoneName": "pelvis",
+            "BoxElems": [],
+            "Friction": 0.5,
+            "MassInKgOverride": 0.0,
+            "PhysicsType": 0,
+            "Properties": {},
+            "Restitution": 0.10000000149011612,
+            "SphereElems": [],
+            "SphylElems": [
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": 0.0,
+                        "Z": 0.0
+                    },
+                    "Length": 20.0,
+                    "Radius": 15.0,
+                    "Rotation": {
+                        "Pitch": 0.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                }
+            ],
+            "bOverrideMass": false
+        },
+        {
+            "BoneName": "spine_01",
+            "BoxElems": [],
+            "Friction": 0.5,
+            "MassInKgOverride": 0.0,
+            "PhysicsType": 0,
+            "Properties": {},
+            "Restitution": 0.10000000149011612,
+            "SphereElems": [],
+            "SphylElems": [
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": 0.0,
+                        "Z": 0.0
+                    },
+                    "Length": 20.0,
+                    "Radius": 15.0,
+                    "Rotation": {
+                        "Pitch": 0.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                }
+            ],
+            "bOverrideMass": false
+        }
+    ]
+}

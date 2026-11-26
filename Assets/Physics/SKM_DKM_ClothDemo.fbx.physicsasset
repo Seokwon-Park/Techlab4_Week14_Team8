@@ -1,0 +1,105 @@
+{
+    "Properties": {},
+    "CollisionDisableTable": [],
+    "ConstraintSetup": [],
+    "SkeletalBodySetups": [
+        {
+            "BoneName": "spine_03",
+            "BoxElems": [],
+            "Friction": 0.5,
+            "MassInKgOverride": 0.0,
+            "PhysicsType": 0,
+            "Properties": {},
+            "Restitution": 0.10000000149011612,
+            "SphereElems": [],
+            "SphylElems": [
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": 25.4163,
+                        "Z": 0.8427
+                    },
+                    "Length": 13,
+                    "Radius": 17,
+                    "Rotation": {
+                        "Pitch": -90.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                },
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": 4.5825,
+                        "Z": -2.467
+                    },
+                    "Length": 13,
+                    "Radius": 16,
+                    "Rotation": {
+                        "Pitch": -90.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                },
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": -10.5445,
+                        "Z": -0.9102
+                    },
+                    "Length": 15,
+                    "Radius": 16,
+                    "Rotation": {
+                        "Pitch": -90.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                },
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": -21.9796,
+                        "Z": 5.6875
+                    },
+                    "Length": 16,
+                    "Radius": 11,
+                    "Rotation": {
+                        "Pitch": -90.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                },
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": -29.1473,
+                        "Z": 8.1439
+                    },
+                    "Length": 17,
+                    "Radius": 6.962,
+                    "Rotation": {
+                        "Pitch": -90.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                },
+                {
+                    "Center": {
+                        "X": 0.0,
+                        "Y": -35.1793,
+                        "Z": 8.4672
+                    },
+                    "Length": 13,
+                    "Radius": 4.891,
+                    "Rotation": {
+                        "Pitch": -90.0,
+                        "Roll": 0.0,
+                        "Yaw": 0.0
+                    }
+                }
+            ],
+            "bOverrideMass": false
+        }
+    ],
+    "PreviewMesh": "Assets/FBX/ClothDemo/SKM_DKM_ClothDemo.fbx.bin"
+}

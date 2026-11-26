@@ -1,0 +1,6 @@
+{
+    "Mappings": [
+        { "Action": "Assets/Input/IA_DebugCameraShake.inputaction", "Key": "F6" },
+        { "Action": "Assets/Input/IA_DebugStopCameraShake.inputaction", "Key": "F7" }
+    ]
+}

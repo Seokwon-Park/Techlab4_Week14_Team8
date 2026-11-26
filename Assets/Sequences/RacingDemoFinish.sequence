@@ -1,0 +1,195 @@
+{
+  "Type": "LevelSequence",
+  "BindingReferences": [
+    {
+      "Guid": "C59F43C1983E414CA0FB975CF5A9274B",
+      "Actor": "RacingDemoFinishCamera"
+    }
+  ],
+  "MovieScene": {
+    "DisplayRate": [
+      30,
+      1
+    ],
+    "TickResolution": [
+      24000,
+      1
+    ],
+    "PlaybackStart": 0,
+    "PlaybackEnd": 24000,
+    "Bindings": [
+      {
+        "Class": "ACameraActor",
+        "Guid": "C59F43C1983E414CA0FB975CF5A9274B",
+        "Name": "RacingDemoFinishCamera",
+        "Tracks": [
+          {
+            "Class": "UMovieScene3DTransformTrack",
+            "EvalDisabled": false,
+            "Sections": [
+              {
+                "Class": "UMovieScene3DTransformSection",
+                "Active": true,
+                "Completion": 2,
+                "Start": 0,
+                "End": 24000,
+                "Channels": [
+                  {
+                    "Keys": [
+                      {
+                        "Time": 0,
+                        "Value": 17,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      },
+                      {
+                        "Time": 24000,
+                        "Value": 20,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Keys": [
+                      {
+                        "Time": 0,
+                        "Value": -24,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      },
+                      {
+                        "Time": 24000,
+                        "Value": -22,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Keys": [
+                      {
+                        "Time": 0,
+                        "Value": 8,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      },
+                      {
+                        "Time": 24000,
+                        "Value": 8.5,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Keys": [
+                      {
+                        "Time": 0,
+                        "Value": 18,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      },
+                      {
+                        "Time": 24000,
+                        "Value": 17,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Keys": [
+                      {
+                        "Time": 0,
+                        "Value": -112,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      },
+                      {
+                        "Time": 24000,
+                        "Value": -98,
+                        "Interp": 0,
+                        "TangentMode": 0,
+                        "Arrive": 0,
+                        "Leave": 0
+                      }
+                    ]
+                  },
+                  {
+                    "Keys": []
+                  },
+                  {
+                    "Keys": []
+                  },
+                  {
+                    "Keys": []
+                  },
+                  {
+                    "Keys": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "CameraCutTrack": {
+      "Class": "UMovieSceneCameraCutTrack",
+      "EvalDisabled": false,
+      "Sections": [
+        {
+          "Class": "UMovieSceneCameraCutSection",
+          "Active": true,
+          "Completion": 2,
+          "Start": 0,
+          "End": 24000,
+          "Camera": "C59F43C1983E414CA0FB975CF5A9274B",
+          "Channels": []
+        }
+      ],
+      "CanBlend": false,
+      "BlendTime": 0
+    },
+    "Tracks": [
+      {
+        "Class": "UMovieSceneSlomoTrack",
+        "EvalDisabled": false,
+        "Sections": [
+          {
+            "Class": "UMovieSceneSlomoSection",
+            "Active": true,
+            "Completion": 2,
+            "Start": 0,
+            "End": 24000,
+            "Channels": [
+              {
+                "Default": 0.32,
+                "Keys": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+#pragma once
+
+#include "Asset/RenderAsset.h"
+#include "Containers/Map.h"
+#include "Math/Box.h"
+#include "Vertex.h"
+#include "SkeletalMeshData.h"
+#include "MeshRenderData.h"
+#include "Buffer.h"
+#include "Material.h"
+#include <unordered_map>
+#include <vector>
+#include "SkeletalMesh.generated.h"
+
+class UPhysicsAsset;
+
+struct FSkeletalMeshLODRenderData
+{
+	TArray<FVertex> BindVertices;
+	TArray<FSkinWeight> SkinWeights;
+	TArray<uint32> Indices;
+	TArray<FSkeletalMeshSection> Sections;
+	TUniquePtr<FIndexBuffer> IndexBuffer;
+	FBox BindAABB;
+
+	// GPU 스키닝 입력. 포즈와 무관하므로 에셋이 갖고 인스턴스끼리 공유한다
+	TUniquePtr<FVertexBuffer> GpuSkinVertexBuffer;
+	// 본마다 가중치가 있는 정점의 바인드 바운드. 정점이 없는 본은 Min > Max
+	TArray<FBox> BoneBounds;
+};
+
+struct FSkeletalMeshRenderData
+{
+	TArray<FSkeletalMeshLODRenderData> LODRenderData;
+};
+
+UCLASS()
+class USkeletalMesh : public URenderAsset
+{
+	GENERATED_BODY()
+public:
+	bool Build(FSkeletalMeshData&& ImportData, FString& OutError);
+
+	const TArray<FBoneInfo>& GetRefSkeleton() const { return RefSkeleton; }
+	int32 GetNumBones() const { return RefSkeleton.Num(); }
+	int32 FindBoneIndex(const FString& Name) const;
+	const FSkeletalMeshRenderData& GetRenderData() const { return RenderData; }
+	const TArray<FClothSectionBinding>& GetClothSectionBindings() const { return ClothSectionBindings; }
+	bool SetClothSectionBindings(TArray<FClothSectionBinding> Bindings);
+	const TArray<FSkeletalMaterialSlot>& GetMaterialSlots() const { return MaterialSlots; }
+	UMaterial* GetMaterial(uint32 SlotIndex) const;
+
+	TSharedPtr<const FMeshRenderState> GetRenderState(const TArray<UMaterial*>& Materials);
+
+	// UE는 TSoftObjectPtr<UPhysicsAsset>. 저장은 경로로, 로드 때 UAssetManager로 찾아 연결
+	UPhysicsAsset* PhysicsAsset = nullptr;
+	FString PhysicsAssetPath;
+	// 처음 요청할 때 PhysicsAssetPath(비어 있으면 Assets/Physics/<메시 파일 이름>.physicsasset)에서 읽어 연결한다
+	UPhysicsAsset* GetPhysicsAsset();
+private:
+	bool bPhysicsAssetLoadTried = false;
+public:
+
+private:
+	struct FMaterialSlotsHash
+	{
+		size_t operator()(const TArray<UMaterial*>& Slots) const;
+	};
+
+	TArray<FBoneInfo> RefSkeleton;
+	TArray<FSkeletalMaterialSlot> MaterialSlots;
+	TArray<UMaterial*> Materials;
+	FSkeletalMeshRenderData RenderData;
+	TArray<FClothSectionBinding> ClothSectionBindings;
+	// UStaticMesh와 같은 캐시: 같은 머티리얼 조합의 컴포넌트끼리 섹션 목록 공유
+	TMap<TArray<UMaterial*>, TWeakPtr<const FMeshRenderState>, FMaterialSlotsHash> RenderStates;
+};

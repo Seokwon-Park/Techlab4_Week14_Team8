@@ -1,0 +1,1008 @@
+{
+  "Version": 4,
+  "World": {
+    "PersistentLevel": {
+      "Actors": [
+        {
+          "Class": "APawn",
+          "Name": "DOFShowcaseCameraPawn",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 1.25 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UCameraComponent",
+              "Name": "UCameraComponent_0",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "FieldOfView": 35.0,
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true,
+                "DepthOfField": {
+                  "FocusDistance": 3.5,
+                  "FStop": 0.25,
+                  "SensorWidthMm": 36.0
+                }
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": false
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "ShowcaseGround",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 10.0, "Y": 0.0, "Z": -0.5 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 40.0, "Y": 30.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cube",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bBlockComponent": false,
+                "bCastShadow": false,
+                "bGenerateOverlapEvents": false,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.16, "Y": 0.18, "Z": 0.22, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 16.0,
+                    "SpecularColor": { "X": 0.15, "Y": 0.15, "Z": 0.15 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "Hero_Hitori",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 3.5, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "OverrideMaterials": [],
+              "Properties": {
+                "StaticMesh": "Models/Hitori/Hitori.obj",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "NearProp_Left",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 1.85, "Y": -0.82, "Z": 0.95 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 25.0 },
+                  "Scale": { "X": 0.28, "Y": 0.28, "Z": 1.9 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cylinder",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.85, "Y": 0.35, "Z": 0.28, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 32.0,
+                    "SpecularColor": { "X": 0.4, "Y": 0.4, "Z": 0.4 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "NearProp_Right_Dice",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 1.95, "Y": 0.85, "Z": 0.55 },
+                  "Rotation": { "Pitch": 12.0, "Roll": 0.0, "Yaw": -30.0 },
+                  "Scale": { "X": 0.35, "Y": 0.35, "Z": 0.35 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "OverrideMaterials": [],
+              "Properties": {
+                "StaticMesh": "Models/Dice/dice.obj",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "MidBG_Nijika",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 7.0, "Y": -1.8, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": -18.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "OverrideMaterials": [],
+              "Properties": {
+                "StaticMesh": "Models/Nijika/Nijika.obj",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "MidBG_Ryo",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 7.6, "Y": 1.9, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 18.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "OverrideMaterials": [],
+              "Properties": {
+                "StaticMesh": "Models/Ryo/Ryo.obj",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "MidBG_Ikuyo",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 9.2, "Y": -0.7, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": -8.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "OverrideMaterials": [],
+              "Properties": {
+                "StaticMesh": "Models/Ikuyo/Ikuyo.obj",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "MidBG_Shiba",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 6.0, "Y": 1.15, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 25.0 },
+                  "Scale": { "X": 0.75, "Y": 0.75, "Z": 0.75 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "OverrideMaterials": [],
+              "Properties": {
+                "StaticMesh": "Models/Shiba/Shiba.obj",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "FarPillar_1",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 13.0, "Y": -4.2, "Z": 2.2 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 0.9, "Y": 0.9, "Z": 4.4 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cube",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.24, "Y": 0.56, "Z": 0.85, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 32.0,
+                    "SpecularColor": { "X": 0.4, "Y": 0.4, "Z": 0.4 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "FarPillar_2",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 14.0, "Y": -1.6, "Z": 2.5 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 15.0 },
+                  "Scale": { "X": 0.9, "Y": 0.9, "Z": 5.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cube",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.92, "Y": 0.62, "Z": 0.22, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 32.0,
+                    "SpecularColor": { "X": 0.4, "Y": 0.4, "Z": 0.4 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "FarPillar_3",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 14.5, "Y": 1.6, "Z": 2.4 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": -15.0 },
+                  "Scale": { "X": 0.9, "Y": 0.9, "Z": 4.8 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cube",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.28, "Y": 0.78, "Z": 0.56, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 32.0,
+                    "SpecularColor": { "X": 0.4, "Y": 0.4, "Z": 0.4 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "FarPillar_4",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 13.2, "Y": 4.3, "Z": 2.2 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 0.9, "Y": 0.9, "Z": 4.4 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cube",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": true,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.85, "Y": 0.34, "Z": 0.62, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 32.0,
+                    "SpecularColor": { "X": 0.4, "Y": 0.4, "Z": 0.4 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "BokehOrb_1",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 13.5, "Y": -3.0, "Z": 2.6 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 0.45, "Y": 0.45, "Z": 0.45 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Sphere",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": false,
+                "bHiddenInGame": false,
+                "bReceiveShadow": false,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 4.0, "Y": 2.6, "Z": 0.9, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 64.0,
+                    "SpecularColor": { "X": 1.0, "Y": 1.0, "Z": 1.0 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": false
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "BokehOrb_2",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 14.8, "Y": 0.2, "Z": 2.9 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 0.45, "Y": 0.45, "Z": 0.45 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Sphere",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": false,
+                "bHiddenInGame": false,
+                "bReceiveShadow": false,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.9, "Y": 2.8, "Z": 4.5, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 64.0,
+                    "SpecularColor": { "X": 1.0, "Y": 1.0, "Z": 1.0 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": false
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "BokehOrb_3",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 13.8, "Y": 3.0, "Z": 2.4 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 0.45, "Y": 0.45, "Z": 0.45 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Sphere",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": false,
+                "bHiddenInGame": false,
+                "bReceiveShadow": false,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 4.2, "Y": 1.1, "Z": 2.8, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 64.0,
+                    "SpecularColor": { "X": 1.0, "Y": 1.0, "Z": 1.0 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": false
+          }
+        },
+        {
+          "Class": "AStaticMeshActor",
+          "Name": "FarBackWall",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 17.5, "Y": 0.0, "Z": 4.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 0.5, "Y": 24.0, "Z": 10.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UStaticMeshComponent",
+              "Name": "UStaticMeshComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "StaticMesh": "Cube",
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bCastShadow": false,
+                "bHiddenInGame": false,
+                "bReceiveShadow": true,
+                "bVisible": true
+              },
+              "OverrideMaterials": [
+                {
+                  "Base": "DefaultMaterial",
+                  "Instance": {
+                    "BaseColor": { "X": 0.10, "Y": 0.11, "Z": 0.15, "W": 1.0 },
+                    "BlendState": "Opaque",
+                    "FlipNormalY": false,
+                    "PSOType": 0,
+                    "Properties": {},
+                    "SamplerState": "LinearClamp",
+                    "Shininess": 8.0,
+                    "SpecularColor": { "X": 0.08, "Y": 0.08, "Z": 0.08 },
+                    "Textures": ["WhiteTexture", "FlatNormalTexture"],
+                    "UVScrollSpeed": [0.0, 0.0]
+                  }
+                }
+              ]
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": true
+          }
+        },
+        {
+          "Class": "AActor",
+          "Name": "Sun",
+          "Components": [
+            {
+              "Class": "USceneComponent",
+              "Name": "DefaultSceneRoot",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": -4.0, "Y": -6.0, "Z": 12.0 },
+                  "Rotation": { "Pitch": 42.0, "Roll": 0.0, "Yaw": 30.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true
+              }
+            },
+            {
+              "Class": "UDirectionalLightComponent",
+              "Name": "UDirectionalLightComponent",
+              "Parent": "DefaultSceneRoot",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true,
+                "Intensity": 1.0,
+                "LightColor": 4294967295,
+                "bCastShadows": true,
+                "ShadowBias": 0.5,
+                "ShadowResolutionScale": 1.0,
+                "ShadowSharpen": 0.0,
+                "ShadowSlopeBias": 0.5,
+                "AngularRadiusDegrees": 0.5,
+                "DynamicShadowDistanceMovableLight": 60.0,
+                "DynamicShadowCascades": 3,
+                "CascadeDistributionExponent": 2.0,
+                "CascadeTransitionFraction": 0.1,
+                "ShadowDistanceFadeoutFraction": 0.1
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": false
+          }
+        },
+        {
+          "Class": "ASkyLightActor",
+          "Name": "Ambient",
+          "Components": [
+            {
+              "Class": "USkyLightComponent",
+              "Name": "USkyLightComponent",
+              "Parent": "",
+              "Properties": {
+                "Transform": {
+                  "Location": { "X": 0.0, "Y": 0.0, "Z": 10.0 },
+                  "Rotation": { "Pitch": 0.0, "Roll": 0.0, "Yaw": 0.0 },
+                  "Scale": { "X": 1.0, "Y": 1.0, "Z": 1.0 }
+                },
+                "bAutoActivate": true,
+                "bHiddenInGame": false,
+                "bVisible": true,
+                "Intensity": 0.42,
+                "LightColor": 4294967295,
+                "bCastShadows": false,
+                "ShadowBias": 0.5,
+                "ShadowResolutionScale": 1.0,
+                "ShadowSharpen": 0.0,
+                "ShadowSlopeBias": 0.5
+              }
+            }
+          ],
+          "Properties": {
+            "ScriptPath": "",
+            "bActorEnableCollision": false
+          }
+        }
+      ],
+      "Properties": {}
+    },
+    "Properties": {}
+  }
+}

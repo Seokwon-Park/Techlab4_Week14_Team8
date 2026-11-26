@@ -1,0 +1,193 @@
+{
+	"Defaults": {
+		"Components": [
+			{
+				"Class": "USceneComponent",
+				"Name": "DefaultSceneRoot",
+				"Parent": "",
+				"ParentActor": "",
+				"Properties": {
+					"Transform": {
+						"Location": {
+							"X": 0.0,
+							"Y": 0.0,
+							"Z": 0.0
+						},
+						"Rotation": {
+							"Pitch": 0.0,
+							"Roll": 0.0,
+							"Yaw": 0.0
+						},
+						"Scale": {
+							"X": 1.0,
+							"Y": 1.0,
+							"Z": 1.0
+						}
+					},
+					"bAutoActivate": true,
+					"bHiddenInGame": false,
+					"bVisible": true
+				}
+			},
+			{
+				"Class": "UStaticMeshComponent",
+				"Name": "UStaticMeshComponent_0",
+				"OverrideMaterials": [],
+				"Parent": "DefaultSceneRoot",
+				"ParentActor": "",
+				"Properties": {
+					"StaticMesh": "Cube",
+					"Transform": {
+						"Location": {
+							"X": 0.0,
+							"Y": 0.0,
+							"Z": 0.0
+						},
+						"Rotation": {
+							"Pitch": 0.0,
+							"Roll": 0.0,
+							"Yaw": 0.0
+						},
+						"Scale": {
+							"X": 1.0,
+							"Y": 1.0,
+							"Z": 1.0
+						}
+					},
+					"TranslucencySortPriority": 0,
+					"bAutoActivate": true,
+					"bBlockComponent": false,
+					"bCastShadow": true,
+					"bGenerateOverlapEvents": true,
+					"bHiddenInGame": false,
+					"bReceiveShadow": true,
+					"bReceivesDecals": true,
+					"bSimulatePhysics": false,
+					"bVisible": true
+				}
+			}
+		],
+		"Properties": {
+			"FolderPath": "",
+			"ScriptPath": "",
+			"bActorEnableCollision": true
+		}
+	},
+	"Graphs": {
+		"ConstructionScript": {
+			"Links": [],
+			"NextId": 3,
+			"Nodes": [
+				{
+					"Id": 1,
+					"Pins": [
+						{
+							"Id": 2,
+							"Name": "Then",
+							"Out": true
+						}
+					],
+					"Type": "ConstructionScript",
+					"X": 0.0,
+					"Y": 0.0
+				}
+			]
+		},
+		"EventGraph": {
+			"Links": [
+				{
+					"From": 7,
+					"Id": 44,
+					"To": 40
+				}
+			],
+			"NextId": 46,
+			"Nodes": [
+				{
+					"Id": 1,
+					"Pins": [
+						{
+							"Id": 2,
+							"Name": "Then",
+							"Out": true
+						}
+					],
+					"Type": "EventBeginPlay",
+					"X": 3.0,
+					"Y": 6.0
+				},
+				{
+					"Id": 3,
+					"Pins": [
+						{
+							"Id": 4,
+							"Name": "Then",
+							"Out": true
+						},
+						{
+							"Id": 5,
+							"Name": "Other Actor",
+							"Out": true
+						}
+					],
+					"Type": "EventActorBeginOverlap",
+					"X": -5.0,
+					"Y": 156.0
+				},
+				{
+					"Id": 6,
+					"Pins": [
+						{
+							"Id": 7,
+							"Name": "Then",
+							"Out": true
+						},
+						{
+							"Id": 8,
+							"Name": "Delta Seconds",
+							"Out": true
+						}
+					],
+					"Type": "EventTick",
+					"X": 0.0,
+					"Y": 320.0
+				},
+				{
+					"Id": 39,
+					"Pins": [
+						{
+							"Id": 40,
+							"Name": "In",
+							"Out": false
+						},
+						{
+							"Id": 41,
+							"Name": "Then",
+							"Out": true
+						},
+						{
+							"Id": 42,
+							"Name": "Target",
+							"Out": false
+						},
+						{
+							"Default": [
+								0.009999999776482582,
+								0.0,
+								0.0
+							],
+							"Id": 43,
+							"Name": "Delta Location",
+							"Out": false
+						}
+					],
+					"Type": "AddLocalOffset",
+					"X": 360.0,
+					"Y": 316.0
+				}
+			]
+		}
+	},
+	"ParentClass": "AActor",
+	"Version": 1
+}

@@ -1,0 +1,10 @@
+{
+    "Mappings": [
+        { "Action": "Assets/Input/IA_Move.inputaction", "Key": "W", "Modifiers": [ { "Type": "SwizzleAxis", "Order": "YXZ" } ] },
+        { "Action": "Assets/Input/IA_Move.inputaction", "Key": "S", "Modifiers": [ { "Type": "SwizzleAxis", "Order": "YXZ" }, { "Type": "Negate" } ] },
+        { "Action": "Assets/Input/IA_Move.inputaction", "Key": "D" },
+        { "Action": "Assets/Input/IA_Move.inputaction", "Key": "A", "Modifiers": [ { "Type": "Negate" } ] },
+        { "Action": "Assets/Input/IA_Look.inputaction", "Key": "MouseX", "Modifiers": [ { "Type": "Scale", "Scalar": 0.1 } ] },
+        { "Action": "Assets/Input/IA_Look.inputaction", "Key": "MouseY", "Modifiers": [ { "Type": "SwizzleAxis", "Order": "YXZ" }, { "Type": "Scale", "Scalar": 0.1 } ] }
+    ]
+}

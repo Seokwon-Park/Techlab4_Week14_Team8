@@ -1,0 +1,52 @@
+# Racing demo material colors
+
+newmtl Asphalt
+Kd 0.92 0.95 1
+
+newmtl Grass
+Kd 0.68 0.83 0.61
+
+newmtl GrassMown
+Kd 0.58 0.73 0.48
+
+newmtl Shoulder
+Kd 0.17 0.2 0.22
+
+newmtl EdgePaint
+Kd 0.82 0.84 0.76
+
+newmtl CurbRed
+Kd 0.66 0.034 0.025
+
+newmtl CurbWhite
+Kd 0.87 0.84 0.7
+
+newmtl FinishWhite
+Kd 0.96 0.96 0.88
+
+newmtl FinishBlack
+Kd 0.018 0.021 0.027
+
+newmtl Zinc
+Kd 0.44 0.51 0.56
+
+newmtl ZincShade
+Kd 0.24 0.3 0.34
+
+newmtl RailPost
+Kd 0.115 0.16 0.18
+
+newmtl Reflector
+Kd 0.91 0.55 0.13
+
+newmtl BridgeBlue
+Kd 0.027 0.075 0.115
+
+newmtl BridgeTrim
+Kd 0.13 0.23 0.285
+
+newmtl BridgeOrange
+Kd 0.9 0.26 0.055
+
+newmtl Concrete
+Kd 0.4 0.42 0.41
