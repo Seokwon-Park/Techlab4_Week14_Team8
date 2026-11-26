@@ -46,6 +46,16 @@ namespace GizmoHandle
 	constexpr float PlaneHideDot = 0.18f;
 }
 
+struct FGizmoSnapSettings
+{
+	bool bLocationSnap = false;
+	float LocationSnapSize = 0.5f;
+	bool bRotationSnap = false;
+	float RotationSnapDegrees = 15.0f;
+	bool bScaleSnap = false;
+	float ScaleSnapSize = 0.25f;
+};
+
 class FGizmo   // 상태 + 로직
 {
 public:
@@ -79,6 +89,9 @@ public:
 	bool IsUsing() const { return DraggingAxis >= 0; }
 	int GetHoveredAxis() const { return HoveredAxis; }
 	int GetDraggingAxis() const { return DraggingAxis; }
+
+	void SetSnapSettings(const FGizmoSnapSettings& InSnap) { SnapSettings = InSnap; }
+	const FGizmoSnapSettings& GetSnapSettings() const { return SnapSettings; }
 
 	// 카메라 -> 기즈모 방향에서 이 핸들이 보이고 잡을 수 있는지. 그리기와 피킹이 같이 쓴다.
 	bool IsHandleVisible(int Handle, const FVector& ViewDir) const;
@@ -149,4 +162,5 @@ private:
 
 	// 축 메시와 셰이더로 실제 그리기를 맡는 도구. 기즈모마다 하나씩 갖는다.
 	TUniquePtr<FGizmoRenderer> Renderer;
+	FGizmoSnapSettings SnapSettings;
 };

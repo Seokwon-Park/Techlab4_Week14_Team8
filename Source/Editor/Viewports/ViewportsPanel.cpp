@@ -24,7 +24,12 @@
 #include "Editor/EditorUI/EditorIcons.h"
 #include "Editor/Viewports/EditorViewportToolbar.h"
 #include "Editor/EditorModeManager.h"
+#include "Editor/HitoriEd/Editor.h"
+#include "Editor/HitoriEd/EditorEngine.h"
+#include "Editor/Settings/SettingsPanel.h"
 #include "Input/InputSystem.h"
+#include <cmath>
+#include <cstdio>
 #include <imgui_internal.h>
 
 
@@ -740,6 +745,93 @@ void FViewportsPanel::DrawViewportToolbar(int32 ViewIndex, FEditorViewportClient
 		ModeTools.SetCoordSystem(bWorld ? COORD_Local : COORD_World);
 	ImGui::SetItemTooltip(bWorld ? "World space (click for Local)" : "Local space (click for World)");
 	EndPill();
+
+	// 트랜스폼 스냅 (위치 / 회전 / 크기)
+	if (FEditorSettings* SnapSettings = GEditor ? GEditor->GetMutableEditorSettings() : nullptr)
+	{
+		ImGui::SameLine(0.0f, 6.0f * S);
+		BeginPill();
+		char LocSnapLabel[24];
+		std::snprintf(LocSnapLabel, sizeof(LocSnapLabel), "%.2g", SnapSettings->LocationSnapSize);
+		if (EditorIcons::Button("##LocSnap", EEditorIcon::Translate, SnapSettings->bLocationSnap ? ActiveColor : IconColor,
+			LocSnapLabel, true, ImGui::IsPopupOpen("##LocSnapMenu"), ButtonHeight))
+		{
+			OpenBelow("##LocSnapMenu", false);
+		}
+		ImGui::SetItemTooltip("Location Snap (%s: %.2g)", SnapSettings->bLocationSnap ? "On" : "Off", SnapSettings->LocationSnapSize);
+		if (ImGui::BeginPopup("##LocSnapMenu"))
+		{
+			ImGui::Checkbox("Enable Location Snap", &SnapSettings->bLocationSnap);
+			ImGui::Separator();
+			const float Presets[] = { 0.1f, 0.25f, 0.5f, 1.0f, 5.0f, 10.0f };
+			for (float V : Presets)
+			{
+				char Buf[24];
+				std::snprintf(Buf, sizeof(Buf), "%.2g", V);
+				if (ImGui::MenuItem(Buf, nullptr, std::fabs(SnapSettings->LocationSnapSize - V) < 1e-4f))
+				{
+					SnapSettings->LocationSnapSize = V;
+					SnapSettings->bLocationSnap = true;
+				}
+			}
+			ImGui::EndPopup();
+		}
+
+		ImGui::SameLine(0.0f, 2.0f * S);
+		char RotSnapLabel[24];
+		std::snprintf(RotSnapLabel, sizeof(RotSnapLabel), "%.0f\xC2\xB0", SnapSettings->RotationSnapDegrees);
+		if (EditorIcons::Button("##RotSnap", EEditorIcon::Rotate, SnapSettings->bRotationSnap ? ActiveColor : IconColor,
+			RotSnapLabel, true, ImGui::IsPopupOpen("##RotSnapMenu"), ButtonHeight))
+		{
+			OpenBelow("##RotSnapMenu", false);
+		}
+		ImGui::SetItemTooltip("Rotation Snap (%s: %.0f deg)", SnapSettings->bRotationSnap ? "On" : "Off", SnapSettings->RotationSnapDegrees);
+		if (ImGui::BeginPopup("##RotSnapMenu"))
+		{
+			ImGui::Checkbox("Enable Rotation Snap", &SnapSettings->bRotationSnap);
+			ImGui::Separator();
+			const float Presets[] = { 1.0f, 5.0f, 10.0f, 15.0f, 30.0f, 45.0f, 90.0f };
+			for (float V : Presets)
+			{
+				char Buf[24];
+				std::snprintf(Buf, sizeof(Buf), "%.0f deg", V);
+				if (ImGui::MenuItem(Buf, nullptr, std::fabs(SnapSettings->RotationSnapDegrees - V) < 1e-3f))
+				{
+					SnapSettings->RotationSnapDegrees = V;
+					SnapSettings->bRotationSnap = true;
+				}
+			}
+			ImGui::EndPopup();
+		}
+
+		ImGui::SameLine(0.0f, 2.0f * S);
+		char ScaleSnapLabel[24];
+		std::snprintf(ScaleSnapLabel, sizeof(ScaleSnapLabel), "%.2g", SnapSettings->ScaleSnapSize);
+		if (EditorIcons::Button("##ScaleSnap", EEditorIcon::Scale, SnapSettings->bScaleSnap ? ActiveColor : IconColor,
+			ScaleSnapLabel, true, ImGui::IsPopupOpen("##ScaleSnapMenu"), ButtonHeight))
+		{
+			OpenBelow("##ScaleSnapMenu", false);
+		}
+		ImGui::SetItemTooltip("Scale Snap (%s: %.2g)", SnapSettings->bScaleSnap ? "On" : "Off", SnapSettings->ScaleSnapSize);
+		if (ImGui::BeginPopup("##ScaleSnapMenu"))
+		{
+			ImGui::Checkbox("Enable Scale Snap", &SnapSettings->bScaleSnap);
+			ImGui::Separator();
+			const float Presets[] = { 0.05f, 0.1f, 0.25f, 0.5f, 1.0f };
+			for (float V : Presets)
+			{
+				char Buf[24];
+				std::snprintf(Buf, sizeof(Buf), "%.2g", V);
+				if (ImGui::MenuItem(Buf, nullptr, std::fabs(SnapSettings->ScaleSnapSize - V) < 1e-4f))
+				{
+					SnapSettings->ScaleSnapSize = V;
+					SnapSettings->bScaleSnap = true;
+				}
+			}
+			ImGui::EndPopup();
+		}
+		EndPill();
+	}
 
 	// 통계 리셋 (통계 오버레이가 켜진 활성 뷰에서만)
 	if (ViewIndex == ActiveViewIndex && !Client->IsLightCulling() &&

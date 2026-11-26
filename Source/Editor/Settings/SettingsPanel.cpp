@@ -44,11 +44,11 @@ void FSettingsPanel::OnRender()
 	ImGui::SeparatorText("Rendering");
 
 	ImGui::TextDisabled("Fill mode is configured per viewport.");
-	ImGui::Checkbox("Draw Primitives", &Settings.bDrawPrimitives);
+	ImGui::Checkbox("Draw Primitives", &Settings.ShowFlags.Rendering);
 	ImGui::Checkbox("Cache Shadows", &Settings.bCacheShadows);
-	ImGui::Checkbox("Draw Bounding Box", &Settings.bDrawBoundingBox);
-	ImGui::Checkbox("Show Object UUID", &Settings.bShowUUID);
-	ImGui::Checkbox("Draw Decals", &Settings.bDrawDecals);
+	ImGui::Checkbox("Draw Bounding Box", &Settings.ShowFlags.Bounds);
+	ImGui::Checkbox("Show Object UUID", &Settings.ShowFlags.ObjectUUID);
+	ImGui::Checkbox("Draw Decals", &Settings.ShowFlags.Decals);
 	const char* DecalBroadPhases[] = { "Off", "Linear AABB", "BVH" };
 	int DecalBroadPhaseIndex = Settings.bDecalBVHCulling ? 2 : (Settings.bDecalCulling ? 1 : 0);
 	ImGui::SetNextItemWidth(200.0f);
@@ -87,9 +87,11 @@ void FSettingsPanel::OnRender()
 
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Debug Draw (PIE)");
-	ImGui::Checkbox("Show Collision", &Settings.bShowCollision);
-	ImGui::Checkbox("Show Root", &Settings.bShowRootDebug);
-	ImGui::TextDisabled("PIE only.");
+	ImGui::Checkbox("Show Collision", &Settings.ShowFlags.Collision);
+	ImGui::Checkbox("Show Root", &Settings.ShowFlags.RootBone);
+	ImGui::Checkbox("Show Physics Bodies", &Settings.ShowFlags.PhysicsBodies);
+	ImGui::Checkbox("Show Constraints", &Settings.ShowFlags.Constraints);
+	ImGui::TextDisabled("Collision & Root are PIE only.");
 	// 저장하지 않는 디버그 토글. root 고정을 끄면 루트 모션 이동량이 캡슐 + 메시에 두 번 들어간다
 	ImGui::Checkbox("Skip Root Lock (2x move)", &GDebugSkipRootLock);
 
@@ -106,7 +108,7 @@ void FSettingsPanel::OnRender()
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Anti-Aliasing");
 
-	ImGui::Checkbox("Enable FXAA", &Settings.bEnableFXAA);
+	ImGui::Checkbox("Enable FXAA", &Settings.ShowFlags.AntiAliasing);
 
 	//////////////////////////////////////////////////////////
 
@@ -118,14 +120,15 @@ void FSettingsPanel::OnRender()
 	ImGui::SetNextItemWidth(200.0f);
 	ImGui::SliderFloat("Display Gamma", &Settings.DisplayGamma, 1.0f, 3.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 	ImGui::EndDisabled();
-	ImGui::Checkbox("Depth of Field", &Settings.bShowDepthOfField);
-	ImGui::BeginDisabled(!Settings.bShowDepthOfField);
-	ImGui::Checkbox("Visualize DOF (PIE)", &Settings.bVisualizeDOF);
+	ImGui::Checkbox("Depth of Field", &Settings.ShowFlags.DepthOfField);
+	ImGui::BeginDisabled(!Settings.ShowFlags.DepthOfField);
+	ImGui::Checkbox("Visualize DOF (PIE)", &Settings.ShowFlags.VisualizeDOF);
 	ImGui::TextDisabled("Green: Near | Gray: In-Focus | Blue: Far");
 	ImGui::EndDisabled();
-	ImGui::Checkbox("Vignette", &Settings.bShowVignette);
-	ImGui::Checkbox("Camera Fade / Letterbox", &Settings.bShowCameraOverlay);
-	ImGui::Checkbox("Skeletal Mesh", &Settings.bShowSkeletalMesh);
+	ImGui::Checkbox("Vignette", &Settings.ShowFlags.Vignette);
+	ImGui::Checkbox("Camera Fade / Letterbox", &Settings.ShowFlags.CameraOverlay);
+	ImGui::Checkbox("Skeletal Mesh", &Settings.ShowFlags.SkeletalMeshes);
+	ImGui::Checkbox("Particles", &Settings.ShowFlags.Particles);
 
 	if (ImGui::TreeNode("Camera Overlay Debug"))
 	{
@@ -144,7 +147,7 @@ void FSettingsPanel::OnRender()
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Grid");
 
-	ImGui::Checkbox("Draw Batch Line / Grid", &Settings.bDrawBatchLine);
+	ImGui::Checkbox("Draw Batch Line / Grid", &Settings.ShowFlags.Grid);
 	ImGui::Checkbox("Draw PS Grid", &Settings.bDrawPSGrid);
 
 	ImGui::SetNextItemWidth(200.0f);
@@ -152,9 +155,41 @@ void FSettingsPanel::OnRender()
 
 	//////////////////////////////////////////////////////////
 
+	ImGui::Dummy(ImVec2(0.0f, SectionGap));
+	ImGui::SeparatorText("Transform Snapping");
+
+	ImGui::Checkbox("Location Snap", &Settings.bLocationSnap);
+	ImGui::BeginDisabled(!Settings.bLocationSnap);
+	ImGui::SetNextItemWidth(160.0f);
+	ImGui::DragFloat("Location Grid", &Settings.LocationSnapSize, 0.05f, 0.01f, 1000.0f, "%.2f");
+	ImGui::EndDisabled();
+
+	ImGui::Checkbox("Rotation Snap", &Settings.bRotationSnap);
+	ImGui::BeginDisabled(!Settings.bRotationSnap);
+	ImGui::SetNextItemWidth(160.0f);
+	ImGui::DragFloat("Rotation Degrees", &Settings.RotationSnapDegrees, 1.0f, 1.0f, 90.0f, "%.1f deg");
+	ImGui::EndDisabled();
+
+	ImGui::Checkbox("Scale Snap", &Settings.bScaleSnap);
+	ImGui::BeginDisabled(!Settings.bScaleSnap);
+	ImGui::SetNextItemWidth(160.0f);
+	ImGui::DragFloat("Scale Increment", &Settings.ScaleSnapSize, 0.05f, 0.01f, 10.0f, "%.2f");
+	ImGui::EndDisabled();
+
+	//////////////////////////////////////////////////////////
+
 	// 에디터 수치 설정 (Values)
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Editor Settings");
+
+	const char* ThemeNames[] = { "Dark", "Mid", "Light", "Hitori" };
+	int ThemeIdx = static_cast<int>(Settings.Theme);
+	ImGui::SetNextItemWidth(200.0f);
+	if (ImGui::Combo("Editor Theme", &ThemeIdx, ThemeNames, IM_ARRAYSIZE(ThemeNames)))
+	{
+		Settings.Theme = static_cast<EEditorTheme>(ThemeIdx);
+		EditorStyle::SetTheme(Settings.Theme);
+	}
 
 	UCameraComponent* CamCom = World->GetMainCamera()->GetCameraComponent();
 
@@ -214,30 +249,24 @@ bool FSettingsPanel::SaveSettings() const
 
 	File << "[Rendering]\n";
 	File << "Wireframe=" << Settings.bWireframe << "\n";
-	File << "DrawPrimitives=" << Settings.bDrawPrimitives << "\n";
 	File << "CacheShadows=" << Settings.bCacheShadows << "\n";
 	File << "PcfMode=" << static_cast<uint32_t>(Settings.PcfMode) << "\n";
-	File << "DrawBoundingBox=" << Settings.bDrawBoundingBox << "\n";
-	File << "ShowUUID=" << Settings.bShowUUID << "\n";
-	File << "ShowCollision=" << Settings.bShowCollision << "\n";
-	File << "ShowRootDebug=" << Settings.bShowRootDebug << "\n";
-	File << "DrawDecals=" << Settings.bDrawDecals << "\n";
 	File << "DecalCulling=" << Settings.bDecalCulling << "\n";
 	File << "DecalNarrowCulling=" << Settings.bDecalNarrowCulling << "\n";
 	File << "DecalBVHCulling=" << Settings.bDecalBVHCulling << "\n";
 	File << "DecalOBBTree=" << Settings.bDecalOBBTree << "\n";
-	File << "DrawBatchLine=" << Settings.bDrawBatchLine << "\n";
-	File << "DrawCascadeBounds=" << Settings.bDrawCascadeBounds << "\n";
 	File << "DrawPSGrid=" << Settings.bDrawPSGrid << "\n";
 	File << "SceneDepthMaxRange=" << Settings.SceneDepthMaxRange << "\n";
-	File << "EnableFXAA=" << Settings.bEnableFXAA << "\n";
-
 	File << "GammaCorrection=" << Settings.bGammaCorrection << "\n";
 	File << "DisplayGamma=" << Settings.DisplayGamma << "\n";
-	File << "ShowDepthOfField=" << Settings.bShowDepthOfField << "\n";
-	File << "ShowVignette=" << Settings.bShowVignette << "\n";
-	File << "ShowCameraOverlay=" << Settings.bShowCameraOverlay << "\n";
-	File << "ShowSkeletalMesh=" << Settings.bShowSkeletalMesh << "\n";
+
+	for (const FShowFlagInfo& Info : FEngineShowFlags::GetAll())
+	{
+		if (Info.Category != EShowFlagCategory::Hidden)
+		{
+			File << "ShowFlag." << Info.Name << "=" << (Settings.ShowFlags.Get(Info) ? 1 : 0) << "\n";
+		}
+	}
 
 	File << "LightCullingMode=" << (Settings.LightCullingMode == ELightCullingMode::Off ? "Off" : Settings.LightCullingMode == ELightCullingMode::Tiled ? "Tiled" : Settings.LightCullingMode == ELightCullingMode::Tiled25D ? "Tiled25D" : "Clustered") << "\n";
 	File << "RenderingPath=" << (Settings.RenderingPath == ERenderingPath::Forward ? "Forward" : "Deferred") << "\n";
@@ -250,6 +279,13 @@ bool FSettingsPanel::SaveSettings() const
 	File << "CameraMoveSpeed=" << Settings.CameraSpeed << "\n";
 	File << "CameraRotateSensitivity=" << Settings.MouseSensitivity << "\n";
 	File << "GridSpacing=" << Settings.GridSpacing << "\n";
+	File << "LocationSnap=" << (Settings.bLocationSnap ? 1 : 0) << "\n";
+	File << "LocationSnapSize=" << Settings.LocationSnapSize << "\n";
+	File << "RotationSnap=" << (Settings.bRotationSnap ? 1 : 0) << "\n";
+	File << "RotationSnapDegrees=" << Settings.RotationSnapDegrees << "\n";
+	File << "ScaleSnap=" << (Settings.bScaleSnap ? 1 : 0) << "\n";
+	File << "ScaleSnapSize=" << Settings.ScaleSnapSize << "\n";
+	File << "EditorTheme=" << static_cast<int>(Settings.Theme) << "\n";
 	File << "\n";
 
 	File << "[MultipleViewports]\n";
@@ -370,36 +406,40 @@ bool FSettingsPanel::LoadSettings()
                         RotationComponentMasks[Index] |= 1 << 3;
                     }
                 }
-                if (Key == "Wireframe") Settings.bWireframe = std::stoi(ValueStr);
-				else if (Key == "DrawPrimitives") Settings.bDrawPrimitives = std::stoi(ValueStr);
-				else if (Key == "CacheShadows") Settings.bCacheShadows = std::stoi(ValueStr);
+                if (Key.rfind("ShowFlag.", 0) == 0)
+                {
+                    Settings.ShowFlags.SetByName(Key.substr(9), std::stoi(ValueStr) != 0);
+                }
+                else if (Key == "Wireframe") Settings.bWireframe = std::stoi(ValueStr) != 0;
+				else if (Key == "DrawPrimitives") Settings.ShowFlags.Rendering = std::stoi(ValueStr) != 0;
+				else if (Key == "CacheShadows") Settings.bCacheShadows = std::stoi(ValueStr) != 0;
 				else if (Key == "PcfMode")
 				{
 					const int Mode = std::stoi(ValueStr);
 					if (Mode >= 0 && Mode <= static_cast<int>(EPcfMode::PCSS))
 						Settings.PcfMode = static_cast<EPcfMode>(Mode);
 				}
-				else if (Key == "DrawBoundingBox") Settings.bDrawBoundingBox = std::stoi(ValueStr);
-				else if (Key == "ShowUUID") Settings.bShowUUID = std::stoi(ValueStr);
-				else if (Key == "ShowCollision") Settings.bShowCollision = std::stoi(ValueStr);
-				else if (Key == "ShowRootDebug") Settings.bShowRootDebug = std::stoi(ValueStr);
-				else if (Key == "DrawDecals") Settings.bDrawDecals = std::stoi(ValueStr);
-				else if (Key == "DecalCulling") Settings.bDecalCulling = std::stoi(ValueStr);
-				else if (Key == "DecalNarrowCulling") Settings.bDecalNarrowCulling = std::stoi(ValueStr);
-				else if (Key == "DecalBVHCulling") Settings.bDecalBVHCulling = std::stoi(ValueStr);
-				else if (Key == "DecalOBBTree") Settings.bDecalOBBTree = std::stoi(ValueStr);
-				else if (Key == "DrawBatchLine") Settings.bDrawBatchLine = std::stoi(ValueStr);
-				else if (Key == "DrawCascadeBounds") Settings.bDrawCascadeBounds = std::stoi(ValueStr);
-				else if (Key == "DrawPSGrid") Settings.bDrawPSGrid = std::stoi(ValueStr);
+				else if (Key == "DrawBoundingBox") Settings.ShowFlags.Bounds = std::stoi(ValueStr) != 0;
+				else if (Key == "ShowUUID") Settings.ShowFlags.ObjectUUID = std::stoi(ValueStr) != 0;
+				else if (Key == "ShowCollision") Settings.ShowFlags.Collision = std::stoi(ValueStr) != 0;
+				else if (Key == "ShowRootDebug") Settings.ShowFlags.RootBone = std::stoi(ValueStr) != 0;
+				else if (Key == "DrawDecals") Settings.ShowFlags.Decals = std::stoi(ValueStr) != 0;
+				else if (Key == "DecalCulling") Settings.bDecalCulling = std::stoi(ValueStr) != 0;
+				else if (Key == "DecalNarrowCulling") Settings.bDecalNarrowCulling = std::stoi(ValueStr) != 0;
+				else if (Key == "DecalBVHCulling") Settings.bDecalBVHCulling = std::stoi(ValueStr) != 0;
+				else if (Key == "DecalOBBTree") Settings.bDecalOBBTree = std::stoi(ValueStr) != 0;
+				else if (Key == "DrawBatchLine") Settings.ShowFlags.Grid = std::stoi(ValueStr) != 0;
+				else if (Key == "DrawCascadeBounds") Settings.ShowFlags.CascadeBounds = std::stoi(ValueStr) != 0;
+				else if (Key == "DrawPSGrid") Settings.bDrawPSGrid = std::stoi(ValueStr) != 0;
 				else if (Key == "SceneDepthMaxRange") Settings.SceneDepthMaxRange = std::stof(ValueStr);
-				else if (Key == "EnableFXAA") Settings.bEnableFXAA = std::stoi(ValueStr);
+				else if (Key == "EnableFXAA") Settings.ShowFlags.AntiAliasing = std::stoi(ValueStr) != 0;
 
-				else if (Key == "GammaCorrection")   Settings.bGammaCorrection = std::stoi(ValueStr);
+				else if (Key == "GammaCorrection")   Settings.bGammaCorrection = std::stoi(ValueStr) != 0;
 				else if (Key == "DisplayGamma")      Settings.DisplayGamma = std::stof(ValueStr);
-				else if (Key == "ShowDepthOfField")   Settings.bShowDepthOfField = std::stoi(ValueStr);
-				else if (Key == "ShowVignette")      Settings.bShowVignette = std::stoi(ValueStr);
-				else if (Key == "ShowCameraOverlay") Settings.bShowCameraOverlay = std::stoi(ValueStr);
-				else if (Key == "ShowSkeletalMesh")  Settings.bShowSkeletalMesh = std::stoi(ValueStr);
+				else if (Key == "ShowDepthOfField")  Settings.ShowFlags.DepthOfField = std::stoi(ValueStr) != 0;
+				else if (Key == "ShowVignette")      Settings.ShowFlags.Vignette = std::stoi(ValueStr) != 0;
+				else if (Key == "ShowCameraOverlay") Settings.ShowFlags.CameraOverlay = std::stoi(ValueStr) != 0;
+				else if (Key == "ShowSkeletalMesh")  Settings.ShowFlags.SkeletalMeshes = std::stoi(ValueStr) != 0;
 
 				else if (Key == "LightCullingMode")
 				{
@@ -428,6 +468,21 @@ bool FSettingsPanel::LoadSettings()
 				else if (Key == "CameraMoveSpeed") Settings.CameraSpeed = std::stof(ValueStr);
 				else if (Key == "CameraRotateSensitivity") Settings.MouseSensitivity = std::stof(ValueStr);
 				else if (Key == "GridSpacing") Settings.GridSpacing = std::stoi(ValueStr);
+				else if (Key == "LocationSnap") Settings.bLocationSnap = std::stoi(ValueStr) != 0;
+				else if (Key == "LocationSnapSize") Settings.LocationSnapSize = FMath::Clamp(std::stof(ValueStr), 0.01f, 1000.0f);
+				else if (Key == "RotationSnap") Settings.bRotationSnap = std::stoi(ValueStr) != 0;
+				else if (Key == "RotationSnapDegrees") Settings.RotationSnapDegrees = FMath::Clamp(std::stof(ValueStr), 1.0f, 90.0f);
+				else if (Key == "ScaleSnap") Settings.bScaleSnap = std::stoi(ValueStr) != 0;
+				else if (Key == "ScaleSnapSize") Settings.ScaleSnapSize = FMath::Clamp(std::stof(ValueStr), 0.01f, 10.0f);
+				else if (Key == "EditorTheme")
+				{
+					const int T = std::stoi(ValueStr);
+					if (T >= 0 && T <= static_cast<int>(EEditorTheme::Hitori))
+					{
+						Settings.Theme = static_cast<EEditorTheme>(T);
+						EditorStyle::SetTheme(Settings.Theme);
+					}
+				}
 				else if (Key == "Horizontal") Settings.MultipleViewportsHorizontal = std::stof(ValueStr);
 				else if (Key == "Vertical") Settings.MultipleViewportsVertical = std::stof(ValueStr);
 				else if (Key == "Third0") Settings.MultipleViewportsThird0 = std::stof(ValueStr);
@@ -620,8 +675,8 @@ void FSettingsPanel::DrawShadowMapSettings()
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 
 	ImGui::SeparatorText("ShadowMap Settings");
-	ImGui::Checkbox("Draw Cascade Bounds", &Settings.bDrawCascadeBounds);
-	if (Settings.bDrawCascadeBounds)
+	ImGui::Checkbox("Draw Cascade Bounds", &Settings.ShowFlags.CascadeBounds);
+	if (Settings.ShowFlags.CascadeBounds)
 		ImGui::TextDisabled("Cascade 0-3: red, yellow, green, blue");
 
 	const char* QualityLevelStr[] = { "Very Low", "Low", "Middle", "Hight", "Very High" };
