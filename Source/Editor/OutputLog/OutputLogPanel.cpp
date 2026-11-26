@@ -19,6 +19,7 @@
 #include <charconv>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -159,13 +160,117 @@ void FOutputLogPanel::Tick(float DeltaTime)
 {
 }
 
+void FOutputLogPanel::ToggleDrawer()
+{
+	if (bDocked)
+	{
+		ImGui::SetWindowFocus("Output Log");
+		return;
+	}
+	bDrawerOpen = !bDrawerOpen;
+	bJustOpened = bDrawerOpen;
+	if (bDrawerOpen)
+		ScrollToBottom = true;
+}
+
+void FOutputLogPanel::OpenDrawer()
+{
+	SetOpen(true);
+	if (bDocked)
+	{
+		ImGui::SetWindowFocus("Output Log");
+		return;
+	}
+	if (!bDrawerOpen)
+	{
+		bDrawerOpen = true;
+		bJustOpened = true;
+		ScrollToBottom = true;
+	}
+}
+
+void FOutputLogPanel::SetDrawerRect(const ImVec2& Pos, const ImVec2& Size, ImGuiID ViewportId)
+{
+	DrawerPos = Pos;
+	DrawerSize = Size;
+	DrawerViewportId = ViewportId;
+}
+
+bool FOutputLogPanel::BeginWindow()
+{
+	if (bDocked)
+	{
+		if (bPendingDock)
+		{
+			if (ImGuiWindow* ContentWindow = ImGui::FindWindowByName("Content Drawer"); ContentWindow && ContentWindow->DockId != 0)
+				ImGui::SetNextWindowDockID(ContentWindow->DockId, ImGuiCond_Always);
+			bPendingDock = false;
+		}
+		bool bStayDocked = true;
+		EditorPanelUI::BeginPanel("Output Log", &bStayDocked);
+		if (!bStayDocked)
+		{
+			bDocked = false;
+			bDrawerOpen = false;
+		}
+		return true;
+	}
+
+	if (!bDrawerOpen || DrawerSize.x <= 0.0f || DrawerSize.y <= 0.0f)
+		return false;
+
+	ImGui::SetNextWindowPos(DrawerPos);
+	ImGui::SetNextWindowSize(DrawerSize);
+	if (DrawerViewportId != 0)
+		ImGui::SetNextWindowViewport(DrawerViewportId);
+	if (bJustOpened)
+		ImGui::SetNextWindowFocus();
+
+	const ImGuiWindowFlags Flags = ImGuiWindowFlags_NoDocking
+		| ImGuiWindowFlags_NoTitleBar
+		| ImGuiWindowFlags_NoMove
+		| ImGuiWindowFlags_NoResize
+		| ImGuiWindowFlags_NoCollapse
+		| ImGuiWindowFlags_NoSavedSettings;
+
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+	ImGui::Begin("Output Log###OutputLogOverlay", nullptr, Flags);
+	ImGui::PopStyleVar();
+
+	if (!bJustOpened)
+	{
+		const bool bFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+		const bool bPopupOpen = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+		if ((!bFocused && !bPopupOpen && !bSuggestionPopupHovered && !bReclaimInputFocusNextFrame)
+			|| (bFocused && ImGui::IsKeyPressed(ImGuiKey_Escape)))
+		{
+			bDrawerOpen = false;
+		}
+	}
+	bJustOpened = false;
+	return true;
+}
+
+void FOutputLogPanel::RebuildLogTextCache()
+{
+	CachedLogText.clear();
+	for (const FLogData& Item : Items)
+	{
+		if (!PassVerbosity(Item.Verbosity) || !Filter.PassFilter(Item.message.c_str()))
+			continue;
+		CachedLogText += Item.message;
+		if (Item.message.empty() || Item.message.back() != '\n')
+			CachedLogText += '\n';
+	}
+	bLogTextDirty = false;
+}
+
 void FOutputLogPanel::OnRender()
 {
-	ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
-	if (EditorPanelUI::BeginPanel("Output Log", GetOpenFlag()))
-	{
-		RenderContents();
-	}
+	if (!BeginWindow())
+		return;
+
+	RenderContents();
 	ImGui::End();
 }
 
@@ -177,15 +282,19 @@ void FOutputLogPanel::RenderContents()
 	const ImU32 IconCol = ImGui::GetColorU32(ImGuiCol_Text, 0.85f);
 	bool CopyToClipboard = false;
 
-	// 상단 바: [Search Log] [Filters v] ......... [Settings v]
+	// 상단 바: [Search Log] [Filters v] ......... [Dock in Layout] [Settings v]
+	const char* DockLabel = bDocked ? "Undock to Drawer" : "Dock in Layout";
 	const float FiltersW = EditorIcons::CalcButtonWidth(true, "Filters", true, BtnH);
+	const float DockW = EditorIcons::CalcButtonWidth(true, DockLabel, false, BtnH);
 	const float SettingsW = EditorIcons::CalcButtonWidth(true, "Settings", true, BtnH);
-	const float SearchRoom = ImGui::GetContentRegionAvail().x - FiltersW - SettingsW - Style.ItemSpacing.x * 2.0f - 12.0f * S;
+	const float RightTotalW = DockW + SettingsW + Style.ItemSpacing.x;
+	const float SearchRoom = ImGui::GetContentRegionAvail().x - FiltersW - RightTotalW - Style.ItemSpacing.x * 2.0f - 12.0f * S;
 	const float SearchWidth = std::clamp(SearchRoom, 120.0f * S, 320.0f * S);
 
 	if (EditorIcons::SearchBox("##SearchLog", Filter.InputBuf, IM_COUNTOF(Filter.InputBuf), "Search Log...", SearchWidth))
 	{
 		Filter.Build();
+		bLogTextDirty = true;
 	}
 	if (ImGui::IsItemHovered() && !ImGui::IsItemActive())
 	{
@@ -204,8 +313,16 @@ void FOutputLogPanel::RenderContents()
 	}
 
 	ImGui::SameLine();
-	const float RightPad = std::max(0.0f, ImGui::GetContentRegionAvail().x - SettingsW);
+	const float RightPad = std::max(0.0f, ImGui::GetContentRegionAvail().x - RightTotalW);
 	ImGui::SetCursorPosX(ImGui::GetCursorPosX() + RightPad);
+	if (EditorIcons::Button("##LogDock", EEditorIcon::Dock, IconCol, DockLabel, false, false, BtnH))
+	{
+		bDocked = !bDocked;
+		bPendingDock = bDocked;
+		bDrawerOpen = !bDocked;
+		bJustOpened = bDrawerOpen;
+	}
+	ImGui::SameLine();
 	if (EditorIcons::Button("##LogSettings", EEditorIcon::Settings, IconCol, "Settings", true,
 		ImGui::IsPopupOpen("##LogSettingsPopup"), BtnH))
 	{
@@ -215,14 +332,15 @@ void FOutputLogPanel::RenderContents()
 	if (ImGui::BeginPopup("##LogFiltersPopup"))
 	{
 		EditorIcons::MenuSection("Verbosity");
-		ImGui::Checkbox("Messages", &bShowMessages);
-		ImGui::Checkbox("Warnings", &bShowWarnings);
-		ImGui::Checkbox("Errors", &bShowErrors);
-		ImGui::Checkbox("Commands", &bShowCommands);
+		if (ImGui::Checkbox("Messages", &bShowMessages)) bLogTextDirty = true;
+		if (ImGui::Checkbox("Warnings", &bShowWarnings)) bLogTextDirty = true;
+		if (ImGui::Checkbox("Errors", &bShowErrors)) bLogTextDirty = true;
+		if (ImGui::Checkbox("Commands", &bShowCommands)) bLogTextDirty = true;
 		ImGui::Separator();
 		if (ImGui::MenuItem("Show All"))
 		{
 			bShowMessages = bShowWarnings = bShowErrors = bShowCommands = true;
+			bLogTextDirty = true;
 		}
 		ImGui::EndPopup();
 	}
@@ -231,7 +349,7 @@ void FOutputLogPanel::RenderContents()
 	{
 		ImGui::Checkbox("Auto-scroll", &AutoScroll);
 		ImGui::Separator();
-		if (ImGui::MenuItem("Copy")) CopyToClipboard = true;
+		if (ImGui::MenuItem("Copy All")) CopyToClipboard = true;
 		if (ImGui::MenuItem("Clear Log")) ClearLog();
 		if (ImGui::MenuItem("Save Filtered Log")) SaveFilteredLog();
 		ImGui::SetItemTooltip("Save visible filtered output into Project/Logs.");
@@ -240,47 +358,84 @@ void FOutputLogPanel::RenderContents()
 
 	ImGui::Separator();
 
-	// 로그 본문
+	// 로그 본문 (읽기 전용 멀티라인 텍스트: 마우스 드래그 파란색 선택, Ctrl+C 복사, Ctrl+A 전체 선택 지원)
+	if (bLogTextDirty)
+		RebuildLogTextCache();
+
 	const float FooterHeight = Style.SeparatorSize + Style.ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-	ImGui::PushStyleColor(ImGuiCol_ChildBg, EditorColor::BgDeepest);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f * S, 4.0f * S));
-	if (ImGui::BeginChild("ScrollingRegion", ImVec2(0, -FooterHeight),
-		ImGuiChildFlags_NavFlattened | ImGuiChildFlags_AlwaysUseWindowPadding,
-		ImGuiWindowFlags_HorizontalScrollbar))
+	static char EmptyLogBuf[1] = { '\0' };
+	char* LogBuf = CachedLogText.empty() ? EmptyLogBuf : CachedLogText.data();
+	const size_t LogBufSize = CachedLogText.empty() ? 1 : (CachedLogText.size() + 1);
+
+	auto LogViewCallback = [](ImGuiInputTextCallbackData* Data) -> int
 	{
-		if (ImGui::BeginPopupContextWindow())
+		auto* Self = static_cast<FOutputLogPanel*>(Data->UserData);
+		if (Self && Self->bSelectAllLogNextFrame)
 		{
-			if (ImGui::Selectable("Copy")) CopyToClipboard = true;
-			if (ImGui::Selectable("Clear Log")) ClearLog();
-			if (ImGui::Selectable("Save Filtered Log")) SaveFilteredLog();
-			ImGui::EndPopup();
+			Data->SelectAll();
+			Self->bSelectAllLogNextFrame = false;
 		}
+		return 0;
+	};
 
-		if (LogFont) ImGui::PushFont(LogFont, 0.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 1.0f));
-		if (CopyToClipboard)
-			ImGui::LogToClipboard();
-		for (const FLogData& item : Items)
-		{
-			if (!PassVerbosity(item.Verbosity) || !Filter.PassFilter(item.message.c_str()))
-				continue;
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, EditorColor::BgDeepest);
+	ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(38, 118, 224, 160));
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f * S, 4.0f * S));
+	if (LogFont) ImGui::PushFont(LogFont, 0.0f);
 
-			ImGui::PushStyleColor(ImGuiCol_Text, item.Color);
-			ImGui::TextUnformatted(item.message.c_str());
-			ImGui::PopStyleColor();
-		}
-		if (CopyToClipboard)
-			ImGui::LogFinish();
-		if (ScrollToBottom || (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()))
-			ImGui::SetScrollHereY(1.0f);
-		ScrollToBottom = false;
+	if (bSelectAllLogNextFrame)
+		ImGui::SetKeyboardFocusHere();
 
-		ImGui::PopStyleVar();
-		if (LogFont) ImGui::PopFont();
+	ImGui::InputTextMultiline(
+		"##LogTextArea",
+		LogBuf,
+		LogBufSize,
+		ImVec2(-FLT_MIN, -FooterHeight),
+		ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_CallbackAlways,
+		LogViewCallback,
+		this);
+
+	// 우클릭 컨텍스트 메뉴
+	if (ImGui::BeginPopupContextItem("##LogTextContext"))
+	{
+		if (ImGui::MenuItem("Select All", "Ctrl+A"))
+			bSelectAllLogNextFrame = true;
+		if (ImGui::MenuItem("Copy All"))
+			CopyToClipboard = true;
+		ImGui::Separator();
+		if (ImGui::MenuItem("Clear Log"))
+			ClearLog();
+		if (ImGui::MenuItem("Save Filtered Log"))
+			SaveFilteredLog();
+		ImGui::EndPopup();
 	}
-	ImGui::EndChild();
-	ImGui::PopStyleVar();
-	ImGui::PopStyleColor();
+
+	// 자동 스크롤 (InputTextMultiline 내부 자식 창을 찾아 맨 아래로 이동)
+	if (ScrollToBottom || AutoScroll)
+	{
+		if (ImGuiWindow* CurWin = ImGui::GetCurrentWindow())
+		{
+			for (int i = CurWin->DC.ChildWindows.Size - 1; i >= 0; --i)
+			{
+				ImGuiWindow* Child = CurWin->DC.ChildWindows[i];
+				if (Child && std::strstr(Child->Name, "##LogTextArea") != nullptr)
+				{
+					if (ScrollToBottom || (AutoScroll && Child->Scroll.y >= Child->ScrollMax.y - 4.0f))
+						ImGui::SetScrollY(Child, Child->ScrollMax.y);
+					break;
+				}
+			}
+		}
+		ScrollToBottom = false;
+	}
+
+	if (LogFont) ImGui::PopFont();
+	ImGui::PopStyleVar(2);
+	ImGui::PopStyleColor(2);
+
+	if (CopyToClipboard)
+		ImGui::SetClipboardText(CachedLogText.c_str());
 
 	ImGui::Separator();
 
@@ -429,6 +584,8 @@ void FOutputLogPanel::SaveFilteredLog()
 void FOutputLogPanel::ClearLog()
 {
 	Items.Reset();
+	CachedLogText.clear();
+	bLogTextDirty = true;
 }
 
 void FOutputLogPanel::ExecCommand(const FString& CommandLine)
@@ -970,5 +1127,6 @@ void FOutputLogPanel::OnLog(ELogVerbosity Verbosity, const FString& Message)
 	}
 	LogData.message = Message;
 	Items.Add(LogData);
+	bLogTextDirty = true;
 	ScrollToBottom = true;
 }

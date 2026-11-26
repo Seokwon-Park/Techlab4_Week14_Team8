@@ -1,10 +1,12 @@
 #include "EnginePCH.h"
+#include "Editor/EditorUI/EditorStyle.h"
 #include "Editor/Viewports/EditorViewportToolbar.h"
 
 #include "Editor/Viewports/EditorViewportClient.h"
 #include "Editor/EditorUI/EditorIcons.h"
+#include "Editor/HitoriEd/Editor.h"
+#include "Editor/Settings/SettingsPanel.h"
 
-#include <imgui_internal.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -107,6 +109,7 @@ namespace EditorViewportUI
 		return EditorIcons::CalcButtonWidth(true, bLabels ? GetTypeInfo(Client).Label : nullptr, true, H) + Gap
 			+ EditorIcons::CalcButtonWidth(true, (bLabels && CameraSpeed) ? SpeedLabel : nullptr, true, H) + Gap
 			+ EditorIcons::CalcButtonWidth(true, bLabels ? ViewModeLabels[GetModeIndex(Client)] : nullptr, true, H) + Gap
+			+ EditorIcons::CalcButtonWidth(true, nullptr, true, H) + Gap
 			+ EditorIcons::CalcButtonWidth(true, nullptr, true, H);
 	}
 
@@ -118,12 +121,13 @@ namespace EditorViewportUI
 		const int32 TypeIndex = static_cast<int32>(Client->GetViewportType());
 		const int32 ModeIndex = GetModeIndex(Client);
 		const char* ModeLabel = ViewModeLabels[ModeIndex];
+		FEditorSettings* Settings = GEditor ? GEditor->GetMutableEditorSettings() : nullptr;
 		char SpeedLabel[16];
 		std::snprintf(SpeedLabel, sizeof(SpeedLabel), "%.2f", CameraSpeed ? *CameraSpeed : 1.0f);
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 0.0f));
 
-		// 뷰 종류
+		// 1. 뷰 종류 (Perspective / Orthographic + View FOV + Exposure)
 		if (EditorIcons::Button("##ViewType", TypeInfo.Icon, IconColor(), bLabels ? TypeInfo.Label : nullptr, true,
 			ImGui::IsPopupOpen("##ViewTypeMenu"), H))
 			OpenPopupBelow("##ViewTypeMenu", true);
@@ -142,42 +146,67 @@ namespace EditorViewportUI
 				if (EditorIcons::MenuRow(Info.Label, Info.Icon, TypeIndex == Type, true, false, Info.Shortcut, true))
 					Client->SetViewportType(static_cast<ELevelViewportType>(Type));
 			}
-			ImGui::EndPopup();
-		}
-		ImGui::PopStyleVar();
 
-		// 카메라 속도와 시야각
-		ImGui::SameLine();
-		if (EditorIcons::Button("##CameraSpeed", EEditorIcon::CameraSpeed, IconColor(), (bLabels && CameraSpeed) ? SpeedLabel : nullptr, true,
-			ImGui::IsPopupOpen("##CameraMenu"), H))
-			OpenPopupBelow("##CameraMenu", true);
-		ImGui::SetItemTooltip(CameraSpeed ? "Camera Speed and Field of View" : "Field of View");
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 4.0f * S));
-		if (ImGui::BeginPopup("##CameraMenu"))
-		{
-			if (CameraSpeed)
-			{
-				EditorIcons::MenuSection("Camera Speed");
-				ImGui::SetNextItemWidth(200.0f * S);
-				ImGui::SliderFloat("##Speed", CameraSpeed, 0.1f, 10.0f, "%.2f");
-			}
+			ImGui::Spacing();
+			EditorIcons::MenuSection("View");
 			if (Client->IsPerspective())
 			{
-				EditorIcons::MenuSection("Field of View");
 				float Fov = Client->GetViewFOV();
-				ImGui::SetNextItemWidth(200.0f * S);
-				if (ImGui::SliderFloat("##Fov", &Fov, 30.0f, 120.0f, "%.0f"))
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("Field of View");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.0f * S);
+				if (ImGui::SliderFloat("##ViewFov", &Fov, 30.0f, 120.0f, "%.1f"))
 					Client->SetViewFOV(Fov);
 			}
 			else
 			{
-				EditorIcons::MenuNote("Field of view applies to the perspective view only.");
+				EditorIcons::MenuNote("Field of view applies to perspective view only.", 200.0f * S);
 			}
+
+			ImGui::Spacing();
+			EditorIcons::MenuSection("Exposure");
+			FEngineShowFlags& ViewFlags = Client->GetEngineShowFlags();
+			if (EditorIcons::MenuRow("Game Settings", EEditorIcon::Settings, ViewFlags.EyeAdaptation, true, true))
+				ViewFlags.EyeAdaptation = !ViewFlags.EyeAdaptation;
+			if (Settings)
+			{
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("EV100");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(140.0f * S);
+				ImGui::SliderFloat("##EV100", &Settings->ExposureCompensation, -4.0f, 4.0f, "%+.2f", ImGuiSliderFlags_AlwaysClamp);
+			}
+
 			ImGui::EndPopup();
 		}
 		ImGui::PopStyleVar();
 
-		// 뷰 모드 (버튼은 지금 모드의 아이콘)
+		// 2. 카메라 속도
+		ImGui::SameLine();
+		if (EditorIcons::Button("##CameraSpeed", EEditorIcon::CameraSpeed, IconColor(), (bLabels && CameraSpeed) ? SpeedLabel : nullptr, true,
+			ImGui::IsPopupOpen("##CameraMenu"), H))
+			OpenPopupBelow("##CameraMenu", true);
+		ImGui::SetItemTooltip("Camera Speed");
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 4.0f * S));
+		if (ImGui::BeginPopup("##CameraMenu"))
+		{
+			EditorIcons::MenuSection("Camera Speed");
+			float* SpeedPtr = CameraSpeed ? CameraSpeed : (Settings ? &Settings->CameraSpeed : nullptr);
+			if (SpeedPtr)
+			{
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("Speed");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(160.0f * S);
+				ImGui::SliderFloat("##Speed", SpeedPtr, 0.1f, 10.0f, "%.2f");
+			}
+			EditorIcons::MenuNote("Hold RMB and scroll wheel to adjust speed.", 220.0f * S);
+			ImGui::EndPopup();
+		}
+		ImGui::PopStyleVar();
+
+		// 3. 뷰 모드 (버튼은 지금 모드의 아이콘)
 		ImGui::SameLine();
 		if (EditorIcons::Button("##ViewMode", ViewModeIcons[ModeIndex], IconColor(), bLabels ? ModeLabel : nullptr, true,
 			ImGui::IsPopupOpen("##ViewModeMenu"), H))
@@ -186,6 +215,7 @@ namespace EditorViewportUI
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 1.0f * S));
 		if (ImGui::BeginPopup("##ViewModeMenu"))
 		{
+			static constexpr const char* ViewModeShortcuts[] = { "ALT+4", "ALT+2", nullptr, nullptr, nullptr, nullptr, nullptr };
 			EditorIcons::MenuSection("View Mode");
 			for (int32 Mode = 0; Mode < IM_ARRAYSIZE(ViewModeLabels); ++Mode)
 			{
@@ -194,50 +224,179 @@ namespace EditorViewportUI
 					ImGui::Spacing();
 					EditorIcons::MenuSection("Buffer Visualization");
 				}
-				if (EditorIcons::MenuRow(ViewModeLabels[Mode], ViewModeIcons[Mode], ModeIndex == Mode))
+				if (EditorIcons::MenuRow(ViewModeLabels[Mode], ViewModeIcons[Mode], ModeIndex == Mode, true, false,
+					ViewModeShortcuts[Mode], true))
 					Client->SetViewMode(static_cast<EViewModeIndex>(Mode));
 			}
 			ImGui::EndPopup();
 		}
 		ImGui::PopStyleVar();
 
-		// 쇼 플래그
+		// 4. 쇼 플래그 (UE5 스타일: 검색 + Use Defaults + Common + Submenus)
 		ImGui::SameLine();
 		if (EditorIcons::Button("##ShowFlags", EEditorIcon::Eye, IconColor(), nullptr, true, ImGui::IsPopupOpen("##ShowMenu"), H))
 			OpenPopupBelow("##ShowMenu", true);
-		ImGui::SetItemTooltip("Show");
+		ImGui::SetItemTooltip("Show Flags");
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 1.0f * S));
 		if (ImGui::BeginPopup("##ShowMenu"))
 		{
+			static char ShowSearch[64] = "";
+			if (ImGui::IsWindowAppearing())
+				ShowSearch[0] = '\0';
+
 			FEngineShowFlags& Flags = Client->GetEngineShowFlags();
+
+			EditorIcons::SearchBox("##ShowSearch", ShowSearch, sizeof(ShowSearch), "Search...", 220.0f * S);
+			ImGui::Spacing();
+			if (EditorIcons::MenuRow("Use Defaults", EEditorIcon::Reset, false, true, true))
+				Flags.Init(EShowFlagInitMode::Editor);
+			ImGui::Separator();
+
 			struct FFlagRow { const char* Label; EEditorIcon Icon; bool* Value; };
-			const FFlagRow Rows[] = {
-				{ "Rendering", EEditorIcon::ShowPrimitives, &Flags.Rendering },
-				{ "Skeletal Meshes", EEditorIcon::SkeletalMesh, &Flags.SkeletalMeshes },
-				{ "Particles", EEditorIcon::Particle, &Flags.Particles },
-				{ "Decals", EEditorIcon::ShowDecal, &Flags.Decals },
-				{ "Fog", EEditorIcon::ShowFog, &Flags.Fog },
-				{ "Anti-aliasing", EEditorIcon::ShowAntiAliasing, &Flags.AntiAliasing },
-				{ "Depth of Field", EEditorIcon::Camera, &Flags.DepthOfField },
-				{ "Vignette", EEditorIcon::ShowVignette, &Flags.Vignette },
-				{ "Camera Overlay", EEditorIcon::ShowCameraOverlay, &Flags.CameraOverlay },
+			const FFlagRow CommonRows[] = {
+				{ "Grid",            EEditorIcon::Viewport,         &Flags.Grid },
+				{ "Decals",          EEditorIcon::ShowDecal,        &Flags.Decals },
+				{ "Skeletal Meshes", EEditorIcon::SkeletalMesh,     &Flags.SkeletalMeshes },
+				{ "Primitives",      EEditorIcon::ShowPrimitives,   &Flags.Rendering },
+				{ "Anti-Aliasing",   EEditorIcon::ShowAntiAliasing, &Flags.AntiAliasing },
+				{ "Collision",       EEditorIcon::ViewWireframe,    &Flags.Collision },
+				{ "Particles",       EEditorIcon::Particle,         &Flags.Particles },
+				{ "Fog",             EEditorIcon::ShowFog,          &Flags.Fog },
 			};
-			EditorIcons::MenuSection("Show Flags");
-			for (const FFlagRow& Row : Rows)
+			const FFlagRow PostProcessRows[] = {
+				{ "Depth of Field",  EEditorIcon::Camera,            &Flags.DepthOfField },
+				{ "Lens Flares",     EEditorIcon::VisualEffects,     &Flags.LensFlares },
+				{ "Eye Adaptation",  EEditorIcon::Settings,          &Flags.EyeAdaptation },
+				{ "Vignette",        EEditorIcon::ShowVignette,      &Flags.Vignette },
+				{ "Camera Overlay",  EEditorIcon::ShowCameraOverlay, &Flags.CameraOverlay },
+			};
+			const FFlagRow PhysicsRows[] = {
+				{ "Collision",       EEditorIcon::ViewWireframe, &Flags.Collision },
+				{ "Physics Bodies",  EEditorIcon::ViewWireframe, &Flags.PhysicsBodies },
+				{ "Constraints",     EEditorIcon::Rotate,        &Flags.Constraints },
+			};
+			const FFlagRow DeveloperRows[] = {
+				{ "Bounds",          EEditorIcon::ViewWireframe, &Flags.Bounds },
+				{ "Visualize DOF",   EEditorIcon::Camera,        &Flags.VisualizeDOF },
+				{ "Cascade Bounds",  EEditorIcon::ViewCascade,   &Flags.CascadeBounds },
+				{ "Object UUID",     EEditorIcon::Info,          &Flags.ObjectUUID },
+				{ "Root Bone (PIE)", EEditorIcon::SkeletalMesh,  &Flags.RootBone },
+			};
+
+			if (ShowSearch[0] != '\0')
 			{
-				if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
-					*Row.Value = !*Row.Value;
+				auto DrawFiltered = [&](const FFlagRow* Rows, size_t Count)
+				{
+					for (size_t i = 0; i < Count; ++i)
+					{
+						if (EditorIcons::MatchesFilter(Rows[i].Label, ShowSearch))
+						{
+							if (EditorIcons::MenuRow(Rows[i].Label, Rows[i].Icon, *Rows[i].Value, true, true))
+								*Rows[i].Value = !*Rows[i].Value;
+						}
+					}
+				};
+				DrawFiltered(CommonRows, IM_ARRAYSIZE(CommonRows));
+				DrawFiltered(PostProcessRows, IM_ARRAYSIZE(PostProcessRows));
+				// Collision은 CommonRows에 이미 있으므로 PhysicsBodies, Constraints만 추가 검색
+				DrawFiltered(PhysicsRows + 1, IM_ARRAYSIZE(PhysicsRows) - 1);
+				DrawFiltered(DeveloperRows, IM_ARRAYSIZE(DeveloperRows));
+			}
+			else
+			{
+				EditorIcons::MenuSection("Common Show Flags");
+				for (const FFlagRow& Row : CommonRows)
+				{
+					if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
+						*Row.Value = !*Row.Value;
+				}
+
+				ImGui::Spacing();
+				EditorIcons::MenuSection("All Show Flags");
+				if (ImGui::BeginMenu("Post Processing"))
+				{
+					for (const FFlagRow& Row : PostProcessRows)
+					{
+						if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
+							*Row.Value = !*Row.Value;
+					}
+					ImGui::EndMenu();
+				}
+				if (ImGui::BeginMenu("Physics"))
+				{
+					for (const FFlagRow& Row : PhysicsRows)
+					{
+						if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
+							*Row.Value = !*Row.Value;
+					}
+					ImGui::EndMenu();
+				}
+				if (ImGui::BeginMenu("Developer"))
+				{
+					for (const FFlagRow& Row : DeveloperRows)
+					{
+						if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
+							*Row.Value = !*Row.Value;
+					}
+					ImGui::EndMenu();
+				}
 			}
 
-			const FFlagRow PhysicsRows[] = {
-				{ "Physics Bodies", EEditorIcon::ViewWireframe, &Flags.PhysicsBodies },
-				{ "Constraints", EEditorIcon::Rotate, &Flags.Constraints },
-			};
-			EditorIcons::MenuSection("Physics");
-			for (const FFlagRow& Row : PhysicsRows)
+			ImGui::EndPopup();
+		}
+		ImGui::PopStyleVar();
+
+		// 5. 뷰포트 설정 (UE5 톱니바퀴 드롭다운)
+		ImGui::SameLine();
+		if (EditorIcons::Button("##ViewportSettings", EEditorIcon::Settings, IconColor(), nullptr, true,
+			ImGui::IsPopupOpen("##ViewportSettingsMenu"), H))
+			OpenPopupBelow("##ViewportSettingsMenu", true);
+		ImGui::SetItemTooltip("Viewport Settings");
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f * S, 4.0f * S));
+		if (ImGui::BeginPopup("##ViewportSettingsMenu"))
+		{
+			if (Settings)
 			{
-				if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
-					*Row.Value = !*Row.Value;
+				EditorIcons::MenuSection("Controls");
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("Mouse Sensitivity");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.0f * S);
+				ImGui::SliderFloat("##MouseSens", &Settings->MouseSensitivity, 0.01f, 1.0f, "%.2f");
+
+				float* SpeedPtr = CameraSpeed ? CameraSpeed : &Settings->CameraSpeed;
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("Camera Speed");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.0f * S);
+				ImGui::SliderFloat("##VpCamSpeed", SpeedPtr, 0.1f, 10.0f, "%.2f");
+
+				ImGui::Spacing();
+				EditorIcons::MenuSection("Grid");
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("Grid Spacing");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.0f * S);
+				ImGui::SliderInt("##VpGridSpacing", &Settings->GridSpacing, 1, 100);
+				ImGui::Checkbox("Draw PS Grid", &Settings->bDrawPSGrid);
+
+				ImGui::Spacing();
+				EditorIcons::MenuSection("Appearance");
+				const char* ThemeNames[] = { "Dark", "Mid", "Light", "Hitori" };
+				int ThemeIdx = static_cast<int>(Settings->Theme);
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextUnformatted("Theme");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.0f * S);
+				if (ImGui::Combo("##VpTheme", &ThemeIdx, ThemeNames, IM_ARRAYSIZE(ThemeNames)))
+				{
+					Settings->Theme = static_cast<EEditorTheme>(ThemeIdx);
+					EditorStyle::SetTheme(Settings->Theme);
+				}
+			}
+			else
+			{
+				EditorIcons::MenuNote("Viewport settings unavailable.", 200.0f * S);
 			}
 			ImGui::EndPopup();
 		}

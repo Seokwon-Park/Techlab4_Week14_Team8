@@ -33,6 +33,7 @@ public:
 	bool IsDrawerOpen() const { return bDrawerOpen; }
 	// 드로어를 연다 (이미 열려 있으면 그대로 둔다). 레이아웃에 붙어 있으면 그 창으로 포커스를 옮긴다.
 	void OpenDrawer();
+	void CloseDrawer() { bDrawerOpen = false; }
 	// 드로어를 열고 지금 폴더에 새 Blueprint를 만드는 "Pick Parent Class" 창을 띄운다 (레벨 에디터 툴바 Blueprints 메뉴).
 	void OpenCreateBlueprintDialog();
 	bool IsDocked() const { return bDocked; }

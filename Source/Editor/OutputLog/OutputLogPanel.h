@@ -42,6 +42,14 @@ public:
 	void RenderContents();
 	const char* GetPanelName() const override { return "Output Log"; }
 
+	// Content Drawer와 동일하게 상태 표시줄 위 드로어로 토글하며, "Dock in Layout"으로 도킹 창 전환 가능.
+	void ToggleDrawer();
+	void OpenDrawer();
+	void CloseDrawer() { bDrawerOpen = false; }
+	bool IsDrawerOpen() const { return bDrawerOpen; }
+	bool IsDocked() const { return bDocked; }
+	void SetDrawerRect(const ImVec2& Pos, const ImVec2& Size, ImGuiID ViewportId);
+
 	void ClearLog();
 	// ImGui 컨텍스트가 만들어진 뒤 엔진이 부른다.
 	void LoadLogFont();
@@ -53,6 +61,8 @@ public:
 	void SetEditorSettings(FEditorSettings* InSettings) { EditorSettings = InSettings; }
 
 private:
+	bool BeginWindow();
+	void RebuildLogTextCache();
 	void RegisterCommands();
 	void RegisterSuggestion(const char* Badge, const char* DisplayText, const char* InsertText, const char* Hint = "", bool bIsCVar = false);
 	void UpdateSuggestions(const char* Query);
@@ -89,6 +99,20 @@ private:
 	bool bShowWarnings = true;
 	bool bShowErrors = true;
 	bool bShowCommands = true;
+
+	// 드로어 / 도킹 상태 (Content Drawer와 동일 방식)
+	bool bDocked = false;
+	bool bDrawerOpen = false;
+	bool bJustOpened = false;
+	bool bPendingDock = false;
+	ImVec2 DrawerPos = ImVec2(0.0f, 0.0f);
+	ImVec2 DrawerSize = ImVec2(0.0f, 0.0f);
+	ImGuiID DrawerViewportId = 0;
+
+	// 드래그 선택 / Ctrl+C / Ctrl+A 용 캐시 버퍼 (필터링된 로그 본문)
+	FString CachedLogText;
+	bool bLogTextDirty = true;
+	bool bSelectAllLogNextFrame = false;
 
 	// 로그 본문용 고정폭 글꼴 (Consolas + 한글 나눔스퀘어). 없으면 기본 글꼴 사용
 	ImFont* LogFont = nullptr;

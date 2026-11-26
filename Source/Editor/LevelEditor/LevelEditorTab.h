@@ -58,6 +58,7 @@ public:
 	void SetStatusBarPanels(FContentDrawerPanel* InContentDrawer, FOutputLogPanel* InOutputLog);
 
 	void ToggleContentDrawer();
+	void ToggleOutputLog();
 
 	void RequestResetLayout() { bResetLayoutRequested = true; }
 

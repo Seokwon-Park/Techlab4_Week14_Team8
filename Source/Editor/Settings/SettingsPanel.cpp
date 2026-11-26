@@ -58,15 +58,11 @@ void FSettingsPanel::DrawContents()
 {
 	//////////////////////////////////////////////////////////
 
-	// 렌더링 옵션 (Toggles)
+	// 렌더링 옵션
 	ImGui::SeparatorText("Rendering");
 
-	ImGui::TextDisabled("Fill mode is configured per viewport.");
-	ImGui::Checkbox("Draw Primitives", &Settings.ShowFlags.Rendering);
+	ImGui::TextDisabled("Per-viewport Show Flags live in each viewport's Eye (Show) menu.");
 	ImGui::Checkbox("Cache Shadows", &Settings.bCacheShadows);
-	ImGui::Checkbox("Draw Bounding Box", &Settings.ShowFlags.Bounds);
-	ImGui::Checkbox("Show Object UUID", &Settings.ShowFlags.ObjectUUID);
-	ImGui::Checkbox("Draw Decals", &Settings.ShowFlags.Decals);
 	const char* DecalBroadPhases[] = { "Off", "Linear AABB", "BVH" };
 	int DecalBroadPhaseIndex = Settings.bDecalBVHCulling ? 2 : (Settings.bDecalCulling ? 1 : 0);
 	ImGui::SetNextItemWidth(200.0f);
@@ -100,18 +96,7 @@ void FSettingsPanel::DrawContents()
 	{
 		Settings.LightCullingMode = static_cast<ELightCullingMode>(LightCullingModeIndex);
 	}
-	ImGui::TextDisabled("Forward Lambert/Phong only; Off evaluates all uploaded local lights.");
-	ImGui::TextDisabled("Forward Lambert/Phong only; off evaluates all visible local lights.");
-
-	ImGui::Dummy(ImVec2(0.0f, SectionGap));
-	ImGui::SeparatorText("Debug Draw (PIE)");
-	ImGui::Checkbox("Show Collision", &Settings.ShowFlags.Collision);
-	ImGui::Checkbox("Show Root", &Settings.ShowFlags.RootBone);
-	ImGui::Checkbox("Show Physics Bodies", &Settings.ShowFlags.PhysicsBodies);
-	ImGui::Checkbox("Show Constraints", &Settings.ShowFlags.Constraints);
-	ImGui::TextDisabled("Collision & Root are PIE only.");
-	// 저장하지 않는 디버그 토글. root 고정을 끄면 루트 모션 이동량이 캡슐 + 메시에 두 번 들어간다
-	ImGui::Checkbox("Skip Root Lock (2x move)", &GDebugSkipRootLock);
+	ImGui::TextDisabled("Forward Lambert/Phong only; Off evaluates all visible local lights.");
 
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Scene Depth");
@@ -120,13 +105,6 @@ void FSettingsPanel::DrawContents()
 		0.1f, 10000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp))
 		ApplySceneDepthRange();
 	ImGui::TextDisabled("White represents this distance from the camera.");
-
-	//////////////////////////////////////////////////////////
-
-	ImGui::Dummy(ImVec2(0.0f, SectionGap));
-	ImGui::SeparatorText("Anti-Aliasing");
-
-	ImGui::Checkbox("Enable FXAA", &Settings.ShowFlags.AntiAliasing);
 
 	//////////////////////////////////////////////////////////
 
@@ -140,17 +118,6 @@ void FSettingsPanel::DrawContents()
 	ImGui::EndDisabled();
 	ImGui::SetNextItemWidth(200.0f);
 	ImGui::SliderFloat("Exposure (EV)", &Settings.ExposureCompensation, -4.0f, 4.0f, "%+.2f EV", ImGuiSliderFlags_AlwaysClamp);
-	ImGui::Checkbox("Eye Adaptation (Auto Exposure)", &Settings.ShowFlags.EyeAdaptation);
-	ImGui::Checkbox("Lens Flares", &Settings.ShowFlags.LensFlares);
-	ImGui::Checkbox("Depth of Field", &Settings.ShowFlags.DepthOfField);
-	ImGui::BeginDisabled(!Settings.ShowFlags.DepthOfField);
-	ImGui::Checkbox("Visualize DOF (PIE)", &Settings.ShowFlags.VisualizeDOF);
-	ImGui::TextDisabled("Green: Near | Gray: In-Focus | Blue: Far");
-	ImGui::EndDisabled();
-	ImGui::Checkbox("Vignette", &Settings.ShowFlags.Vignette);
-	ImGui::Checkbox("Camera Fade / Letterbox", &Settings.ShowFlags.CameraOverlay);
-	ImGui::Checkbox("Skeletal Mesh", &Settings.ShowFlags.SkeletalMeshes);
-	ImGui::Checkbox("Particles", &Settings.ShowFlags.Particles);
 
 	if (ImGui::TreeNode("Camera Overlay Debug"))
 	{
@@ -165,11 +132,10 @@ void FSettingsPanel::DrawContents()
 	}
 
 	//////////////////////////////////////////////////////////
-	
+
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Grid");
 
-	ImGui::Checkbox("Draw Batch Line / Grid", &Settings.ShowFlags.Grid);
 	ImGui::Checkbox("Draw PS Grid", &Settings.bDrawPSGrid);
 
 	ImGui::SetNextItemWidth(200.0f);
@@ -697,11 +663,8 @@ void FSettingsPanel::DrawShadowMapSettings()
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 
 	ImGui::SeparatorText("ShadowMap Settings");
-	ImGui::Checkbox("Draw Cascade Bounds", &Settings.ShowFlags.CascadeBounds);
-	if (Settings.ShowFlags.CascadeBounds)
-		ImGui::TextDisabled("Cascade 0-3: red, yellow, green, blue");
 
-	const char* QualityLevelStr[] = { "Very Low", "Low", "Middle", "Hight", "Very High" };
+	const char* QualityLevelStr[] = { "Very Low", "Low", "Middle", "High", "Very High" };
 	
 	if (ImGui::Combo("Directional", &Settings.DirectionalShadowMapSizeLevel, QualityLevelStr, IM_ARRAYSIZE(QualityLevelStr)))
 	{

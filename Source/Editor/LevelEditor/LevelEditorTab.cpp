@@ -98,6 +98,21 @@ void FLevelEditorTab::DrawMenuBar()
 	{
 		for (auto& Panel : Panels)
 		{
+			if (Panel.get() == ContentDrawer)
+			{
+				const bool bActive = ContentDrawer->IsDrawerOpen() || ContentDrawer->IsDocked();
+				if (ImGui::MenuItem(Panel->GetPanelName(), "Ctrl+Space", bActive))
+					ToggleContentDrawer();
+				continue;
+			}
+			if (Panel.get() == OutputLog)
+			{
+				const bool bActive = OutputLog->IsDrawerOpen() || OutputLog->IsDocked();
+				if (ImGui::MenuItem(Panel->GetPanelName(), nullptr, bActive))
+					ToggleOutputLog();
+				continue;
+			}
+
 			bool bOpen = Panel->IsOpen();
 
 			if (ImGui::MenuItem(Panel->GetPanelName(), nullptr, bOpen))
@@ -186,14 +201,14 @@ void FLevelEditorTab::OnRender(bool bActive)
 		DrawStatusBar();
 
 		// 드로어는 상태 표시줄 바로 위에서 도크 영역 아래쪽 40%를 덮는다.
+		const float DrawerHeight = ImMin(DockAreaSize.y, ImMax(240.0f, DockAreaSize.y * 0.4f));
+		const ImVec2 DrawerPos(DockAreaPos.x, DockAreaPos.y + DockAreaSize.y - DrawerHeight);
+		const ImVec2 DrawerSize(DockAreaSize.x, DrawerHeight);
+		const ImGuiID ViewportId = ImGui::GetWindowViewport()->ID;
 		if (ContentDrawer)
-		{
-			const float DrawerHeight = ImMin(DockAreaSize.y, ImMax(240.0f, DockAreaSize.y * 0.4f));
-			ContentDrawer->SetDrawerRect(
-				ImVec2(DockAreaPos.x, DockAreaPos.y + DockAreaSize.y - DrawerHeight),
-				ImVec2(DockAreaSize.x, DrawerHeight),
-				ImGui::GetWindowViewport()->ID);
-		}
+			ContentDrawer->SetDrawerRect(DrawerPos, DrawerSize, ViewportId);
+		if (OutputLog)
+			OutputLog->SetDrawerRect(DrawerPos, DrawerSize, ViewportId);
 
 		for (auto& Panel : Panels)
 		{
@@ -256,8 +271,20 @@ void FLevelEditorTab::ToggleContentDrawer()
 {
 	if (!ContentDrawer)
 		return;
+	if (OutputLog && !OutputLog->IsDocked())
+		OutputLog->CloseDrawer();
 	ContentDrawer->SetOpen(true);
 	ContentDrawer->ToggleDrawer();
+}
+
+void FLevelEditorTab::ToggleOutputLog()
+{
+	if (!OutputLog)
+		return;
+	if (ContentDrawer && !ContentDrawer->IsDocked())
+		ContentDrawer->CloseDrawer();
+	OutputLog->SetOpen(true);
+	OutputLog->ToggleDrawer();
 }
 
 float FLevelEditorTab::GetStatusBarHeight() const
@@ -291,8 +318,9 @@ void FLevelEditorTab::DrawStatusBar()
 
 		if (OutputLog)
 		{
-			if (StatusBarToggle("##StatusOutputLog", EEditorIcon::OutputLog, "Output Log", OutputLog->IsOpen()))
-				OutputLog->SetOpen(!OutputLog->IsOpen());
+			const bool bLogActive = OutputLog->IsDrawerOpen() || OutputLog->IsDocked();
+			if (StatusBarToggle("##StatusOutputLog", EEditorIcon::OutputLog, "Output Log", bLogActive))
+				ToggleOutputLog();
 			ImGui::SameLine();
 
 			// 구분선
