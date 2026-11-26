@@ -23,6 +23,24 @@ public:
 	
 	// 현재 상태를 렌더링합니다.
 	void OnRenderPreview() override;
+	void OnRenderLine(class FLineBatcher& LineBatcher) override;
+	bool IsDirty() const override { return bDirty; }
+
+	// 충돌(BodySetup) 편집 유틸
+	bool GetShowCollision() const { return bShowCollision; }
+	void SetShowCollision(bool bShow) { bShowCollision = bShow; }
+	void AddAutoFitBox();
+	void AddAutoFitSphere();
+	void AddAutoFitCapsule();
+	void AddAutoFitConvex();
+	void ClearCollision();
+	void PushCollisionUndo();
+	bool CanUndoCollision() const { return !CollisionUndoStack.IsEmpty(); }
+	bool CanRedoCollision() const { return !CollisionRedoStack.IsEmpty(); }
+	void UndoCollision();
+	void RedoCollision();
+	bool SaveBodySetup();
+	void MarkDirty() { bDirty = true; }
 	
 
 	////////////////////////////////////////////////////////////
@@ -64,4 +82,8 @@ private:
 	
 	bool bViewportVisible = false;
 	bool bInitialFocusPending = true;
+	bool bShowCollision = true;
+	bool bDirty = false;
+	TArray<TArray<uint8>> CollisionUndoStack;
+	TArray<TArray<uint8>> CollisionRedoStack;
 };

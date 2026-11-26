@@ -6,7 +6,17 @@
 #include "Launch/LaunchEngineLoop.h"
 #include "Engine/World.h"
 #include "Math/BoxSphereBounds.h"
+#include "Physics/BodySetup.h"
+#include "Physics/PhysicsDebugDraw.h"
 #include "Render/Mesh.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
+#include "Serialization/StructuredArchive.h"
+#include "Serialization/StructuredArchiveSlots.h"
+#include "Serialization/Formatter/JsonArchiveInputFormatter.h"
+#include "Serialization/Formatter/JsonArchiveOutputFormatter.h"
+#include <algorithm>
+#include <cmath>
 
 FStaticMeshEditor::FStaticMeshEditor(
 	UEditorEngine& InEditorEngine,
@@ -173,6 +183,176 @@ void FStaticMeshEditor::OnRenderPreview()
 
 	// 뷰포트를 그린다. 뷰포트가 자기 클라이언트의 Draw를 부른다.
 	Viewport->Draw();
+}
+
+void FStaticMeshEditor::OnRenderLine(FLineBatcher& LineBatcher)
+{
+	if (!bShowCollision || !Mesh || !MeshComponent) return;
+	UBodySetup* BodySetup = Mesh->GetBodySetup();
+	if (!BodySetup) return;
+	FPhysicsDebugDraw DebugDraw;
+	const FTransform WorldTransform = MeshComponent->GetTransform();
+	DebugDraw.DrawAggregateGeom(&LineBatcher, BodySetup->AggGeom, WorldTransform, FVector4(0.25f, 0.95f, 0.45f, 1.0f), 0.12f);
+}
+
+namespace
+{
+	bool SerializeBodySetupBytes(UBodySetup* Setup, TArray<uint8>& OutBytes)
+	{
+		if (!Setup) return false;
+		OutBytes.Empty();
+		FMemoryWriter Writer(OutBytes);
+		{
+			FJsonArchiveOutputFormatter Formatter(Writer);
+			FStructuredArchive Archive(Formatter);
+			Setup->Serialize(Archive.Open().EnterRecord());
+		}
+		return !Writer.IsError();
+	}
+
+	bool DeserializeBodySetupBytes(UBodySetup* Setup, const TArray<uint8>& Bytes)
+	{
+		if (!Setup || Bytes.IsEmpty()) return false;
+		FMemoryReader Reader(Bytes, true);
+		FJsonArchiveInputFormatter Formatter(Reader);
+		if (Reader.IsError()) return false;
+		FStructuredArchive Archive(Formatter);
+		Setup->Serialize(Archive.Open().EnterRecord());
+		return !Reader.IsError();
+	}
+}
+
+void FStaticMeshEditor::PushCollisionUndo()
+{
+	if (!Mesh) return;
+	TArray<uint8> Bytes;
+	if (SerializeBodySetupBytes(Mesh->GetBodySetup(), Bytes))
+	{
+		CollisionUndoStack.Add(std::move(Bytes));
+		if (CollisionUndoStack.Num() > 50)
+			CollisionUndoStack.RemoveAt(0);
+		CollisionRedoStack.Empty();
+	}
+}
+
+void FStaticMeshEditor::UndoCollision()
+{
+	if (!Mesh || CollisionUndoStack.IsEmpty()) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	TArray<uint8> Current;
+	if (SerializeBodySetupBytes(Setup, Current))
+		CollisionRedoStack.Add(std::move(Current));
+	const TArray<uint8> Prev = std::move(CollisionUndoStack.Last());
+	CollisionUndoStack.RemoveLast();
+	DeserializeBodySetupBytes(Setup, Prev);
+	bDirty = true;
+}
+
+void FStaticMeshEditor::RedoCollision()
+{
+	if (!Mesh || CollisionRedoStack.IsEmpty()) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	TArray<uint8> Current;
+	if (SerializeBodySetupBytes(Setup, Current))
+		CollisionUndoStack.Add(std::move(Current));
+	const TArray<uint8> Next = std::move(CollisionRedoStack.Last());
+	CollisionRedoStack.RemoveLast();
+	DeserializeBodySetupBytes(Setup, Next);
+	bDirty = true;
+}
+
+void FStaticMeshEditor::AddAutoFitBox()
+{
+	if (!Mesh) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	PushCollisionUndo();
+	const FBox& Box = Mesh->GetRenderBounds();
+	const FVector Size = Box.Max - Box.Min;
+	FKBoxElem Elem;
+	Elem.Center = (Box.Min + Box.Max) * 0.5f;
+	Elem.X = std::max(Size.X, 0.01f);
+	Elem.Y = std::max(Size.Y, 0.01f);
+	Elem.Z = std::max(Size.Z, 0.01f);
+	Setup->AggGeom.BoxElems.Add(Elem);
+	bDirty = true;
+}
+
+void FStaticMeshEditor::AddAutoFitSphere()
+{
+	if (!Mesh) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	PushCollisionUndo();
+	const FBox& Box = Mesh->GetRenderBounds();
+	const FVector Extent = (Box.Max - Box.Min) * 0.5f;
+	FKSphereElem Elem;
+	Elem.Center = (Box.Min + Box.Max) * 0.5f;
+	Elem.Radius = std::max(Extent.Size(), 0.01f);
+	Setup->AggGeom.SphereElems.Add(Elem);
+	bDirty = true;
+}
+
+void FStaticMeshEditor::AddAutoFitCapsule()
+{
+	if (!Mesh) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	PushCollisionUndo();
+	const FBox& Box = Mesh->GetRenderBounds();
+	const FVector Size = Box.Max - Box.Min;
+	FKSphylElem Elem;
+	Elem.Center = (Box.Min + Box.Max) * 0.5f;
+	Elem.Radius = std::max(std::max(Size.X, Size.Y) * 0.5f, 0.01f);
+	Elem.Length = std::max(Size.Z - Elem.Radius * 2.0f, 0.01f);
+	Setup->AggGeom.SphylElems.Add(Elem);
+	bDirty = true;
+}
+
+void FStaticMeshEditor::AddAutoFitConvex()
+{
+	if (!Mesh) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	const auto& Vertices = Mesh->GetMeshData().Vertices;
+	if (Vertices.IsEmpty()) return;
+	PushCollisionUndo();
+	FKConvexElem Elem;
+	// 최대 256개 정점으로 균등 샘플링해 Convex Hull 후보 정점을 구성한다.
+	const int32 Stride = std::max(1, static_cast<int32>(Vertices.Num() / 256));
+	for (int32 i = 0; i < Vertices.Num(); i += Stride)
+		Elem.VertexData.Add(Vertices[i].Position);
+	Setup->AggGeom.ConvexElems.Add(std::move(Elem));
+	bDirty = true;
+}
+
+void FStaticMeshEditor::ClearCollision()
+{
+	if (!Mesh) return;
+	UBodySetup* Setup = Mesh->GetBodySetup();
+	if (!Setup) return;
+	PushCollisionUndo();
+	Setup->AggGeom.BoxElems.Empty();
+	Setup->AggGeom.SphereElems.Empty();
+	Setup->AggGeom.SphylElems.Empty();
+	Setup->AggGeom.ConvexElems.Empty();
+	bDirty = true;
+}
+
+bool FStaticMeshEditor::SaveBodySetup()
+{
+	if (!Mesh) return false;
+	FString Error;
+	if (!Mesh->SaveBodySetup(&Error))
+	{
+		HTR_LOG(Error, "Failed to save .bodysetup: {}", Error);
+		return false;
+	}
+	bDirty = false;
+	HTR_LOG(Info, "Saved collision .bodysetup: {}", Mesh->GetBodySetupFilePath());
+	return true;
 }
 
 void FStaticMeshEditor::ShutdownResources()

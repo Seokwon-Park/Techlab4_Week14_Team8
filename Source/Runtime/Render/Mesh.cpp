@@ -4,9 +4,19 @@
 #include "Asset/AssetManager.h"
 #include "Engine/PrimitiveSceneProxy.h"
 #include "Physics/BodySetup.h"
+#include "Asset/AssetUtils.h"
+#include "Core/Misc/Paths.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
+#include "Serialization/StructuredArchive.h"
+#include "Serialization/StructuredArchiveSlots.h"
+#include "Serialization/Formatter/JsonArchiveInputFormatter.h"
+#include "Serialization/Formatter/JsonArchiveOutputFormatter.h"
 #include "UObject/UObjectGlobals.h"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 
 UStaticMesh::~UStaticMesh()
@@ -100,9 +110,88 @@ void UStaticMesh::UnregisterProxy(FPrimitiveSceneProxy* Proxy)
         RenderProxies.RemoveAtSwap(static_cast<uint32>(It - RenderProxies.begin()));
 }
 
+FString UStaticMesh::GetBodySetupFilePath() const
+{
+    const FString& AssetPath = GetPath();
+    if (AssetPath.empty()) return {};
+    const FString Resolved = FAssetUtils::ResolveAssetFilePath(AssetPath);
+    const FString Base = Resolved.empty() ? AssetPath : Resolved;
+    return Base + ".bodysetup";
+}
+
+bool UStaticMesh::SaveBodySetup(FString* OutError)
+{
+    UBodySetup* Setup = GetBodySetup();
+    if (!Setup)
+    {
+        if (OutError) *OutError = "No BodySetup to save";
+        return false;
+    }
+    const FString FilePath = GetBodySetupFilePath();
+    if (FilePath.empty())
+    {
+        if (OutError) *OutError = "Mesh has no asset path";
+        return false;
+    }
+
+    TArray<uint8> Bytes;
+    FMemoryWriter Writer(Bytes);
+    {
+        FJsonArchiveOutputFormatter Formatter(Writer);
+        FStructuredArchive Archive(Formatter);
+        Setup->Serialize(Archive.Open().EnterRecord());
+    }
+    if (Writer.IsError())
+    {
+        if (OutError) *OutError = "Failed to serialize BodySetup";
+        return false;
+    }
+
+    std::ofstream File(FPaths::FromUtf8(FilePath), std::ios::binary | std::ios::trunc);
+    if (!File)
+    {
+        if (OutError) *OutError = "Failed to open .bodysetup for writing";
+        return false;
+    }
+    File.write(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num());
+    File.close();
+    return static_cast<bool>(File);
+}
+
+bool UStaticMesh::LoadBodySetupIfExists()
+{
+    const FString FilePath = GetBodySetupFilePath();
+    if (FilePath.empty()) return false;
+    std::error_code Ec;
+    const std::filesystem::path PathObj = FPaths::FromUtf8(FilePath);
+    if (!std::filesystem::is_regular_file(PathObj, Ec)) return false;
+
+    std::ifstream File(PathObj, std::ios::binary | std::ios::ate);
+    const auto Size = static_cast<std::streamoff>(File.tellg());
+    if (!File || Size <= 0) return false;
+
+    TArray<uint8> Bytes;
+    Bytes.SetNum(static_cast<int32>(Size));
+    File.seekg(0);
+    if (!File.read(reinterpret_cast<char*>(Bytes.GetData()), Size)) return false;
+
+    FMemoryReader Reader(Bytes, true);
+    FJsonArchiveInputFormatter Formatter(Reader);
+    if (Reader.IsError()) return false;
+
+    UBodySetup* Loaded = NewObject<UBodySetup>(this);
+    FStructuredArchive Archive(Formatter);
+    Loaded->Serialize(Archive.Open().EnterRecord());
+    if (Reader.IsError()) return false;
+
+    BodySetup = Loaded;
+    return true;
+}
+
 UBodySetup* UStaticMesh::GetBodySetup()
 {
     if (BodySetup) return BodySetup;
+    if (LoadBodySetupIfExists()) return BodySetup;
 
     const FBox& Box = MeshData.AABB;
     if (Box.Min.X > Box.Max.X || Box.Min.Y > Box.Max.Y || Box.Min.Z > Box.Max.Z) return nullptr;

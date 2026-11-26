@@ -41,4 +41,10 @@ public:
     // 반발 결합 방식의 재질 우선 적용 여부
     UPROPERTY(EditAnywhere)
     bool bOverrideRestitutionCombineMode = false;
+
+    const FString& GetAssetPath() const { return AssetPath; }
+    void SetAssetPath(const FString& InPath) { AssetPath = InPath; }
+
+private:
+    FString AssetPath;
 };

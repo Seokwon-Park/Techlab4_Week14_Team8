@@ -172,6 +172,16 @@ void FSkeletalMeshDetailsPanel::DrawClothBinding()
 			Editor.SetClothBrushMaxDistance(MaxDistance);
 		}
 		ImGui::TextDisabled("Drag to paint. 0 m pins. Shift + drag erases.");
+		if (ImGui::Button("Fill Section")) Editor.FillClothPaint();
+		ImGui::SameLine();
+		if (ImGui::Button("Clear Paint"))  Editor.ClearClothPaint();
+		ImGui::BeginDisabled(!Editor.CanUndoCloth());
+		if (ImGui::Button("Undo Cloth")) Editor.UndoCloth();
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!Editor.CanRedoCloth());
+		if (ImGui::Button("Redo Cloth")) Editor.RedoCloth();
+		ImGui::EndDisabled();
 	}
 	ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.1f, 1.0f), "Pinned: %d / %d", PinCount, VertexCount);
 	ImGui::TextColored(ImVec4(0.2f, 0.75f, 1.0f, 1.0f), "Distance-limited: %d", Editor.GetClothCappedVertexCount());
@@ -268,8 +278,26 @@ void FSkeletalMeshDetailsPanel::DrawContent()
 
 	if (ImGui::Button("Reset Transform"))
 	{
+		Editor.PushPoseUndo();
 		Editor.ResetBone(BoneIndex);
 	}
+	ImGui::SameLine();
+	if (ImGui::Button("Reset All Pose"))
+	{
+		Editor.PushPoseUndo();
+		Editor.ResetPose();
+	}
+	ImGui::BeginDisabled(!Editor.CanUndoPose());
+	if (ImGui::Button("Undo Pose")) Editor.UndoPose();
+	ImGui::EndDisabled();
+	ImGui::SameLine();
+	ImGui::BeginDisabled(!Editor.CanRedoPose());
+	if (ImGui::Button("Redo Pose")) Editor.RedoPose();
+	ImGui::EndDisabled();
+
+	bool bHeatmap = Editor.GetShowBoneWeightHeatmap();
+	if (ImGui::Checkbox("Bone Weight Heatmap", &bHeatmap))
+		Editor.SetShowBoneWeightHeatmap(bHeatmap);
 
 	ImGui::Separator();
 

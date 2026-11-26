@@ -20,10 +20,16 @@
 #include "Core/Misc/Paths.h"
 #include "Editor/AnimBlueprintEditor/AnimBlueprintEditor.h"
 #include "Editor/PhysicsAssetEditor/PhysicsAssetEditor.h"
+#include "Editor/MaterialEditor/MaterialEditor.h"
+#include "Editor/PhysicalMaterialEditor/PhysicalMaterialEditor.h"
 #include "Editor/ParticleEditor/ParticleSystemEditor.h"
 #include "Particles/ParticleSystemFile.h"
 #include "Physics/PhysicsAsset.h"
 #include "Physics/PhysicsAssetFile.h"
+#include "Physics/PhysicalMaterial.h"
+#include "Physics/PhysicalMaterialFile.h"
+#include "Render/Material.h"
+#include "Render/MaterialFile.h"
 
 #include <filesystem>
 
@@ -180,6 +186,43 @@ void FEditorManager::CreateEditor(const FString& AssetPath)
 	if (PhysicsAssetFile::IsPhysicsAssetPath(AssetPath))
 	{
 		OpenPhysicsAssetFile(AssetPath);
+		return;
+	}
+
+	if (MaterialFile::IsMaterialPath(AssetPath))
+	{
+		UMaterial* Material = UAssetManager::Get().LoadMaterial(AssetPath);
+		if (!Material)
+		{
+			HTR_LOG(Warning, "Failed to load material: {}", AssetPath);
+			return;
+		}
+		TUniquePtr<FAssetEditor> Editor = MakeUnique<FMaterialEditor>(EditorEngine, *this, AssetPath, *Material);
+		if (!Editor->Initialize())
+		{
+			Editor->Shutdown();
+			HTR_LOG(Warning, "Material editor initialization failed: {}", AssetPath);
+			return;
+		}
+		Editors.Add(std::move(Editor));
+		return;
+	}
+
+	if (PhysicalMaterialFile::IsPhysicalMaterialPath(AssetPath))
+	{
+		UPhysicalMaterial* PhysMat = PhysicalMaterialFile::LoadOrFind(AssetPath);
+		if (!PhysMat)
+		{
+			return;
+		}
+		TUniquePtr<FAssetEditor> Editor = MakeUnique<FPhysicalMaterialEditor>(EditorEngine, *this, AssetPath, *PhysMat);
+		if (!Editor->Initialize())
+		{
+			Editor->Shutdown();
+			HTR_LOG(Warning, "Physical Material editor initialization failed: {}", AssetPath);
+			return;
+		}
+		Editors.Add(std::move(Editor));
 		return;
 	}
 

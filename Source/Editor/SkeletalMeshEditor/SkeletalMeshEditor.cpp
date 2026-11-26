@@ -375,6 +375,8 @@ void FSkeletalMeshEditor::OnRenderLine(FLineBatcher& LineBatcher)
 
 	if (!bClothPaintMode)
 	{
+		if (bShowBoneWeightHeatmap)
+			DrawBoneWeightHeatmap(LineBatcher);
 		FSkeletalPreviewEditor::OnRenderLine(LineBatcher);
 		return;
 	}
@@ -413,6 +415,165 @@ void FSkeletalMeshEditor::OnRenderLine(FLineBatcher& LineBatcher)
 void FSkeletalMeshEditor::OpenPhysicsAssetEditor()
 {
 	EditorManager.OpenPhysicsAssetEditor(GetAssetPath(), Mesh);
+}
+
+void FSkeletalMeshEditor::PushPoseUndo()
+{
+	if (!MeshComponent || !Mesh) return;
+	const int32 NumBones = Mesh->GetNumBones();
+	TArray<FTransform> Snapshot;
+	Snapshot.Reserve(NumBones);
+	for (int32 i = 0; i < NumBones; ++i)
+		Snapshot.Add(MeshComponent->GetBoneLocalTransform(i));
+	PoseUndoStack.Add(std::move(Snapshot));
+	if (PoseUndoStack.Num() > 50)
+		PoseUndoStack.RemoveAt(0);
+	PoseRedoStack.Empty();
+}
+
+void FSkeletalMeshEditor::UndoPose()
+{
+	if (!MeshComponent || !Mesh || PoseUndoStack.IsEmpty()) return;
+	const int32 NumBones = Mesh->GetNumBones();
+	TArray<FTransform> Current;
+	Current.Reserve(NumBones);
+	for (int32 i = 0; i < NumBones; ++i)
+		Current.Add(MeshComponent->GetBoneLocalTransform(i));
+	PoseRedoStack.Add(std::move(Current));
+
+	const TArray<FTransform> Prev = std::move(PoseUndoStack.Last());
+	PoseUndoStack.RemoveLast();
+	const int32 Count = std::min(NumBones, Prev.Num());
+	for (int32 i = 0; i < Count; ++i)
+		MeshComponent->SetBoneLocalTransform(i, Prev[i]);
+	MeshComponent->RefreshBoneTransformsNow();
+	SyncBoneGizmo();
+}
+
+void FSkeletalMeshEditor::RedoPose()
+{
+	if (!MeshComponent || !Mesh || PoseRedoStack.IsEmpty()) return;
+	const int32 NumBones = Mesh->GetNumBones();
+	TArray<FTransform> Current;
+	Current.Reserve(NumBones);
+	for (int32 i = 0; i < NumBones; ++i)
+		Current.Add(MeshComponent->GetBoneLocalTransform(i));
+	PoseUndoStack.Add(std::move(Current));
+
+	const TArray<FTransform> Next = std::move(PoseRedoStack.Last());
+	PoseRedoStack.RemoveLast();
+	const int32 Count = std::min(NumBones, Next.Num());
+	for (int32 i = 0; i < Count; ++i)
+		MeshComponent->SetBoneLocalTransform(i, Next[i]);
+	MeshComponent->RefreshBoneTransformsNow();
+	SyncBoneGizmo();
+}
+
+void FSkeletalMeshEditor::PushClothUndo()
+{
+	ClothUndoStack.Add({ ClothPinnedVertices, ClothMaxDistances });
+	if (ClothUndoStack.Num() > 50)
+		ClothUndoStack.RemoveAt(0);
+	ClothRedoStack.Empty();
+}
+
+void FSkeletalMeshEditor::UndoCloth()
+{
+	if (ClothUndoStack.IsEmpty()) return;
+	ClothRedoStack.Add({ ClothPinnedVertices, ClothMaxDistances });
+	FClothPaintSnapshot Prev = std::move(ClothUndoStack.Last());
+	ClothUndoStack.RemoveLast();
+	ClothPinnedVertices = std::move(Prev.PinnedVertices);
+	ClothMaxDistances = std::move(Prev.MaxDistances);
+}
+
+void FSkeletalMeshEditor::RedoCloth()
+{
+	if (ClothRedoStack.IsEmpty()) return;
+	ClothUndoStack.Add({ ClothPinnedVertices, ClothMaxDistances });
+	FClothPaintSnapshot Next = std::move(ClothRedoStack.Last());
+	ClothRedoStack.RemoveLast();
+	ClothPinnedVertices = std::move(Next.PinnedVertices);
+	ClothMaxDistances = std::move(Next.MaxDistances);
+}
+
+void FSkeletalMeshEditor::FillClothPaint()
+{
+	if (ClothSectionVertices.IsEmpty()) return;
+	PushClothUndo();
+	if (ClothBrushMaxDistance <= 0.0f)
+	{
+		ClothMaxDistances.Reset();
+		for (uint32 V : ClothSectionVertices)
+			ClothPinnedVertices.Add(V);
+	}
+	else
+	{
+		ClothPinnedVertices.Reset();
+		for (uint32 V : ClothSectionVertices)
+			ClothMaxDistances.Add(V, ClothBrushMaxDistance);
+	}
+}
+
+void FSkeletalMeshEditor::ClearClothPaint()
+{
+	if (ClothPinnedVertices.IsEmpty() && ClothMaxDistances.IsEmpty()) return;
+	PushClothUndo();
+	ClothPinnedVertices.Reset();
+	ClothMaxDistances.Reset();
+}
+
+void FSkeletalMeshEditor::DrawBoneWeightHeatmap(FLineBatcher& LineBatcher) const
+{
+	if (!Mesh || !MeshComponent || SelectedBoneIndex < 0) return;
+	if (Mesh->GetRenderData().LODRenderData.IsEmpty()) return;
+	const FSkeletalMeshLODRenderData& LOD = Mesh->GetRenderData().LODRenderData[0];
+	const FSkeletalMeshObject* MeshObject = MeshComponent->GetMeshObject();
+	const TArray<FVertex>* Vertices = MeshObject ? MeshObject->GetCPUSkinnedVertices() : &LOD.BindVertices;
+	if (!Vertices || Vertices->IsEmpty() || LOD.SkinWeights.Num() != Vertices->Num()) return;
+
+	auto WeightToColor = [](float W) -> FVector4
+	{
+		W = std::clamp(W, 0.0f, 1.0f);
+		if (W < 0.25f) return FVector4(0.0f, W * 4.0f, 1.0f, 1.0f);
+		if (W < 0.5f)  return FVector4(0.0f, 1.0f, 1.0f - (W - 0.25f) * 4.0f, 1.0f);
+		if (W < 0.75f) return FVector4((W - 0.5f) * 4.0f, 1.0f, 0.0f, 1.0f);
+		return FVector4(1.0f, 1.0f - (W - 0.75f) * 4.0f, 0.0f, 1.0f);
+	};
+
+	auto GetBoneWeight = [&](uint32 VertexIndex) -> float
+	{
+		const FSkinWeight& SW = LOD.SkinWeights[VertexIndex];
+		float Sum = 0.0f;
+		for (int32 k = 0; k < 4; ++k)
+		{
+			if (static_cast<int32>(SW.BoneIndex[k]) == SelectedBoneIndex)
+				Sum += SW.Weight[k];
+		}
+		return Sum;
+	};
+
+	const FMatrix World = MeshComponent->GetWorldMatrix();
+	const int32 NumIndices = LOD.Indices.Num();
+	for (int32 i = 0; i + 2 < NumIndices; i += 3)
+	{
+		const uint32 I0 = LOD.Indices[i];
+		const uint32 I1 = LOD.Indices[i + 1];
+		const uint32 I2 = LOD.Indices[i + 2];
+		const float W0 = GetBoneWeight(I0);
+		const float W1 = GetBoneWeight(I1);
+		const float W2 = GetBoneWeight(I2);
+		const float MaxW = std::max({ W0, W1, W2 });
+		if (MaxW <= 0.01f) continue;
+
+		const FVector P0 = World.TransformPosition((*Vertices)[I0].Position);
+		const FVector P1 = World.TransformPosition((*Vertices)[I1].Position);
+		const FVector P2 = World.TransformPosition((*Vertices)[I2].Position);
+		const FVector4 Col = WeightToColor((W0 + W1 + W2) / 3.0f);
+		LineBatcher.AddLine(P0, P1, Col);
+		LineBatcher.AddLine(P1, P2, Col);
+		LineBatcher.AddLine(P2, P0, Col);
+	}
 }
 
 TUniquePtr<IEditorTab> FSkeletalMeshEditor::CreateTab()
@@ -527,6 +688,7 @@ bool FSkeletalMeshEditor::UpdateBoneGizmo()
 		}
 
 		DragStartBoneTransform = MeshComponent->GetBoneLocalTransform(SelectedBoneIndex);
+		PushPoseUndo();
 		DragParentRotation = GetBoneWorldRotation(ParentIndex);
 		if (ModeTools.GetWidgetMode() == UE::Widget::WM_Translate)
 		{

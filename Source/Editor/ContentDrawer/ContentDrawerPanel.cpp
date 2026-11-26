@@ -15,6 +15,10 @@
 
 #include "Particles/ParticleSystemFile.h"
 #include "Physics/PhysicsAssetFile.h"
+#include "Physics/PhysicalMaterial.h"
+#include "Physics/PhysicalMaterialFile.h"
+#include "Render/Material.h"
+#include "Render/MaterialFile.h"
 #include "Engine/Blueprint.h"
 #include "GameFramework/Actor.h"
 #include "Components/ActorComponent.h"
@@ -1092,6 +1096,7 @@ void FContentDrawerPanel::DrawAssetGrid()
 				OnOpenWidget(Entry.PathString);
 			}
 			else if ((Entry.Path.extension() == ".obj" || FFbxMeshBake::IsBakedPath(Entry.PathString)
+				|| MaterialFile::IsMaterialPath(Entry.PathString) || PhysicalMaterialFile::IsPhysicalMaterialPath(Entry.PathString)
 				|| Entry.Category == EAssetCategory::Animation || Entry.Category == EAssetCategory::BlendSpace
 				|| Entry.Category == EAssetCategory::AnimBlueprint || Entry.Category == EAssetCategory::Particle
 				|| Entry.Category == EAssetCategory::Blueprint || Entry.Category == EAssetCategory::PhysicsAsset
@@ -1238,6 +1243,42 @@ void FContentDrawerPanel::DrawCreateMenu()
 
 	EditorIcons::MenuSection("Create");
 	if (EditorIcons::MenuRow("New Folder", EEditorIcon::Folder)) NewFolder();
+	if (EditorIcons::MenuRow("Material (.mat)", EEditorIcon::File))
+	{
+		for (int32 Idx = 0; Idx < 1000; ++Idx)
+		{
+			const FString Name = Idx == 0 ? "M_NewMaterial.mat" : ("M_NewMaterial" + std::to_string(Idx) + ".mat");
+			const fs::path OutPath = CurrentPath / Name;
+			std::error_code Ec;
+			if (!fs::exists(OutPath, Ec))
+			{
+				UMaterial* Mat = NewObject<UMaterial>();
+				FString Err;
+				if (Mat && UAssetManager::SaveMaterial(*Mat, OutPath.generic_string(), Err) && OnOpenMesh)
+					OnOpenMesh(OutPath.generic_string());
+				break;
+			}
+		}
+		ImGui::CloseCurrentPopup();
+	}
+	if (EditorIcons::MenuRow("Physical Material (.pmat)", EEditorIcon::File))
+	{
+		for (int32 Idx = 0; Idx < 1000; ++Idx)
+		{
+			const FString Name = Idx == 0 ? "PM_NewPhysicalMaterial.pmat" : ("PM_NewPhysicalMaterial" + std::to_string(Idx) + ".pmat");
+			const fs::path OutPath = CurrentPath / Name;
+			std::error_code Ec;
+			if (!fs::exists(OutPath, Ec))
+			{
+				UPhysicalMaterial* PM = NewObject<UPhysicalMaterial>();
+				FString Err;
+				if (PhysicalMaterialFile::Write(OutPath, *PM, Err) && OnOpenMesh)
+					OnOpenMesh(OutPath.generic_string());
+				break;
+			}
+		}
+		ImGui::CloseCurrentPopup();
+	}
 
 	ImGui::Separator();
 	for (const FCreateItem& Item : CreateItems)

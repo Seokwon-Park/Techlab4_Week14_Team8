@@ -42,6 +42,24 @@ public:
 	void ResetPose();
 	void ResetBone(int32 BoneIndex);
 
+	// 본 포즈 Undo/Redo & 본 가중치 히트맵 시각화
+	void PushPoseUndo();
+	bool CanUndoPose() const { return !PoseUndoStack.IsEmpty(); }
+	bool CanRedoPose() const { return !PoseRedoStack.IsEmpty(); }
+	void UndoPose();
+	void RedoPose();
+	bool GetShowBoneWeightHeatmap() const { return bShowBoneWeightHeatmap; }
+	void SetShowBoneWeightHeatmap(bool bShow) { bShowBoneWeightHeatmap = bShow; }
+
+	// Cloth 브러시 일괄 Fill/Clear 및 Undo/Redo
+	void PushClothUndo();
+	bool CanUndoCloth() const { return !ClothUndoStack.IsEmpty(); }
+	bool CanRedoCloth() const { return !ClothRedoStack.IsEmpty(); }
+	void UndoCloth();
+	void RedoCloth();
+	void FillClothPaint();
+	void ClearClothPaint();
+
 	void SetGizmoMode(UE::Widget::EWidgetMode Mode) override;
 	void SetGizmoSpace(ECoordSystem Space);
 	UE::Widget::EWidgetMode  GetGizmoMode() const override { return ModeTools.GetWidgetMode(); }
@@ -92,4 +110,16 @@ private:
 	bool bClothStrokeActive = false;
 	bool bPreviousClothErase = false;
 	FVector2 PreviousClothMouseUV;
+
+	struct FClothPaintSnapshot
+	{
+		TSet<uint32> PinnedVertices;
+		TMap<uint32, float> MaxDistances;
+	};
+	TArray<TArray<FTransform>> PoseUndoStack;
+	TArray<TArray<FTransform>> PoseRedoStack;
+	TArray<FClothPaintSnapshot> ClothUndoStack;
+	TArray<FClothPaintSnapshot> ClothRedoStack;
+	bool bShowBoneWeightHeatmap = false;
+	void DrawBoneWeightHeatmap(FLineBatcher& LineBatcher) const;
 };

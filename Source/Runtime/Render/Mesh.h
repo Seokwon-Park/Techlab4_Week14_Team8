@@ -82,6 +82,9 @@ public:
     const uint16 SortID;
 
     class UBodySetup* GetBodySetup();
+    FString GetBodySetupFilePath() const;
+    bool SaveBodySetup(FString* OutError = nullptr);
+    bool LoadBodySetupIfExists();
 private:
     static inline uint16 NextSortID = 0;
     mutable FLocalVertexFactory VertexFactory; // LOD0

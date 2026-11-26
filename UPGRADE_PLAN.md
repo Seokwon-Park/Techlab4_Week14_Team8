@@ -160,22 +160,22 @@
 ### Phase 5. 에셋 에디터 고도화 (5-A / 5-B 2회 분할 권장)
 
 #### Phase 5-A: Material / PhysicalMaterial / StaticMesh 충돌 편집기
-- [ ] **Material Editor**
+- [x] **Material Editor**
   - 참조: `Kurisu\Source\Editor\MaterialEditor\**`
   - 대상: `Hitori\Source\Editor\MaterialEditor\**` + `EditorManager` / `ContentDrawerPanel` `.mat` 더블클릭 연결
-- [ ] **Physical Material Editor**
+- [x] **Physical Material Editor**
   - 참조: `Kurisu\Source\Editor\PhysicalMaterialEditor\**`
   - 대상: `Hitori\Source\Editor\PhysicalMaterialEditor\**` + `.pmat` 연결
-- [ ] **StaticMesh Editor 충돌 편집기 (`StaticMeshDetailsPanel`)**
+- [x] **StaticMesh Editor 충돌 편집기 (`StaticMeshDetailsPanel`)**
   - 참조: `Kurisu\Source\Editor\StaticMeshEditor\Panels\StaticMeshDetailsPanel.cpp`, `Kurisu\Source\Editor\StaticMeshEditor\StaticMeshEditor.{h,cpp}`, `Kurisu\Source\Runtime\Render\Mesh.{h,cpp}` (`.bodysetup` 저장/복원/Undo)
   - 대상: `Hitori\Source\Editor\StaticMeshEditor\**`, `Hitori\Source\Runtime\Render\Mesh.{h,cpp}` (14주차 LOD 유지하면서 Auto-Fit Box/Sphere/Capsule/Convex & `.bodysetup` 저장 추가)
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드
 
 #### Phase 5-B: PhysicsDebug / Skeletal / AnimTimeline / ParticleCurve UX 보강
 - [x] **PhysicsAssetEditor 3D 셰이딩 디버그 렌더러**
   - 참조: `Kurisu\Source\Editor\PhysicsAssetEditor\PhysicsAssetDebugRenderer.{h,cpp}`, `Kurisu\EngineResources\Shaders\PhysicsDebugShader.hlsl`
   - 대상: `Hitori\Source\Editor\PhysicsAssetEditor\**`
-- [ ] **SkeletalMeshEditor 보강**
+- [x] **SkeletalMeshEditor 보강**
   - 참조: `Kurisu\Source\Editor\SkeletalMeshEditor\SkeletalMeshEditor.{h,cpp}`, `Panels\SkeletalMeshClothingPanel.{h,cpp}`, `Kurisu\Source\Runtime\Render\SceneRenderer.cpp` (본 가중치 히트맵 와이어 오버레이)
   - 대상: `Hitori\Source\Editor\SkeletalMeshEditor\**` (본 포즈 Undo/Redo, 본 가중치 히트맵, Cloth Paint Brush/Fill/Smooth + Undo/Redo)
 - [x] **AnimTimelinePanel 보강**
@@ -184,7 +184,7 @@
 - [x] **ParticleCurveEditor 보강**
   - 참조: `Kurisu\Source\Runtime\Curves\CurveKeyUtils.{h,cpp}`, `Kurisu\Source\Editor\ParticleSystemEditor\Panels\ParticleSystemCurveEditorPanel.{h,cpp}`
   - 대상: `Hitori\Source\Runtime\Curves\CurveKeyUtils.{h,cpp}`(신규), `Hitori\Source\Editor\ParticleEditor\Panels\ParticleEditorPanels.{h,cpp}` (Arrive/Leave 탄젠트 핸들, 다중 키 선택, 트랙 숨김 토글)
-- [ ] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드
+- [x] **검증**: `SlnGenerator.bat --no-pause` + `Debug|x64` 빌드
 
 ---
 
