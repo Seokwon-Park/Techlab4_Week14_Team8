@@ -44,6 +44,8 @@ bool FEditorFileUtils::NewScene(UWorld* World)
 		return false;
 
 	World->ClearWorld();
+	// 빈 레벨도 "로드된 레벨"로 알린다. 그래야 새 씬에 놓은 지형을 다시 열었을 때 같은 경로를 탄다.
+	World->NotifyLevelLoaded(FString());
 
 	CurrentScenePath.clear();
 
@@ -125,6 +127,8 @@ bool FEditorFileUtils::LoadScene(UWorld* World)
 
 	if (!FJsonArchive::LoadWorld(World, FilePath))
 		return false;
+	// 에디터에서도 지형·NavMesh 오버레이가 보이려면 서브시스템이 레벨을 알아야 한다.
+	World->NotifyLevelLoaded(FilePath);
 
 	// 이제 이 파일이 현재 Scene
 	CurrentScenePath = FilePath;

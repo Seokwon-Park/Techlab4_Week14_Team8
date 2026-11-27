@@ -164,6 +164,10 @@ bool UEditorEngine::InitEditor()
 	FWorldContext& InitialWorldContext = CreateNewWorldContext(EWorldType::Editor);
 	InitialWorldContext.SetCurrentWorld(NewEditorWorld);
 	EditorWorld = NewEditorWorld;
+
+	//  에디터가 빈 월드로 시작해도 "빈 레벨이 로드된 상태"로 맞춘다.
+	NewEditorWorld->NotifyLevelLoaded(FString());
+
 	return true;
 }
 
@@ -1773,6 +1777,9 @@ void UEditorEngine::ApplyLevelSnapshot(const TArray<uint8>& Snapshot)
 		HTR_LOG(Error, "Level undo: failed to restore snapshot");
 		return;
 	}
+
+	// 실행 취소는 월드를 통째로 다시 읽는다(ClearWorld → 언로드). 지형·NavMesh를 다시 만들게 알린다.
+	EditorWorld->NotifyLevelLoaded(FEditorFileUtils::CurrentScenePath);
 
 	if (ActorName.empty())
 		return;
