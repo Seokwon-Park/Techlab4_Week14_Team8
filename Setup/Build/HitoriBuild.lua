@@ -582,7 +582,9 @@ function Hitori.WholeArchive(LibNames)
 end
 
 -- 에디터 실행 파일. Opts:
---   Location : .vcxproj 폴더 (기본값: 엔진 솔루션이면 Source/Editor·Source/Game, 아니면 <Root>/Build/Projects)
+--   Location : .vcxproj 폴더 (기본값 Ctx.ProjectsDir = <Root>/Build/Projects)
+--              진입점 파일 몇 개만 담는 프로젝트라 소스 폴더에 두지 않는다. 같은 폴더의 HitoriEditorCore와
+--              "모든 파일 표시"가 겹쳐 보이지 않게 한다.
 --   Modules  : 함께 링크할 사용자 모듈(Hitori.ModuleProject) 이름 목록. /WHOLEARCHIVE로 링크한다.
 --   TargetName: exe 파일 이름 (기본값: 프로젝트 이름)
 --   Files    : 추가로 컴파일할 파일
@@ -592,7 +594,7 @@ function Hitori.EditorApp(Ctx, Name, Opts)
 	local Modules = Opts.Modules or {}
 
 	project (Name)
-		location (Opts.Location or Location(Ctx, "Source/Editor"))
+		location (Opts.Location or Ctx.ProjectsDir)
 		kind     "WindowedApp"
 		Hitori.CommonSettings(Ctx)
 
@@ -646,7 +648,7 @@ function Hitori.GameApp(Ctx, Name, Opts)
 	local Modules = Opts.Modules or {}
 
 	project (Name)
-		location (Opts.Location or Location(Ctx, "Source/Game"))
+		location (Opts.Location or Ctx.ProjectsDir)
 		kind     "WindowedApp"
 		Hitori.CommonSettings(Ctx)
 
