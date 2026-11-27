@@ -32,7 +32,7 @@ public:
 
 	// UE TSoftObjectPtr<ULevelSequence> LevelSequenceAsset 대응
 	UPROPERTY(EditAnywhere)
-	FString LevelSequenceAsset = "Content/Sequences/Demo.sequence";
+	FString LevelSequenceAsset;
 
 	// PlaybackSettings
 	UPROPERTY(EditAnywhere)

@@ -2,7 +2,7 @@
 -- AMyCharacter에 이 스크립트를 붙이면 MyAnimInstance 대신 이 그래프를 쓴다.
 -- 좌클릭 공격(IsAttacking)과 피격(IsHit) 변수는 AMyCharacter가 C++에서 켠다.
 
-local Anim = "Content/FBX/UAL1_Standard/UAL1_Standard_Armature_"
+local Anim = "Content/Models/UAL1_Standard/UAL1_Standard_Armature_"
 
 local graph
 local machine

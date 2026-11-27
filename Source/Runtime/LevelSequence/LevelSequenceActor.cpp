@@ -45,6 +45,7 @@ void ALevelSequenceActor::ApplyPlaybackSettings(const FMovieSceneSequencePlaybac
 bool ALevelSequenceActor::InitializePlayer()
 {
 	ReleasePlayer();
+	if (LevelSequenceAsset.empty()) return false;   // 에셋을 지정하지 않은 액터
 	LevelSequence = ULevelSequence::LoadLevelSequence(LevelSequenceAsset);
 	if (!LevelSequence) return false;
 	SequencePlayer = NewObject<ULevelSequencePlayer>(this);

@@ -119,7 +119,7 @@ bool UBenchmarkEngine::Init()
 	FSplashScreen::SetProgress(0.9f);
 
 	// 실행 인자로 씬 경로를 받으면 그 씬을, 없으면 기본 씬을 연다. 예: Benchmark.exe Content/Scenes/Bocchi.scene
-	FString ScenePath = "Content/Scenes/Default.scene";
+	FString ScenePath = "Content/Scenes/Empty.scene";
 	if (__argc > 1 && __argv[1] && __argv[1][0] != '\0')
 		ScenePath = __argv[1];
 	// 카메라 위치·회전·FOV·클립은 씬 파일의 PerspectiveCamera에서 읽는다.
