@@ -51,5 +51,8 @@ float4 mainPS(PS_INPUT input) : SV_TARGET
     float4 color = SpriteTexture.Sample(SpriteSampler, input.uv);
     color.rgb *= Tint.rgb;
     color.a *= SpriteAlpha;
+    // UE 에디터 스프라이트처럼 마스크로 다룬다: 거의 투명한 픽셀은 버리고, 남은 픽셀은 깊이를 쓴다.
+    // 그래야 뒤에 그려지는 에디터 그리드·라인이 아이콘 위로 비쳐 보이지 않는다.
+    clip(color.a - 0.25f);
     return color;
 }

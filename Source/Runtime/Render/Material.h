@@ -58,7 +58,7 @@ struct FStaticMeshMaterialParams
 	FVector4 BaseColor;
 	FVector2 UVOffset;
 	FVector2 TextureFlags; // 패스에 따라 노멀맵 정보 또는 색 공간 변환 플래그
-	FVector4 MaskParams;   // x: Masked 알파 기준값(0이면 끔). StaticMeshGBufferShader.hlsl의 MaterialParams와 같은 순서
+	FVector4 MaskParams;   // x: Masked 알파 기준값(0이면 끔), y: Unlit이면 1. StaticMeshGBufferShader.hlsl의 MaterialParams와 같은 순서
 };
 static_assert(sizeof(FStaticMeshMaterialParams) == 48);
 

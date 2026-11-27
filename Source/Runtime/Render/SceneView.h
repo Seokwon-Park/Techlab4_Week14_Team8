@@ -67,6 +67,7 @@ struct FSceneView
 		const float ScaleX = ProjectionMatrix.M[1][0];
 		const float ScaleY = ProjectionMatrix.M[2][1];
 		Context.ProjectionScaleSquared = std::max(ScaleX * ScaleX, ScaleY * ScaleY);
+		Context.ProjectionScaleY = std::abs(ScaleY);
 		Context.Prepare();
 		return Context;
 	}

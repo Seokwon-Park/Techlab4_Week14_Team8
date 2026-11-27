@@ -1597,7 +1597,8 @@ void FSceneRenderer::GatherRenderPackets(FScene& Scene, FSceneRenderData& Data,
 					if (!Proxy->IsVisible()) continue;
 
 					UStaticMesh* Mesh = Proxy->GetMesh();
-					if (!Mesh)
+					// 뷰마다 크기가 바뀌는 에디터 아이콘 메시도 고정 행렬을 못 쓰므로 느린 경로로 보낸다
+					if (!Mesh || Proxy->bScreenSizeScaledIcon)
 					{
 						Out.SlowPathIndices.Add(VisibleIndex);     // 컴포넌트를 건드리는 경로는 메인이 나중에
 						continue;
@@ -1685,7 +1686,11 @@ void FSceneRenderer::GatherRenderPackets(FScene& Scene, FSceneRenderData& Data,
 
 				// 프록시 캐시가 없는 스태틱 메시는 기존처럼 LOD를 골라 제출하고, 그 외는 컴포넌트에 맡긴다.
 				UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Primitive);
-				if (StaticMeshComponent && StaticMeshComponent->GetStaticMesh())
+				if (StaticMeshComponent && Proxy->bScreenSizeScaledIcon)
+				{
+					StaticMeshComponent->SubmitScreenSizedIcon(RenderQueue, View);
+				}
+				else if (StaticMeshComponent && StaticMeshComponent->GetStaticMesh())
 				{
 					const uint32 LOD = SelectedLODs[VisibleIndex];
 					StaticMeshComponent->SubmitToRenderQueue(RenderQueue, LOD);

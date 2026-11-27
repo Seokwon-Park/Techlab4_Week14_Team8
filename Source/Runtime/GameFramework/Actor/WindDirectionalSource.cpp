@@ -17,7 +17,7 @@ AWindDirectionalSource::AWindDirectionalSource()
 	Arrow->SetStaticMesh(UAssetManager::GetAssetByPath<UStaticMesh>("Arrow"));
 	Arrow->SetMaterial(0, UAssetManager::GetAssetByPath<UMaterial>("EditorArrowMaterial"));
 	Arrow->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
-	Arrow->SetRelativeScale3D(FVector(0.3f, 0.3f, 0.5f));
+	Arrow->SetRelativeScale3D(FVector(0.5f, 0.5f, 1.6f));   // 길이 2.4: 아이콘(반지름 1) 밖으로 1.4만큼 나온다
 
 	// 레벨 편집용 표시와 게임플레이의 분리
 	Arrow->SetEditorIcon(true);

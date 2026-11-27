@@ -550,7 +550,8 @@ void UAssetManager::CreateBillboardMaterial()
 	BillboardMat->PSOType = EPSOType::Billboard;
 	BillboardMat->Textures.Add(GetAssetByPath<UTexture2D>("WhiteTexture"));
 	BillboardMat->BlendState = EBlendState::AlphaBlend;
-	BillboardMat->DepthStencilState = EDepthStencilState::ReadOnly;
+	// 셰이더가 투명한 픽셀을 clip하므로 깊이를 쓴다 (에디터 그리드가 아이콘 위로 그려지지 않게).
+	BillboardMat->DepthStencilState = EDepthStencilState::Default;
 	BillboardMat->SamplerState = ESamplerState::LinearClamp;
 	BillboardMat->ParamLayout = EMaterialParamLayout::ParticleSubUV;
 	RegisterAsset("BillboardMaterial", BillboardMat);
@@ -573,6 +574,8 @@ void UAssetManager::CreateEditorArrowMaterial() {
 	UMaterial* BaseMaterial{ GetAssetByPath<UMaterial>("DefaultMaterial") };
 	UMaterial* ArrowMaterial{ UMaterial::CreateInstance(BaseMaterial) };
 	ArrowMaterial->BaseColor = FVector4{ 1.0f, 1.0f, 1.0f, 1.0f };
+	// UE 라이트 방향 화살표처럼 조명을 받지 않는다 (빛 반대쪽에서 봐도 검게 되지 않게)
+	ArrowMaterial->ShadingModel = EMaterialShadingModel::Unlit;
 	RegisterAsset("EditorArrowMaterial", ArrowMaterial);
 }
 

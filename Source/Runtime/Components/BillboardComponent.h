@@ -57,6 +57,9 @@ public:
 	bool IsEditorIcon() const { return bEditorIcon; }
 	void SetEditorIcon(bool IsEditorIcon) { bEditorIcon = IsEditorIcon; }
 	void SetIconSize(float S) { IconSize = S; }
+	// UE UBillboardComponent의 bIsScreenSizeScaled / ScreenSize와 같다. 켜져 있으면 가까이 가도
+	// 화면 세로 길이의 ScreenSize 비율보다 커지지 않게 줄인다 (멀리서는 월드 크기 그대로).
+	void SetScreenSizeScaled(bool bEnable, float InScreenSize = 0.08f) { bIsScreenSizeScaled = bEnable; ScreenSize = InScreenSize; }
 
 protected:
 	UMaterial* Material = nullptr;
@@ -66,5 +69,12 @@ private:
 	const ULightComponentBase* TintSource = nullptr;
 	bool bEditorIcon = false;
 	float IconSize = 1.0f;
+	bool bIsScreenSizeScaled = true;   // 에디터 아이콘일 때만 쓴다
+	float ScreenSize = 0.08f;          // 화면 세로 대비 최대 비율
+
+	// 에디터 아이콘의 가로세로 길이. 화면 크기 제한을 넘으면 줄인다.
+	// ProjectionScaleY는 투영 행렬의 세로 배율 (0이면 제한하지 않는다).
+	void GetIconExtent(const FVector& WorldPos, const FVector& CameraPos, const FVector& CameraForward,
+		bool bOrthographic, float ProjectionScaleY, float& OutWidth, float& OutHeight) const;
 
 };

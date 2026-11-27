@@ -38,6 +38,8 @@ void FPrimitiveSceneProxy::UpdateCommonFlags()
     bCastsShadow = Component->bCastShadow;
     bReceiveShadow = Component->bReceiveShadow;
 	bReceivesDecals = Component->bReceivesDecals;
+	const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
+	bScreenSizeScaledIcon = StaticMeshComponent && StaticMeshComponent->IsScreenSizeScaledIcon();
 }
 
 void FPrimitiveSceneProxy::GetDynamicMeshElements(FRenderQueue& Queue, const FViewContext& View)

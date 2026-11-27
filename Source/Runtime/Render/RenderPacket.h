@@ -44,6 +44,27 @@ struct FRenderPacket
 	int32 DebugWeightBone = -1; // 웨이트 히트맵 본 번호. -1이면 끔
 };
 
+// UE FSpriteSceneProxy(bIsScreenSizeScaled)와 같은 화면 크기 제한. 월드 길이 RefSize인 에디터 아이콘이
+// 화면 세로의 ScreenSize 비율보다 크게 보이면 그 비율에 맞게 줄일 배율(0~1]을 돌려준다.
+// ProjectionScaleY는 투영 행렬의 세로 배율 (원근: cot(FOV/2), 직교: 2 / 화면 세로 길이). 0 이하면 제한하지 않는다.
+inline float ComputeScreenSizeClampScale(const FVector& WorldPos, const FVector& CameraPos, const FVector& CameraForward,
+	bool bOrthographic, float ProjectionScaleY, float RefSize, float ScreenSize)
+{
+	if (ProjectionScaleY <= 0.0f || RefSize <= 0.0f || ScreenSize <= 0.0f)
+		return 1.0f;
+	// 화면 세로에서 차지하는 비율 = 길이 * 세로배율 / (2 * 깊이)  (직교는 깊이 1)
+	float Depth = 1.0f;
+	if (!bOrthographic)
+	{
+		const FVector Forward = CameraForward.Length() > 1e-6f ? CameraForward.Normalized() : (WorldPos - CameraPos).Normalized();
+		Depth = (WorldPos - CameraPos).Dot(Forward);
+		if (Depth <= 1e-3f)
+			return 1.0f;   // 카메라 뒤나 바로 앞: 어차피 잘린다
+	}
+	const float MaxSize = 2.0f * ScreenSize * Depth / ProjectionScaleY;
+	return RefSize > MaxSize ? MaxSize / RefSize : 1.0f;
+}
+
 struct FViewContext
 {
 	int32 ViewIndex = 0;
@@ -52,6 +73,9 @@ struct FViewContext
 	FVector CameraPosition = FVector::ZeroVector;
 	FVector CameraForward = FVector::ZeroVector;
 	float ProjectionScaleSquared = 0.0f;
+	// 투영 행렬의 세로 배율 (원근: cot(FOV/2), 직교: 2 / 화면 세로 길이). 0이면 모른다.
+	// 화면 크기 기준으로 줄어드는 에디터 아이콘(UBillboardComponent)이 쓴다.
+	float ProjectionScaleY = 0.0f;
 	float NearZ = 0.0f;
 	bool bOrthographic = false;
 	bool bGameView = false;

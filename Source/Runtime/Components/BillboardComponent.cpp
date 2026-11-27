@@ -86,9 +86,9 @@ void UBillboardComponent::SubmitToRenderQueue(FRenderQueue& RenderQueue, const F
 	}
 
 	const FVector WorldPos = GetWorldLocation();
-	const FVector WorldScale = GetWorldScale3D();
-	const float Width = bEditorIcon ? IconSize : WorldScale.Y;
-	const float Height = bEditorIcon ? IconSize : WorldScale.Z;
+	float Width = 0.0f, Height = 0.0f;
+	GetIconExtent(WorldPos, ViewContext.CameraPosition, ViewContext.CameraForward,
+		ViewContext.bOrthographic, ViewContext.ProjectionScaleY, Width, Height);
 	const FMatrix BillboardWorldMatrix = ViewContext.BuildBillboardMatrix(WorldPos, Width, Height);
 	const uint32 PacketIndex = RenderQueue.Num();
 	SubmitToRenderQueue(RenderQueue, BillboardWorldMatrix);
@@ -123,9 +123,6 @@ void UBillboardComponent::SubmitToRenderQueue(FRenderQueue& RenderQueue, const F
 void UBillboardComponent::GetWorldTransformedMatrix(FMatrix* OutWorldMatrix) const
 {
 	const FVector WorldPos = GetWorldLocation();
-	const FVector WorldScale = GetWorldScale3D();
-	const float Width = bEditorIcon ? IconSize : WorldScale.Y;
-	const float Height = bEditorIcon ? IconSize : WorldScale.Z;
 
 	FViewContext View;
 	if (UCameraComponent* Camera = FindTraceCamera(GetOwner() ? GetOwner()->GetWorld() : nullptr))
@@ -133,12 +130,33 @@ void UBillboardComponent::GetWorldTransformedMatrix(FMatrix* OutWorldMatrix) con
 		View.CameraPosition = Camera->GetWorldLocation();
 		View.CameraForward = Camera->GetWorldRotation().Quaternion().GetForwardVector();
 		View.bOrthographic = Camera->GetIsOrthogonal();
+		// 렌더(FSceneView::ToViewContext)와 같은 성분을 써서 클릭 면이 그려진 크기와 같게 한다
+		View.ProjectionScaleY = std::abs(Camera->GetProjectionMatrix().M[2][1]);
 	}
 	else
 	{
 		View.CameraPosition = WorldPos - FVector(1.0f, 0.0f, 0.0f); // 카메라가 없으면 -X 쪽에서 보는 것으로 둔다
 	}
+	float Width = 0.0f, Height = 0.0f;
+	GetIconExtent(WorldPos, View.CameraPosition, View.CameraForward, View.bOrthographic, View.ProjectionScaleY, Width, Height);
 	*OutWorldMatrix = View.BuildBillboardMatrix(WorldPos, Width, Height);
+}
+
+// UE FSpriteSceneProxy와 같은 방식: 아이콘이 화면 세로의 ScreenSize 비율보다 크게 보일 거리부터는
+// 그 비율에 맞게 줄인다. 그래서 멀리서는 월드 크기로 작아지고, 가까이 가도 화면을 덮지 않는다.
+void UBillboardComponent::GetIconExtent(const FVector& WorldPos, const FVector& CameraPos, const FVector& CameraForward,
+	bool bOrthographic, float ProjectionScaleY, float& OutWidth, float& OutHeight) const
+{
+	const FVector WorldScale = GetWorldScale3D();
+	OutWidth = bEditorIcon ? IconSize : WorldScale.Y;
+	OutHeight = bEditorIcon ? IconSize : WorldScale.Z;
+	if (!bEditorIcon || !bIsScreenSizeScaled)
+		return;
+
+	const float Scale = ComputeScreenSizeClampScale(WorldPos, CameraPos, CameraForward, bOrthographic, ProjectionScaleY,
+		std::max(OutWidth, OutHeight), ScreenSize);
+	OutWidth *= Scale;
+	OutHeight *= Scale;
 }
 
 void UBillboardComponent::Serialize(FStructuredArchive::FRecord Record)

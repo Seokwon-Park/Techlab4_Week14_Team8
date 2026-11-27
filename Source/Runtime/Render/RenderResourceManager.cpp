@@ -37,7 +37,7 @@ constexpr FPipelineTableEntry PipelineTable[] =
 	{ EPSOType::DeferredPointLighting,  HITORI_ENGINE_SHADER("DeferredLightingShader.hlsl"),    EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Additive,     EDepthStencilState::Disabled },
 	{ EPSOType::ToneMap,                HITORI_ENGINE_SHADER("ToneMapShader.hlsl"),              EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Disabled },
 	{ EPSOType::Reserved_13,            nullptr,                                            EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::Opaque,       EDepthStencilState::Default },
-	{ EPSOType::Billboard,              HITORI_ENGINE_SHADER("BillboardShader.hlsl"),            EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend,   EDepthStencilState::ReadOnly },
+	{ EPSOType::Billboard,              HITORI_ENGINE_SHADER("BillboardShader.hlsl"),            EPrimitiveTopology::TriangleList, ERasterizerState::SolidNone, EBlendState::AlphaBlend,   EDepthStencilState::Default },
 	{ EPSOType::StaticMesh_Forward,		HITORI_ENGINE_SHADER("UberLit.hlsl"),			EPrimitiveTopology::TriangleList,			ERasterizerState::SolidBack, EBlendState::Opaque, EDepthStencilState::Default },
 	{ EPSOType::StaticMesh_WorldNormal, HITORI_ENGINE_SHADER("UberLit.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::Opaque, EDepthStencilState::Default },
 	{ EPSOType::StaticMesh_DepthOnly, HITORI_ENGINE_SHADER("DepthPrepass.hlsl"), EPrimitiveTopology::TriangleList, ERasterizerState::SolidBack, EBlendState::NoColorWrite, EDepthStencilState::Default },
