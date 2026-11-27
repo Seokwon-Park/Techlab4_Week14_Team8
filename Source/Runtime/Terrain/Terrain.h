@@ -23,6 +23,8 @@ public:
 	// 원본 16bit 높이. Heights[Coords.SampleIndex(X, Y)]
 	const TArray<uint16>& GetHeights() const { return Heights; }
 
+	FVector GetNormal(int32 X, int32 Y) const { return Coordinates.ComputeNormal(Heights, X, Y); }
+
 	// D(NavMesh) 입력. LOD 0 정점(월드 좌표)과 삼각형 인덱스. 대각선 방향은 계약 1 규칙 6.
 	// TODO(A): 구현 필요 (지금은 빈 배열을 돌려준다)
 	void GetLOD0Geometry(TArray<FVector>& OutVertices, TArray<uint32>& OutIndices) const;
