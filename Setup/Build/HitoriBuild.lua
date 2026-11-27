@@ -126,6 +126,8 @@ function Hitori.WorkspaceSettings()
 	architecture "x64"
 	configurations (Hitori.Configurations)
 	multiprocessorcompile "On"
+	-- PhysX 사전 빌드 정적 라이브러리(.lib)에 동반 PDB가 없어 발생하는 LNK4099 경고 억제
+	linkoptions { "/IGNORE:4099" }
 end
 
 

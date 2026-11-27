@@ -1,5 +1,0 @@
-refactor: Phase 2 FVertexFactory 도입과 UMaterial BlendMode/.mat 에셋화
-
-- 렌더 패킷·드로우 배치의 정점/인덱스/본/인스턴스 버퍼를 FVertexFactory(Local/GpuSkin/MeshParticle/Sprite/Trail)로 통합하고, 셰이더 변형은 ResolveShader 한 곳에서 고르도록 정리
-- 메시 셰이더 6종(UberLit·반투명·그림자·데칼·아웃라인·GBuffer)이 VertexFactory.hlsli로 정점을 받도록 변경 (매크로·셰이더 키는 기존과 동일)
-- UMaterial에 Domain/BlendMode(Masked·Additive)/ShadingModel 추가, Masked 알파 클립(Forward·프리패스·GBuffer), StaticMesh_Additive PSO(끝에 추가), .mat 로드/저장. 기존 씬의 PSOType/BlendState는 그대로 읽힘
