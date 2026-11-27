@@ -1424,6 +1424,74 @@ namespace
 			return bChanged;
 		}
 
+		if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(&Property); ArrayProperty && ArrayProperty->Inner)
+		{
+			// TArray: UE5처럼 "N Array elements" + 추가/비우기 버튼, 그 아래 원소마다 Index [i] 줄을 그린다.
+			// 원소를 넣고 빼면 원소 주소가 바뀌므로 그리는 동안은 기록만 하고 다 그린 뒤에 바꾼다.
+			const FProperty& Inner = *ArrayProperty->Inner;
+			const int32 Count = ArrayProperty->Num(ValuePtr);
+			bool bChanged = false;
+
+			ImGui::PushID(Label);
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextDisabled("%d Array element%s", Count, Count == 1 ? "" : "s");
+			ImGui::SameLine();
+			if (ImGui::SmallButton("+"))
+			{
+				ArrayProperty->Resize(ValuePtr, Count + 1);
+				bChanged = true;
+			}
+			ImGui::SetItemTooltip("Add Element");
+			ImGui::SameLine();
+			ImGui::BeginDisabled(Count == 0);
+			if (ImGui::SmallButton("Clear"))
+			{
+				ArrayProperty->Resize(ValuePtr, 0);
+				bChanged = true;
+			}
+			ImGui::EndDisabled();
+			ImGui::SetItemTooltip("Remove All Elements");
+
+			enum class EElementAction { None, Insert, Duplicate, Delete };
+			EElementAction Action = EElementAction::None;
+			int32 ActionIndex = INDEX_NONE;
+
+			const int32 DrawCount = bChanged ? 0 : Count;   // 이번 프레임에 개수를 바꿨으면 원소는 다음 프레임에 그린다
+			if (DrawCount > 0)
+			{
+				ImGui::Indent();
+				for (int32 Index = 0; Index < DrawCount; ++Index)
+				{
+					ImGui::PushID(Index);
+					if (ImGui::SmallButton("..."))
+						ImGui::OpenPopup("ElementMenu");
+					if (ImGui::BeginPopup("ElementMenu"))
+					{
+						if (ImGui::MenuItem("Insert")) { Action = EElementAction::Insert; ActionIndex = Index; }
+						if (ImGui::MenuItem("Duplicate")) { Action = EElementAction::Duplicate; ActionIndex = Index; }
+						if (ImGui::MenuItem("Delete")) { Action = EElementAction::Delete; ActionIndex = Index; }
+						ImGui::EndPopup();
+					}
+					ImGui::SameLine();
+					const FString ElementLabel = "Index [" + std::to_string(Index) + "]";
+					// Inner는 Offset 0이라 원소 주소를 컨테이너로 넘기면 된다.
+					bChanged |= DrawPropertyRow(Object, ArrayProperty->GetElementPtr(ValuePtr, Index), Inner, CustomFont, ElementLabel.c_str());
+					ImGui::PopID();
+				}
+				ImGui::Unindent();
+			}
+
+			switch (Action)
+			{
+			case EElementAction::Insert:    ArrayProperty->Ops->InsertDefault(ValuePtr, ActionIndex); bChanged = true; break;
+			case EElementAction::Duplicate: ArrayProperty->Ops->Duplicate(ValuePtr, ActionIndex);     bChanged = true; break;
+			case EElementAction::Delete:    ArrayProperty->Ops->RemoveAt(ValuePtr, ActionIndex);      bChanged = true; break;
+			default: break;
+			}
+			ImGui::PopID();
+			return bChanged;
+		}
+
 		ImGui::TextDisabled("(Unsupported %s)", Property.GetClass()->GetName());
 		return false;
 	}
@@ -1442,7 +1510,7 @@ namespace
 		const float AvailableWidth = ImGui::GetContentRegionAvail().x;
 		const float LabelWidth = AvailableWidth * 0.45f;
 
-		const bool bInline = !Property.IsA<FTransformProperty>() && !Property.IsA<FStructProperty>() && AvailableWidth >= 260.0f && ImGui::CalcTextSize(DisplayName).x < LabelWidth;
+		const bool bInline = !Property.IsA<FTransformProperty>() && !Property.IsA<FStructProperty>() && !Property.IsA<FArrayProperty>() && AvailableWidth >= 260.0f && ImGui::CalcTextSize(DisplayName).x < LabelWidth;
 
 		ImGui::AlignTextToFramePadding();
 		ImGui::TextWrapped("%s", DisplayName);
@@ -1627,6 +1695,19 @@ namespace
 			}
 			return true;
 		}
+		if (const FArrayProperty* P = CastField<FArrayProperty>(&Property); P && P->Inner)
+		{
+			// TArray는 안쪽이 힙 포인터라 바이트로 비교하면 안 된다. 개수와 원소를 비교한다.
+			const int32 Count = P->Num(PtrA);
+			if (Count != P->Num(PtrB))
+				return false;
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				if (!ArePropertyValuesEqual(*P->Inner, P->GetElementPtr(PtrA, Index), P->GetElementPtr(PtrB, Index)))
+					return false;
+			}
+			return true;
+		}
 		return Property.ElementSize > 0 ? (std::memcmp(PtrA, PtrB, Property.ElementSize) == 0) : true;
 	}
 
@@ -1662,6 +1743,11 @@ namespace
 		{
 			for (const FProperty* Member : P->Struct->GetProperties())
 				CopyPropertyValue(*Member, SrcPtr, DstPtr);
+		}
+		else if (const FArrayProperty* P = CastField<FArrayProperty>(&Property); P && P->Ops)
+		{
+			// memcpy하면 두 TArray가 같은 힙 버퍼를 가리켜 이중 해제된다. TArray 대입으로 복사한다.
+			P->Ops->Copy(DstPtr, SrcPtr);
 		}
 		else if (Property.ElementSize > 0)
 		{

@@ -38,6 +38,16 @@ public:
 	template <typename T, typename TPropertyClass = typename TPropertyTypeFor<T>::Type>
 	TPropertyClass* AddProperty(const FString& InName, uint32 InOffset, uint32 InFlags = CPF_Default)
 	{
+		TPropertyClass* Property = CreateProperty<T, TPropertyClass>(InName, InOffset, InFlags);
+		if (Property)
+			Properties.Add(Property);
+		return Property;
+	}
+
+	// 프로퍼티 객체만 만든다. 목록에는 넣지 않는다. FArrayProperty의 Inner(원소 프로퍼티)도 이걸로 만든다.
+	template <typename T, typename TPropertyClass = typename TPropertyTypeFor<T>::Type>
+	TPropertyClass* CreateProperty(const FString& InName, uint32 InOffset, uint32 InFlags)
+	{
 		if constexpr (std::is_void_v<TPropertyClass>)
 		{
 			static_assert(sizeof(T) == 0, "This type cannot be a UPROPERTY. See TPropertyTypeFor in Property.h.");
@@ -75,8 +85,15 @@ public:
 				Property->Struct = T::StaticStruct();
 				Property->ElementSize = sizeof(T);
 			}
+			else if constexpr (std::is_same_v<TPropertyClass, FArrayProperty>)
+			{
+				// TArray<Elem>: 원소 프로퍼티는 원소 주소를 컨테이너로 받으므로 Offset 0이다. TArray<TArray<...>>도 여기서 재귀로 풀린다.
+				using ElementType = typename T::ElementType;
+				Property->Inner = CreateProperty<ElementType>(InName, 0, InFlags);
+				Property->Ops = &GetArrayOps<ElementType>();
+				Property->ElementSize = sizeof(T);
+			}
 
-			Properties.Add(Property);
 			return Property;
 		}
 	}

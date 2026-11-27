@@ -1,12 +1,15 @@
 #include "EnginePCH.h"
 #include "Editor/BlueprintEditor/BlueprintGraphPanel.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "Components/ActorComponent.h"
 #include "Components/SceneComponent.h"
 #include "Editor/EditorUI/EditorIcons.h"
+#include "Engine/Blueprint.h"
 #include "GameFramework/Actor.h"
+#include "UObject/UObjectHash.h"
 
 namespace NodeEditor = ax::NodeEditor;
 
@@ -35,6 +38,8 @@ namespace
 			return IM_COL32(20, 70, 110, 220);
 		if (!Def)
 			return IM_COL32(80, 80, 80, 220);
+		if (Def->Category == "Casting")
+			return IM_COL32(20, 110, 110, 230);   // UE의 Cast 노드처럼 청록색
 		switch (Def->Kind)
 		{
 		case EBPNodeKind::Event: return IM_COL32(140, 24, 24, 230);
@@ -583,12 +588,12 @@ void FBlueprintGraphPanel::DrawCreateMenu(FBPGraph& Graph)
 	// 카테고리 순서는 라이브러리에 넣은 순서
 	TArray<FString> Categories;
 	for (const FBPNodeDef* Def : FBlueprintNodeLibrary::GetAll())
-		if (Def->Type != "GetComponent" && Def->Category != "Functions" && Categories.Find(Def->Category) == INDEX_NONE)
+		if (Def->Type != "GetComponent" && Def->Category != "Functions" && Def->Category != "Casting" && Categories.Find(Def->Category) == INDEX_NONE)
 			Categories.Add(Def->Category);
 
 	auto Matches = [&](const FBPNodeDef& Def)
 	{
-		if (Def.Type == "GetComponent" || Def.Type == "CallFunction" || Def.Type == "CallPureFunction" || !AllowedInGraph(Def, Kind))
+		if (Def.Type == "GetComponent" || Def.Type == "CallFunction" || Def.Type == "CallPureFunction" || Def.Category == "Casting" || !AllowedInGraph(Def, Kind))
 			return false;
 		if (Def.bUnique && GraphHasType(Graph, Def.Type))
 			return false;
@@ -692,6 +697,54 @@ void FBlueprintGraphPanel::DrawCreateMenu(FBPGraph& Graph)
 					}
 					ImGui::SetItemTooltip("%s::%s%s", Class->Name.c_str(), Entry.Function->Name.c_str(),
 						Entry.Type == "CallPureFunction" ? " (pure)" : "");
+					ImGui::PopID();
+				}
+				ImGui::TreePop();
+			}
+		}
+	}
+
+	// Cast To <클래스>: 액터·컴포넌트 클래스(C++과 BP 모두). 노드는 Object 입력과 Object 출력을 가지므로
+	// 선에서 끌어 왔다면 Object 핀일 때만 보인다.
+	if (!FromPin || FromPin->Type == EBPPinType::Object)
+	{
+		TArray<UClass*> CastClasses;
+		GetDerivedClasses(UObject::StaticClass(), CastClasses, true);
+		TArray<UClass*> Shown;
+		for (UClass* Class : CastClasses)
+		{
+			if (!Class || !(Class->IsChildOf(AActor::StaticClass()) || Class->IsChildOf(UActorComponent::StaticClass())))
+				continue;
+			const FString Title = "Cast To " + FBlueprintNodeLibrary::ToDisplayName(Class->Name, true);
+			if (bSearching && !EditorIcons::MatchesFilter(Title.c_str(), CreateSearch) && !EditorIcons::MatchesFilter(Class->Name.c_str(), CreateSearch))
+				continue;
+			Shown.Add(Class);
+		}
+		std::sort(Shown.begin(), Shown.end(), [](const UClass* A, const UClass* B) { return A->Name < B->Name; });
+
+		if (!Shown.IsEmpty())
+		{
+			if (bSearching)
+				ImGui::SetNextItemOpen(true);
+			if (ImGui::TreeNodeEx("Casting", ImGuiTreeNodeFlags_SpanAvailWidth))
+			{
+				for (UClass* Class : Shown)
+				{
+					ImGui::PushID(Class);
+					const FString Title = "Cast To " + FBlueprintNodeLibrary::ToDisplayName(Class->Name, true);
+					if (ImGui::Selectable(Title.c_str()))
+					{
+						SpawnNode(Graph, "CastTo", Class->Name);
+						ImGui::CloseCurrentPopup();
+					}
+					// 우클릭: 실행 핀 없는 순수 캐스트로 놓는다 (UE의 Convert to pure cast)
+					if (ImGui::IsItemClicked(ImGuiMouseButton_Right))
+					{
+						SpawnNode(Graph, "CastToPure", Class->Name);
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::SetItemTooltip("%s%s\nRight-click: pure cast (no exec pins)", Class->Name.c_str(),
+						FBlueprint::IsBlueprintClass(Class) ? " (Blueprint)" : "");
 					ImGui::PopID();
 				}
 				ImGui::TreePop();

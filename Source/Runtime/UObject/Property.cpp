@@ -57,3 +57,20 @@ void FStructProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value)
 {
     Struct->SerializeTaggedProperties(Slot, Value);
 }
+
+// ---- FArrayProperty ----
+
+void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value) const
+{
+    if (!Inner || !Ops)
+        return;
+
+    int32 Count = Num(Value);
+    FStructuredArchive::FArray Array = Slot.EnterArray(Count);
+    // 불러올 때는 파일의 개수로 맞춘 뒤 원소마다 Inner가 읽는다. 원소 주소는 Resize 다음에 구해야 한다.
+    if (Slot.GetUnderlyingArchive().IsLoading())
+        Resize(Value, Count);
+
+    for (int32 Index = 0; Index < Count; ++Index)
+        Inner->SerializeItem(Array.EnterElement(), GetElementPtr(Value, Index));
+}

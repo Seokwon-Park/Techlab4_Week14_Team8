@@ -415,6 +415,30 @@ namespace
 		return Function && Function->HasAnyFlags(FUNC_BlueprintCallable | FUNC_BlueprintPure) ? Function : nullptr;
 	}
 
+	// ---- Cast To ----
+
+	bool IsCastNode(const FString& Type) { return Type == "CastTo" || Type == "CastToPure"; }
+
+	// "ACharacter" -> "As Character". 클래스가 아직 로드되지 않은 BP여도 이름만으로 만든다.
+	FString CastOutputPinName(const FString& ClassName)
+	{
+		return "As " + FBlueprintNodeLibrary::ToDisplayName(ClassName, true);
+	}
+
+	// Object가 Param 클래스(또는 그 자식)면 그대로, 아니면 nullptr. 클래스는 실행할 때 찾는다
+	// (그래프를 불러오는 시점에는 대상 BP 클래스가 아직 등록되지 않았을 수 있다).
+	UObject* CastObject(FBlueprintExecContext& Ctx, const FBPNode& Node)
+	{
+		UObject* Object = Ctx.GetObject(Node, "Object");
+		UClass* Class = FindClass(Node.Param);
+		if (!Class)
+		{
+			HTR_LOG(Warning, "Blueprint graph: Cast To class {} not found", Node.Param);
+			return nullptr;
+		}
+		return Object && Object->IsA(Class) ? Object : nullptr;
+	}
+
 	// 함수 인자 타입 -> 핀 타입. int32는 Float 핀으로 받아 반올림하고, FRotator는 (Roll, Pitch, Yaw) 벡터 핀으로 받는다.
 	EBPPinType ToPinType(EScriptValueType Type)
 	{
@@ -756,6 +780,30 @@ namespace
 					return FBPValue::MakeObject(Self ? Self->FindComponentByName(FName(Node.Param)) : nullptr);
 				};
 			}
+			// ---- 형 변환 (UE K2Node_DynamicCast). Param = 대상 클래스 이름, 핀은 GetPinDefs가 만든다 ----
+			{
+				FBPNodeDef& Def = Add("CastTo", "Cast To", "Casting", EBPNodeKind::Function, {},
+					"Runs Cast Succeeded if Object is of the class (or a child of it), otherwise Cast Failed");
+				Def.Execute = [](FBlueprintExecContext& Ctx, const FBPNode& Node)
+				{
+					UObject* Result = CastObject(Ctx, Node);
+					Ctx.SetOutput(Node, CastOutputPinName(Node.Param), FBPValue::MakeObject(Result));
+					Ctx.Continue(Node, Result ? "Cast Succeeded" : "Cast Failed");
+				};
+			}
+			{
+				// UE의 "Convert to pure cast". 실행 핀 대신 Success 값을 낸다.
+				FBPNodeDef& Def = Add("CastToPure", "Cast To (Pure)", "Casting", EBPNodeKind::Pure, {},
+					"Outputs the object as the class, or None. Success tells whether the cast worked");
+				Def.Evaluate = [](FBlueprintExecContext& Ctx, const FBPNode& Node, const FBPPin& Pin)
+				{
+					UObject* Result = CastObject(Ctx, Node);
+					if (Pin.Type == EBPPinType::Bool)
+						return FBPValue::MakeBool(Result != nullptr);
+					return FBPValue::MakeObject(Result);
+				};
+			}
+
 			Pure("GetWorldLocation", "Get World Location", "Components", { TargetPin() }, T::Vector,
 				[](FBlueprintExecContext& Ctx, const FBPNode& Node)
 				{
@@ -935,6 +983,28 @@ bool FBlueprintNodeLibrary::GetPinDefs(const FString& Type, const FString& Param
 	const FBPNodeDef* Def = Find(Type);
 	if (!Def)
 		return false;
+	if (IsCastNode(Type))
+	{
+		// 클래스 존재는 확인하지 않는다. 다른 BP로 캐스트하는 노드가 그 BP보다 먼저 불려도 지워지지 않게 한다.
+		if (Param.empty())
+			return false;
+		const FString AsPin = CastOutputPinName(Param);
+		if (Type == "CastTo")
+		{
+			OutPins.Add(ExecIn());
+			OutPins.Add(InPin("Object", EBPPinType::Object));
+			OutPins.Add(ExecOut("Cast Succeeded"));
+			OutPins.Add(ExecOut("Cast Failed"));
+			OutPins.Add({ AsPin, EBPPinType::Object, true, DefaultOf(EBPPinType::Object) });
+		}
+		else
+		{
+			OutPins.Add(InPin("Object", EBPPinType::Object));
+			OutPins.Add({ AsPin, EBPPinType::Object, true, DefaultOf(EBPPinType::Object) });
+			OutPins.Add(OutPin("Success", EBPPinType::Bool));
+		}
+		return true;
+	}
 	if (Type != "CallFunction" && Type != "CallPureFunction")
 	{
 		OutPins = Def->Pins;
@@ -963,6 +1033,8 @@ FString FBlueprintNodeLibrary::GetTitle(const FBPNode& Node)
 {
 	if (Node.Type == "GetComponent")
 		return Node.Param;
+	if (IsCastNode(Node.Type))
+		return "Cast To " + ToDisplayName(Node.Param, true);
 	if (Node.Type == "CallFunction" || Node.Type == "CallPureFunction")
 	{
 		const size_t Split = Node.Param.find("::");

@@ -9,6 +9,7 @@
 #include "Math/EngineMath.h"
 #include "Math/Color.h"
 #include "Math/Transform.h"
+#include "Containers/Array.h"
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/MathSerialization.h"
 #include "Serialization/TypeSerializer.h"
@@ -244,6 +245,68 @@ public:
     void SerializeItem(FStructuredArchive::FSlot Slot, void* Value) const override;
 };
 
+// TArray<T> 멤버 (UE: UnrealType.h의 FArrayProperty)
+// 원소 하나를 다루는 Inner 프로퍼티(Offset 0)를 품는다. 원소 주소를 컨테이너로 넘기면 Inner가 그대로 읽고 쓴다.
+// Hitori의 TArray는 std::vector를 감싸므로 바이트로 늘리거나 옮길 수 없다. 그래서 UE의 FScriptArrayHelper 대신
+// 원소 타입마다 만든 함수 표(FArrayOps)로 개수 조회·크기 조절·복사를 한다.
+// TArray<bool>은 std::vector<bool>이라 원소 주소가 없어 지원하지 않는다 (TArray<uint8> 등을 쓴다).
+class FArrayProperty : public FProperty
+{
+    DECLARE_FIELD(FArrayProperty, FProperty)
+
+public:
+    struct FArrayOps
+    {
+        int32 (*Num)(const void* ArrayPtr);
+        void (*Resize)(void* ArrayPtr, int32 NewNum);          // 늘어난 원소는 기본 생성
+        void* (*GetData)(void* ArrayPtr);
+        void (*InsertDefault)(void* ArrayPtr, int32 Index);    // Index 앞에 기본값 원소 하나
+        void (*RemoveAt)(void* ArrayPtr, int32 Index);
+        void (*Duplicate)(void* ArrayPtr, int32 Index);        // Index 원소를 바로 뒤에 복사
+        void (*Copy)(void* DstArrayPtr, const void* SrcArrayPtr);
+    };
+
+    FProperty* Inner = nullptr;       // 원소 프로퍼티. 이 프로퍼티가 소유한다
+    const FArrayOps* Ops = nullptr;
+
+    ~FArrayProperty() override { delete Inner; }
+
+    int32 Num(const void* ArrayPtr) const { return Ops->Num(ArrayPtr); }
+    void Resize(void* ArrayPtr, int32 NewNum) const { Ops->Resize(ArrayPtr, NewNum); }
+    void* GetElementPtr(void* ArrayPtr, int32 Index) const
+    {
+        return static_cast<uint8*>(Ops->GetData(ArrayPtr)) + static_cast<size_t>(Index) * Inner->ElementSize;
+    }
+    const void* GetElementPtr(const void* ArrayPtr, int32 Index) const
+    {
+        return GetElementPtr(const_cast<void*>(ArrayPtr), Index);
+    }
+
+    // json은 원소 배열 [a, b, ...]. 원소 저장은 Inner에게 맡긴다
+    void SerializeItem(FStructuredArchive::FSlot Slot, void* Value) const override;
+};
+
+template <typename T>
+const FArrayProperty::FArrayOps& GetArrayOps()
+{
+    static_assert(!std::is_same_v<T, bool>, "TArray<bool> cannot be a UPROPERTY (std::vector<bool> has no element addresses).");
+    static const FArrayProperty::FArrayOps Ops{
+        [](const void* A) { return static_cast<const TArray<T>*>(A)->Num(); },
+        [](void* A, int32 NewNum) { static_cast<TArray<T>*>(A)->SetNum(NewNum); },
+        [](void* A) -> void* { return static_cast<TArray<T>*>(A)->GetData(); },
+        [](void* A, int32 Index) { static_cast<TArray<T>*>(A)->Insert(T{}, static_cast<uint32>(Index)); },
+        [](void* A, int32 Index) { static_cast<TArray<T>*>(A)->RemoveAt(static_cast<uint32>(Index)); },
+        [](void* A, int32 Index)
+        {
+            TArray<T>& Array = *static_cast<TArray<T>*>(A);
+            const T Copy = Array[Index];
+            Array.Insert(Copy, static_cast<uint32>(Index + 1));
+        },
+        [](void* Dst, const void* Src) { *static_cast<TArray<T>*>(Dst) = *static_cast<const TArray<T>*>(Src); },
+    };
+    return Ops;
+}
+
 // ---- C++ 타입 → 프로퍼티 클래스 ----
 // UE는 UHT가 멤버 타입을 읽고 .gen.cpp에 FFloatPropertyParams 같은 표를 쓴다.
 // Hitori의 HHT는 타입을 읽지 않으므로 decltype(멤버)를 받아 여기서 고른다.
@@ -283,6 +346,12 @@ template <typename T>
 struct TPropertyTypeFor<T*>
 {
     using Type = FObjectProperty;
+};
+
+template <typename T>
+struct TPropertyTypeFor<TArray<T>>
+{
+    using Type = FArrayProperty;
 };
 
 // USTRUCT의 GENERATED_BODY()가 StaticStruct()를 만든다. FVector처럼 위 표에 직접 적은 타입은 그쪽이 먼저 걸린다.
