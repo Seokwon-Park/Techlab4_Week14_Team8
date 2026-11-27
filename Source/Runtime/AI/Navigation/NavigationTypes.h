@@ -21,9 +21,7 @@ struct FNavMeshResolution
     float CellHeight = 10.0f;
 };
 
-// UNavigationSystemV1::SupportedAgents 자리. Config/DefaultGame.ini [Navigation]에서 읽는다.
 // C와 D는 이 함수 하나로만 값을 얻는다. 각자 상수를 두지 않는다.
-// TODO(D): 구현 필요
 const FNavAgentProperties& GetDefaultNavAgent();
 const FNavMeshResolution&  GetDefaultNavResolution();
 
