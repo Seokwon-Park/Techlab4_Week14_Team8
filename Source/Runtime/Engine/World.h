@@ -16,6 +16,7 @@
 #include "Engine/EngineTypes.h"
 #include "Render/SceneRenderData.h"
 #include "Script/CoroutineScheduler.h"
+#include "Engine/WorldSubsystem.h"
 #include "World.generated.h"
 
 class ULevel;
@@ -185,7 +186,16 @@ public:
 	// 모든 World Settings를 기본값으로 되돌린다. 씬을 비울 때(새 씬, 불러오기) 부른다.
 	void ResetWorldSettings();
 
+	// 공유 계약 4: 월드마다 하나인 서브시스템 모음 (담당: B). UE UWorld::GetSubsystem 자리.
+	// 다른 담당은 World->GetSubsystem<FNavigationSubsystem>()처럼 이것만 쓴다. 결과는 nullptr일 수 있다.
+	FWorldSubsystemCollection& GetSubsystems() { return Subsystems; }
+	const FWorldSubsystemCollection& GetSubsystems() const { return Subsystems; }
+	template <class T>
+	T* GetSubsystem() const { return Subsystems.GetSubsystem<T>(); }
+
 private:
+	FWorldSubsystemCollection Subsystems;
+
 	bool SweepSingleLegacy(const FRay& WorldRay, float MaxDistance, float Radius, FHitResult& OutHit, AActor* IgnoreActor,
 		bool bBlockingOnly, bool bSkipPhysicsBodies);
 
