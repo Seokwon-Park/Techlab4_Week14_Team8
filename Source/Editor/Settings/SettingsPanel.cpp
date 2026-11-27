@@ -170,7 +170,7 @@ void FSettingsPanel::DrawContents()
 	ImGui::Dummy(ImVec2(0.0f, SectionGap));
 	ImGui::SeparatorText("Editor Settings");
 
-	const char* ThemeNames[] = { "Dark", "Mid", "Light", "Hitori" };
+	const char* ThemeNames[] = { "Dark", "Mid", "Light", "Hitori", "HitoriDark" };
 	int ThemeIdx = static_cast<int>(Settings.Theme);
 	ImGui::SetNextItemWidth(200.0f);
 	if (ImGui::Combo("Editor Theme", &ThemeIdx, ThemeNames, IM_ARRAYSIZE(ThemeNames)))
@@ -465,7 +465,7 @@ bool FSettingsPanel::LoadSettings()
 				else if (Key == "EditorTheme")
 				{
 					const int T = std::stoi(ValueStr);
-					if (T >= 0 && T <= static_cast<int>(EEditorTheme::Hitori))
+					if (T >= 0 && T <= static_cast<int>(EEditorTheme::HitoriDark))
 					{
 						Settings.Theme = static_cast<EEditorTheme>(T);
 						EditorStyle::SetTheme(Settings.Theme);

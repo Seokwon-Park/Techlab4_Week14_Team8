@@ -13,6 +13,7 @@ enum class EEditorTheme : unsigned char
     Mid,
     Light,
     Hitori,     // 히토리 테마: 딥 다크 바탕에 로즈/크림슨 액센트
+    HitoriDark, // 레포 처음 상태의 기본 스타일: 따뜻한 먹색 바탕에 파스텔 핑크 액센트
 };
 
 // 테마 하나의 색 표. 이름의 뜻은 아래 EditorColor 주석을 따른다.
@@ -116,6 +117,25 @@ namespace EditorPalettes
         IM_COL32(84, 24, 48, 255), IM_COL32(44, 34, 42, 255), IM_COL32(62, 44, 56, 255), IM_COL32(174, 56, 100, 255),
     };
 
+    // 레포 처음 상태(ImGuiRenderer의 ApplyDefaultStyle) 색을 옮겼다.
+    // Bg0 #120F11, Bg1 #1A1719, Bg2 #242023, Bg3 #322C30, Bg4 #41393E, Input #0E0C0D, Line #2A2528
+    // Pink #F09AB8, PinkLight #F7BCD0, PinkDeep #C45E84, PinkMuted #663C4F, Blue #4CB4EA, Yellow #F2D24B
+    inline constexpr FEditorPalette HitoriDark{
+        IM_COL32(14, 12, 13, 255), IM_COL32(26, 23, 25, 255), IM_COL32(31, 28, 30, 255), IM_COL32(36, 32, 35, 255), IM_COL32(43, 38, 41, 255), IM_COL32(50, 44, 48, 255),
+        IM_COL32(65, 57, 62, 255), IM_COL32(73, 52, 60, 255), IM_COL32(102, 60, 79, 230), IM_COL32(36, 32, 35, 255), IM_COL32(18, 15, 17, 238),
+        IM_COL32(42, 37, 40, 255), IM_COL32(92, 82, 88, 255),
+        IM_COL32(242, 236, 238, 255), IM_COL32(208, 200, 204, 255), IM_COL32(170, 160, 165, 255), IM_COL32(138, 127, 133, 255), IM_COL32(18, 15, 17, 255),
+        IM_COL32(240, 154, 184, 255), IM_COL32(247, 188, 208, 255), IM_COL32(196, 94, 132, 255), IM_COL32(250, 204, 220, 255), IM_COL32(102, 60, 79, 255), IM_COL32(247, 188, 208, 255),
+        IM_COL32(242, 97, 87, 255), IM_COL32(242, 210, 75, 255), IM_COL32(112, 200, 132, 255), IM_COL32(28, 80, 44, 255), IM_COL32(76, 180, 234, 255), IM_COL32(182, 132, 226, 255),
+        IM_COL32(255, 255, 255, 255),
+        IM_COL32(242, 236, 238, 255), IM_COL32(138, 127, 133, 255), IM_COL32(26, 23, 25, 255), IM_COL32(14, 12, 13, 255), IM_COL32(36, 32, 35, 255), IM_COL32(50, 44, 48, 255),
+        IM_COL32(18, 15, 17, 255), IM_COL32(18, 15, 17, 255), IM_COL32(26, 23, 25, 0), IM_COL32(50, 44, 48, 255), IM_COL32(65, 57, 62, 255),
+        IM_COL32(240, 154, 184, 255), IM_COL32(50, 44, 48, 255), IM_COL32(65, 57, 62, 255), IM_COL32(102, 60, 79, 255), IM_COL32(240, 154, 184, 56), IM_COL32(196, 94, 132, 255),
+        IM_COL32(18, 15, 17, 255), IM_COL32(65, 57, 62, 255), IM_COL32(26, 23, 25, 255), IM_COL32(18, 15, 17, 255), IM_COL32(26, 23, 25, 255), IM_COL32(240, 154, 184, 89),
+        IM_COL32(76, 180, 234, 255), IM_COL32(242, 210, 75, 255), IM_COL32(50, 44, 48, 255), IM_COL32(247, 188, 208, 255),
+        IM_COL32(18, 15, 17, 255), IM_COL32(36, 32, 35, 255), IM_COL32(50, 44, 48, 255), IM_COL32(42, 37, 40, 255),
+    };
+
     inline constexpr const FEditorPalette& Get(EEditorTheme Theme)
     {
         switch (Theme)
@@ -123,6 +143,7 @@ namespace EditorPalettes
         case EEditorTheme::Mid: return Mid;
         case EEditorTheme::Light: return Light;
         case EEditorTheme::Hitori: return Hitori;
+        case EEditorTheme::HitoriDark: return HitoriDark;
         default: return Dark;
         }
     }
@@ -302,7 +323,7 @@ namespace EditorStyle
 
     inline EEditorTheme GetTheme() { return EditorColor::GTheme; }
 
-    inline constexpr EEditorTheme AllThemes[] = { EEditorTheme::Dark, EEditorTheme::Mid, EEditorTheme::Light, EEditorTheme::Hitori };
+    inline constexpr EEditorTheme AllThemes[] = { EEditorTheme::Dark, EEditorTheme::Mid, EEditorTheme::Light, EEditorTheme::Hitori, EEditorTheme::HitoriDark };
 
     inline void SetTheme(EEditorTheme Theme)
     {
@@ -319,6 +340,7 @@ namespace EditorStyle
         case EEditorTheme::Mid: return "Mid";
         case EEditorTheme::Light: return "Light";
         case EEditorTheme::Hitori: return "Hitori";
+        case EEditorTheme::HitoriDark: return "HitoriDark";
         default: return "Dark";
         }
     }
