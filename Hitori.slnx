@@ -10,6 +10,8 @@
     <BuildType Name="Shipping" />
     <Platform Name="x64" />
   </Configurations>
+  <Project Path="Build\Projects\Detour.vcxproj" Id="18FEE2AD-04A0-0D84-ED5A-21D8D99B94D4">
+  </Project>
   <Project Path="Build\Projects\HitoriEditor.vcxproj" Id="FBEE0E97-E751-9E3B-90D7-D6F17C196ABE" DefaultStartup="true">
   </Project>
   <Project Path="Build\Projects\HitoriEditorCore.vcxproj" Id="2499BA52-1092-D9A4-39C4-BE29251CB9B0">
@@ -26,6 +28,8 @@
   <Project Path="Build\Projects\ImGui.vcxproj" Id="C0FF640D-2C14-8DBE-F595-301E616989EF">
   </Project>
   <Project Path="Build\Projects\Lua.vcxproj" Id="A705880B-130F-887C-9C8A-9E7C0893937C">
+  </Project>
+  <Project Path="Build\Projects\Recast.vcxproj" Id="A7A881CE-934A-ACA4-7C05-C0F8684633F5">
   </Project>
   <Project Path="Build\Projects\Shaders.vcxproj" Id="EFAC8DF2-5B8C-0C8E-64A4-9764D00273EF">
   </Project>
