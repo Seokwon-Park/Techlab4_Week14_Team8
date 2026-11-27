@@ -1113,6 +1113,82 @@ namespace
 		return Pickers;
 	}
 
+	// FPropertyEditor::RegisterFilePicker로 등록한 "파일 경로" 프로퍼티와 고를 수 있는 확장자
+	struct FFilePickerInfo
+	{
+		std::vector<FString> Extensions;
+		FString RootFolder;   // "Content" 또는 "Content/Terrain"
+	};
+
+	std::unordered_map<const FProperty*, FFilePickerInfo>& GetFilePickers()
+	{
+		static std::unordered_map<const FProperty*, FFilePickerInfo> Pickers;
+		return Pickers;
+	}
+
+	// RootFolder 아래에서 확장자가 맞는 파일을 "Content/..." 형식으로 모은다. 콤보를 열 때만 부른다.
+	std::vector<FString> FindContentFiles(const FFilePickerInfo& Info)
+	{
+		const std::vector<FString>& Extensions = Info.Extensions;
+		std::vector<FString> Result;
+		std::error_code Ec;
+		for (std::filesystem::recursive_directory_iterator It(FPaths::FromUtf8(Info.RootFolder), Ec), End;
+			!Ec && It != End; It.increment(Ec))
+		{
+			if (!It->is_regular_file(Ec))
+				continue;
+
+			FString Ext = FPaths::ToUtf8(It->path().extension());
+			for (char& Ch : Ext)
+				Ch = static_cast<char>(std::tolower(static_cast<unsigned char>(Ch)));
+
+			if (std::find(Extensions.begin(), Extensions.end(), Ext) != Extensions.end())
+				Result.push_back(FPaths::ToUtf8(It->path()));   // generic 형식이라 '/' 구분자
+		}
+		std::sort(Result.begin(), Result.end());
+		return Result;
+	}
+
+	// Content 아래 파일 중에서 고르는 콤보. None은 빈 문자열이다. 바뀌면 true.
+	bool DrawFilePickerCombo(const char* Label, const FFilePickerInfo& Info, FString& InOutPath)
+	{
+		static std::vector<FString> Files;   // 콤보가 열려 있는 동안만 쓴다. 한 번에 하나만 열리므로 공유해도 된다
+
+		FString Preview = InOutPath.empty() ? FString("None") : InOutPath;
+		std::error_code Ec;
+		if (!InOutPath.empty() && !std::filesystem::exists(FPaths::FromUtf8(InOutPath), Ec))
+			Preview += " (Missing)";
+
+		bool bChanged = false;
+		if (ImGui::BeginCombo(Label, Preview.c_str(), ImGuiComboFlags_HeightLarge))
+		{
+			// 열리는 프레임에만 폴더를 훑는다. 새로 넣은 파일도 다시 열면 보인다.
+			if (ImGui::IsWindowAppearing())
+				Files = FindContentFiles(Info);
+
+			if (ImGui::Selectable("None", InOutPath.empty()))
+			{
+				InOutPath.clear();
+				bChanged = true;
+			}
+			ImGui::Separator();
+
+			if (Files.empty())
+				ImGui::TextDisabled("No matching files in %s/", Info.RootFolder.c_str());
+
+			for (const FString& Path : Files)
+			{
+				if (ImGui::Selectable(Path.c_str(), InOutPath == Path))
+				{
+					InOutPath = Path;
+					bChanged = true;
+				}
+			}
+			ImGui::EndCombo();
+		}
+		return bChanged;
+	}
+
 	// "ADefaultPawn" -> "DefaultPawn". UE 클래스 고르기처럼 접두사를 뗀다.
 	const char* ShortClassName(const FString& Name)
 	{
@@ -1301,6 +1377,10 @@ namespace
 			// 클래스 이름 칸이면 문자열 입력 대신 클래스 고르기 콤보를 쓴다.
 			if (auto Picker = GetClassPickers().find(&Property); Picker != GetClassPickers().end())
 				return DrawClassPickerCombo(Label, Picker->second, Value);
+
+			// 파일 경로 칸이면 Content 아래 파일 고르기 콤보를 쓴다.
+			if (auto Picker = GetFilePickers().find(&Property); Picker != GetFilePickers().end())
+				return DrawFilePickerCombo(Label, Picker->second, Value);
 
 			char Buffer[256] = {};
 			strncpy_s(Buffer, Value.c_str(), sizeof(Buffer) - 1);
@@ -2142,6 +2222,17 @@ namespace FPropertyEditor
 			return;
 		}
 		GetClassPickers()[Property] = BaseClass;
+	}
+
+	void RegisterFilePicker(UClass* OwnerClass, const char* PropertyName, std::vector<std::string> Extensions, const std::string& SubFolder)
+	{
+		const FProperty* Property = OwnerClass ? OwnerClass->FindPropertyByName(PropertyName) : nullptr;
+		if (!Property || !CastField<FStrProperty>(Property))
+		{
+			HTR_LOG(Warning, "RegisterFilePicker: {}.{} is not a string property", OwnerClass ? OwnerClass->Name : FString("?"), PropertyName);
+			return;
+		}
+		GetFilePickers()[Property] = { std::move(Extensions), FPaths::ProjectContentPath(SubFolder) };
 	}
 }
 

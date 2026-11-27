@@ -13,7 +13,12 @@ class ATerrain : public AActor
 	GENERATED_BODY()
 public:
 	// 월드 ↔ 그리드 변환. C·D는 이 값만 쓰고 따로 계산하지 않는다.
-	const FTerrainCoordinates& GetCoordinates() const { return Coordinates; }
+	FTerrainCoordinates GetCoordinates() const 
+	{
+		FTerrainCoordinates C = Coordinates;
+		C.Origin = GetActorLocation();
+		return C;
+	}
 
 	// 원본 16bit 높이. Heights[Coords.SampleIndex(X, Y)]
 	const TArray<uint16>& GetHeights() const { return Heights; }
@@ -26,8 +31,12 @@ public:
 	// TODO(A): 구현 필요
 	void Release();
 
+	bool LoadHeightmap();
+	bool HasHeightData() const;
+	void PostEditChangeProperty(const FProperty& Property) override;
+
 protected:
-	FString HeightmapPath;            // 역직렬화는 경로와 Coordinates만 읽는다 (GPU 자원 생성 금지)
-	FTerrainCoordinates Coordinates;
+	UPROPERTY(EditAnywhere) FString HeightmapPath;            // 역직렬화는 경로와 Coordinates만 읽는다 (GPU 자원 생성 금지)
+	UPROPERTY(EditAnywhere) FTerrainCoordinates Coordinates;
 	TArray<uint16> Heights;
 };
