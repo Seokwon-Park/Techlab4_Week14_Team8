@@ -1,6 +1,8 @@
 #pragma once
 
 #include <functional>
+#include <string>
+#include <vector>
 
 struct ImFont;
 class UObject;
@@ -38,5 +40,8 @@ namespace FPropertyEditor
 	// 클래스 이름을 담는 FString 프로퍼티를 BaseClass와 그 자식(Blueprint 포함) 중에서 고르는 콤보로 그린다.
 	// UE의 TSubclassOf<BaseClass> 칸에 해당한다. OwnerClass의 PropertyName을 찾아 등록한다.
 	void RegisterClassPicker(class UClass* OwnerClass, const char* PropertyName, class UClass* BaseClass);
+	// 파일 경로 FString 프로퍼티를 Content/<SubFolder> 아래 파일 중에서 고르는 콤보로 그린다 (UE의 FFilePath).
+	// Extensions는 점을 포함한 소문자 (".png"). SubFolder가 비어 있으면 Content 전체를 본다.
+	void RegisterFilePicker(class UClass* OwnerClass, const char* PropertyName, std::vector<std::string> Extensions, const std::string& SubFolder = {});
 }
 // DetailsPanel.cpp는 이 헤더를 include하고 원래 함수 대신 FPropertyEditor::를 부르도록 바꾼다.
