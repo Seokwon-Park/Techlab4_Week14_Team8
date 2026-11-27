@@ -25,8 +25,8 @@ public:
 
 	FVector GetNormal(int32 X, int32 Y) const { return Coordinates.ComputeNormal(Heights, X, Y); }
 
-	// D(NavMesh) 입력. LOD 0 정점(월드 좌표)과 삼각형 인덱스. 대각선 방향은 계약 1 규칙 6.
-	// TODO(A): 구현 필요 (지금은 빈 배열을 돌려준다)
+	// D(NavMesh) 입력. LOD0 전체 그리드를 월드 좌표 메시로 돌려준다. 높이 데이터가 없으면 빈 배열.
+	// 감김은 위(+Z)가 앞면. Recast로 넘길 때는 삼각형마다 2·3번째 인덱스를 바꾼다 (좌표계 det −1).
 	void GetLOD0Geometry(TArray<FVector>& OutVertices, TArray<uint32>& OutIndices) const;
 
 	// FTerrainSubsystem::OnLevelUnload에서 부른다. 청크 VB/IB/SRV 해제.

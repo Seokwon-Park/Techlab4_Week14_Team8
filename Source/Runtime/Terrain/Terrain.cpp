@@ -6,6 +6,39 @@ void ATerrain::GetLOD0Geometry(TArray<FVector>& OutVertices, TArray<uint32>& Out
 {
 	OutVertices.Empty();
 	OutIndices.Empty();
+	if (!HasHeightData())
+		return;
+
+	// 멤버 Coordinates가 아니라 GetCoordinates()를 쓴다. Origin이 현재 액터 위치로 채워진 사본이다.
+	const FTerrainCoordinates Coords = GetCoordinates();
+	const int32 SizeX = Coords.SizeX;
+	const int32 SizeY = Coords.SizeY;
+
+	// 정점: 샘플마다 하나. 정점 번호 = SampleIndex(X, Y)라서 인덱스를 만들 때 그대로 쓴다.
+	OutVertices.SetNum(SizeX * SizeY);
+	for (int32 Y = 0; Y < SizeY; ++Y)
+	{
+		for (int32 X = 0; X < SizeX; ++X)
+		{
+			const int32 Index = Coords.SampleIndex(X, Y);
+			OutVertices[Index] = Coords.GridToWorld(X, Y, Heights[Index]);
+		}
+	}
+
+	const int32 QuadsX = SizeX - 1;
+	const int32 QuadsY = SizeY - 1;
+	OutIndices.Reserve(static_cast<uint32>(QuadsX * QuadsY * 6));
+	for (int32 Y = 0; Y < QuadsY; ++Y)
+	{
+		for (int32 X = 0; X < QuadsX; ++X)
+		{
+			AppendTerrainQuadIndices(OutIndices,
+				Coords.SampleIndex(X, Y),       // LeftDown
+				Coords.SampleIndex(X + 1, Y),       // RightDown
+				Coords.SampleIndex(X, Y + 1),   // LeftUp
+				Coords.SampleIndex(X + 1, Y + 1));  // RightUp
+		}
+	}
 }
 
 void ATerrain::Release()

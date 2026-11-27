@@ -90,3 +90,18 @@ struct FTerrainCoordinates
         return Tx.Cross(Ty).GetSafeNormal();
     }
 };
+
+// 쿼드 하나를 삼각형 2개로 나누는 유일한 규칙.
+// 대각선은 LeftDown(X,Y) → RightUp(X+1,Y+1). 감김은 위(+Z)에서 볼 때 앞면이다.
+// Left/Right = X−/X+, Down/Up = Y−/Y+ (위에서 내려다본 그리드 기준. 높이 Z가 아님)
+//
+//    LeftUp ●──● RightUp
+//           │  ╱ │
+//           │ ╱  │
+//  LeftDown ●──● RightDown
+inline void AppendTerrainQuadIndices(TArray<uint32>& Out,
+    uint32 LeftDown, uint32 RightDown, uint32 LeftUp, uint32 RightUp)
+{
+    Out.Add(LeftDown); Out.Add(RightDown); Out.Add(RightUp);   // 아래쪽 삼각형
+    Out.Add(LeftDown); Out.Add(RightUp);   Out.Add(LeftUp);    // 위쪽 삼각형
+}
