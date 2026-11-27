@@ -310,8 +310,8 @@ void FBlueprintEditor::UpdateGizmoAndPicking()
 
 	if (Gizmo.GetTarget())
 	{
-		// 누른 프레임에만 끌기를 시작하고, 놓는 프레임의 마지막 위치도 반영한다.
-		const bool bUpdateDrag = bWasUsing || (Pointer.bMousePressed && Pointer.bMouseDown);
+		// 누른 프레임에만 끌기를 시작한다. 끄는 중에는 버튼 상태를 그대로 넘겨야 놓았을 때 FGizmo::Update가 EndDrag한다.
+		const bool bUpdateDrag = bWasUsing ? Pointer.bMouseDown : (Pointer.bMousePressed && Pointer.bMouseDown);
 		Gizmo.Update(MouseRay, MousePosition, ViewportClient->GetViewProjectionMatrix(), Width, Height,
 			bUpdateDrag, ViewportClient->GetViewLocation(), !ViewportClient->IsPerspective());
 
