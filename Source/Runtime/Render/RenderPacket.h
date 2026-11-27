@@ -52,6 +52,9 @@ struct FViewContext
 	FVector CameraPosition = FVector::ZeroVector;
 	FVector CameraForward = FVector::ZeroVector;
 	float ProjectionScaleSquared = 0.0f;
+	// 투영 행렬의 세로 배율 (원근: cot(FOV/2), 직교: 2 / 화면 세로 길이). 0이면 모른다.
+	// 화면 크기 기준으로 줄어드는 에디터 아이콘(UBillboardComponent)이 쓴다.
+	float ProjectionScaleY = 0.0f;
 	float NearZ = 0.0f;
 	bool bOrthographic = false;
 	bool bGameView = false;
