@@ -25,9 +25,13 @@
 #include "UObject/UObjectHash.h"
 
 #include <imgui_internal.h>
+#include <Windows.h>
+#include <shellapi.h>
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <fstream>
+#include <iterator>
 
 namespace
 {
@@ -209,7 +213,7 @@ bool FContentDrawerPanel::BrowseToFile(const fs::path& FilePath)
 		Target = Relative;
 
 	NavigateTo(Target.parent_path());
-	HighlightPath = Target.generic_string();
+	SelectOnly(Target.generic_string());
 	bScrollToHighlight = true;
 
 	SetOpen(true);
@@ -239,6 +243,7 @@ void FContentDrawerPanel::NavigateTo(const fs::path& Path)
 	BackHistory.push_back(CurrentPath);
 	ForwardHistory.clear();
 	CurrentPath = Path;
+	ClearSelection();
 	SearchBuffer[0] = '\0';
 	bRevealCurrentFolder = true;
 }
@@ -249,6 +254,7 @@ void FContentDrawerPanel::NavigateBack()
 		return;
 	ForwardHistory.push_back(CurrentPath);
 	CurrentPath = BackHistory.back();
+	ClearSelection();
 	BackHistory.pop_back();
 	bRevealCurrentFolder = true;
 }
@@ -259,6 +265,7 @@ void FContentDrawerPanel::NavigateForward()
 		return;
 	BackHistory.push_back(CurrentPath);
 	CurrentPath = ForwardHistory.back();
+	ClearSelection();
 	ForwardHistory.pop_back();
 	bRevealCurrentFolder = true;
 }
@@ -275,6 +282,490 @@ void FContentDrawerPanel::ToggleFavorite(const fs::path& Path)
 		FavoritePaths.erase(It);
 	else
 		FavoritePaths.push_back(Path);
+}
+
+// ---------------- 선택 ----------------
+
+bool FContentDrawerPanel::IsSelected(const FString& Path) const
+{
+	return std::find(SelectedPaths.begin(), SelectedPaths.end(), Path) != SelectedPaths.end();
+}
+
+void FContentDrawerPanel::SelectOnly(const FString& Path)
+{
+	SelectedPaths.clear();
+	SelectedPaths.push_back(Path);
+	HighlightPath = Path;
+}
+
+void FContentDrawerPanel::ToggleSelected(const FString& Path)
+{
+	const auto It = std::find(SelectedPaths.begin(), SelectedPaths.end(), Path);
+	if (It != SelectedPaths.end())
+		SelectedPaths.erase(It);
+	else
+		SelectedPaths.push_back(Path);
+	HighlightPath = Path;
+}
+
+void FContentDrawerPanel::ClearSelection()
+{
+	SelectedPaths.clear();
+	HighlightPath.clear();
+	PendingSelectOnly.clear();
+}
+
+std::vector<fs::path> FContentDrawerPanel::GetSelectedFsPaths() const
+{
+	std::vector<fs::path> Paths;
+	Paths.reserve(SelectedPaths.size());
+	for (const FString& Path : SelectedPaths)
+		Paths.emplace_back(Path);
+	return Paths;
+}
+
+// ---------------- 이름 변경 / 삭제 / 옮기기 ----------------
+
+namespace
+{
+	// 파일 이름에서 처음 '.'부터를 확장자로 본다 ("Mesh_Static.fbx.bin" -> ".fbx.bin"). 폴더는 확장자 없음.
+	FString SplitExtension(const FString& FileName, bool bDirectory, FString& OutStem)
+	{
+		const size_t Dot = bDirectory ? FString::npos : FileName.find('.', 1);
+		OutStem = Dot == FString::npos ? FileName : FileName.substr(0, Dot);
+		return Dot == FString::npos ? FString() : FileName.substr(Dot);
+	}
+
+	bool IsValidFileName(const char* Name)
+	{
+		if (!Name || Name[0] == '\0')
+			return false;
+		for (const char* C = Name; *C; ++C)
+		{
+			if (std::strchr("\\/:*?\"<>|", *C) || static_cast<unsigned char>(*C) < 32)
+				return false;
+		}
+		const size_t Len = std::strlen(Name);
+		return Name[Len - 1] != '.' && Name[Len - 1] != ' ';
+	}
+
+	// Child가 Parent와 같거나 그 아래 경로인지 (둘 다 같은 형식의 경로).
+	bool IsSameOrUnder(const fs::path& Child, const fs::path& Parent)
+	{
+		const FString C = Child.lexically_normal().generic_string();
+		const FString P = Parent.lexically_normal().generic_string();
+		return C == P || C.starts_with(P.ends_with("/") ? P : P + "/");
+	}
+
+	// 휴지통으로 보낸다 (탐색기에서 되살릴 수 있다).
+	bool MoveToRecycleBin(const fs::path& Path)
+	{
+		std::error_code Error;
+		std::wstring From = fs::absolute(Path, Error).make_preferred().wstring();
+		if (Error)
+			return false;
+		From.push_back(L'\0');   // SHFileOperation은 이중 널로 끝나는 목록을 받는다
+		SHFILEOPSTRUCTW Op = {};
+		Op.wFunc = FO_DELETE;
+		Op.pFrom = From.c_str();
+		Op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
+		return SHFileOperationW(&Op) == 0 && !Op.fAnyOperationsAborted;
+	}
+}
+
+void FContentDrawerPanel::BeginRename(const fs::path& Path)
+{
+	std::error_code Error;
+	if (Path.empty() || Path == AssetRootPath || !fs::exists(Path, Error))
+		return;
+	FString Stem;
+	RenameExtension = SplitExtension(Path.filename().string(), fs::is_directory(Path, Error), Stem);
+	strncpy_s(RenameBuffer, Stem.c_str(), _TRUNCATE);
+	RenameTarget = Path;
+	bOpenRename = true;
+}
+
+void FContentDrawerPanel::BeginDelete(const std::vector<fs::path>& Paths)
+{
+	DeleteTargets.clear();
+	for (const fs::path& Path : Paths)
+	{
+		if (!Path.empty() && Path != AssetRootPath)
+			DeleteTargets.push_back(Path);
+	}
+	if (!DeleteTargets.empty())
+		bOpenDelete = true;
+}
+
+void FContentDrawerPanel::OnPathMoved(const fs::path& OldPath, const fs::path& NewPath)
+{
+	auto Remap = [&OldPath, &NewPath](fs::path& Path) -> bool
+	{
+		if (!IsSameOrUnder(Path, OldPath))
+			return false;
+		if (NewPath.empty())
+			return true;   // 지워졌다
+		const fs::path Rest = Path.lexically_normal().lexically_relative(OldPath.lexically_normal());
+		Path = (Rest.empty() || Rest == ".") ? NewPath : NewPath / Rest;
+		return false;
+	};
+
+	if (Remap(CurrentPath))
+		CurrentPath = OldPath.parent_path();
+	for (auto It = FavoritePaths.begin(); It != FavoritePaths.end();)
+		It = Remap(*It) ? FavoritePaths.erase(It) : It + 1;
+	auto RemapHistory = [&](std::vector<fs::path>& History)
+	{
+		for (auto It = History.begin(); It != History.end();)
+			It = Remap(*It) ? History.erase(It) : It + 1;
+	};
+	RemapHistory(BackHistory);
+	RemapHistory(ForwardHistory);
+
+	for (auto It = SelectedPaths.begin(); It != SelectedPaths.end();)
+	{
+		fs::path P(*It);
+		if (Remap(P))
+		{
+			It = SelectedPaths.erase(It);
+			continue;
+		}
+		*It = P.generic_string();
+		++It;
+	}
+	if (!HighlightPath.empty())
+	{
+		fs::path P(HighlightPath);
+		HighlightPath = Remap(P) ? FString() : P.generic_string();
+	}
+
+	UAssetManager::RefreshAssetPaths(OldPath, NewPath);
+
+	if (!NewPath.empty())
+	{
+		std::error_code Error;
+		PendingReferenceFixups.push_back({ OldPath, NewPath, fs::is_directory(NewPath, Error) });
+	}
+}
+
+namespace
+{
+	// 경로 문자열을 담을 수 있는 텍스트 에셋/설정 파일만 고친다 (바이너리·메시·소리는 건드리지 않는다).
+	bool IsReferenceFile(const fs::path& Path)
+	{
+		static const char* const Extensions[] = {
+			".scene", ".widget", ".bp", ".mat", ".pmat", ".particle", ".inputaction", ".inputcontext",
+			".blendspace", ".animblueprint", ".physicsasset", ".lua", ".ini",
+		};
+		const FString Ext = ToLower(Path.extension().string());
+		for (const char* E : Extensions)
+			if (Ext == E) return true;
+		return false;
+	}
+
+	bool IsQuoteOrAssign(char C) { return C == '"' || C == '\'' || C == '='; }
+
+	// Text 안에서 따옴표(또는 ini의 '=') 바로 뒤에 오는 From을 To로 바꾼다.
+	// 파일이면 From 뒤가 따옴표/줄 끝이어야 하고, 폴더면 '/'(그 아래 경로)도 허용한다. 바꾼 개수를 돌려준다.
+	int32 ReplacePathToken(std::string& Text, const FString& From, const FString& To, bool bDirectory)
+	{
+		if (From.empty() || From == To)
+			return 0;
+		int32 Count = 0;
+		size_t Pos = 0;
+		while ((Pos = Text.find(From, Pos)) != std::string::npos)
+		{
+			const size_t End = Pos + From.size();
+			const bool bPrevOk = Pos > 0 && IsQuoteOrAssign(Text[Pos - 1]);
+			const char Next = End < Text.size() ? Text[End] : '\n';
+			const bool bNextOk = Next == '"' || Next == '\'' || Next == '\r' || Next == '\n' || (bDirectory && Next == '/');
+			if (bPrevOk && bNextOk)
+			{
+				Text.replace(Pos, From.size(), To);
+				Pos += To.size();
+				++Count;
+			}
+			else
+			{
+				Pos = End;
+			}
+		}
+		return Count;
+	}
+}
+
+void FContentDrawerPanel::ProcessReferenceFixups()
+{
+	if (PendingReferenceFixups.empty())
+		return;
+	const std::vector<FMovedPath> Moves = std::move(PendingReferenceFixups);
+	PendingReferenceFixups.clear();
+
+	// 씬에는 "Content/Models/a.png"와 Content 기준 "Models/a.png" 두 표기가 섞여 있어 둘 다 바꾼다.
+	struct FToken { FString From; FString To; bool bDirectory; };
+	std::vector<FToken> Tokens;
+	const FString ContentPrefix = FPaths::ProjectContentPath() + "/";
+	for (const FMovedPath& Move : Moves)
+	{
+		FString OldFull = Move.Old.lexically_normal().generic_string();
+		FString NewFull = Move.New.lexically_normal().generic_string();
+		Tokens.push_back({ OldFull, NewFull, Move.bDirectory });
+		if (OldFull.starts_with(ContentPrefix) && NewFull.starts_with(ContentPrefix))
+			Tokens.push_back({ OldFull.substr(ContentPrefix.size()), NewFull.substr(ContentPrefix.size()), Move.bDirectory });
+	}
+
+	std::vector<fs::path> Files;
+	auto Collect = [&Files](const fs::path& Root)
+	{
+		std::error_code Error;
+		for (fs::recursive_directory_iterator It(Root, Error), End; !Error && It != End; It.increment(Error))
+		{
+			std::error_code TypeError;
+			if (It->is_regular_file(TypeError) && IsReferenceFile(It->path()))
+				Files.push_back(It->path());
+		}
+	};
+	Collect(AssetRootPath);
+	Collect("Config");   // 프로젝트 설정 (GameDefaultMap=Content/Scenes/... 등)
+
+	int32 ChangedFiles = 0;
+	int32 ChangedRefs = 0;
+	for (const fs::path& File : Files)
+	{
+		std::string Text;
+		{
+			std::ifstream In(File, std::ios::binary);
+			if (!In) continue;
+			Text.assign(std::istreambuf_iterator<char>(In), std::istreambuf_iterator<char>());
+		}
+		int32 Count = 0;
+		for (const FToken& Token : Tokens)
+			Count += ReplacePathToken(Text, Token.From, Token.To, Token.bDirectory);
+		if (Count == 0)
+			continue;
+		std::ofstream Out(File, std::ios::binary | std::ios::trunc);
+		if (!Out)
+		{
+			HTR_LOG(Warning, "Failed to update references in '{}'", File.generic_string());
+			continue;
+		}
+		Out.write(Text.data(), static_cast<std::streamsize>(Text.size()));
+		++ChangedFiles;
+		ChangedRefs += Count;
+	}
+	if (ChangedFiles > 0)
+		HTR_LOG(Info, "Updated {} reference(s) in {} file(s) after move/rename", ChangedRefs, ChangedFiles);
+}
+
+bool FContentDrawerPanel::CanMoveInto(const fs::path& Source, const fs::path& TargetFolder) const
+{
+	std::error_code Error;
+	if (Source.empty() || Source == AssetRootPath || !fs::exists(Source, Error))
+		return false;
+	if (Source.parent_path().lexically_normal() == TargetFolder.lexically_normal())
+		return false;   // 이미 그 폴더에 있다
+	if (fs::is_directory(Source, Error) && IsSameOrUnder(TargetFolder, Source))
+		return false;   // 폴더를 자기 안으로는 못 옮긴다
+	return true;
+}
+
+void FContentDrawerPanel::AcceptMoveDrop(const fs::path& TargetFolder)
+{
+	if (DragPaths.empty() || !ImGui::BeginDragDropTarget())
+		return;
+	bool bAny = false;
+	for (const fs::path& Path : DragPaths)
+		bAny |= CanMoveInto(Path, TargetFolder);
+	DragHoverTargetName = TargetFolder.filename().string();
+	bDragHoverValid = bAny;
+	if (bAny)
+	{
+		// 끌기 원본에 따라 페이로드 종류가 다르다 (텍스처/폰트/Blueprint는 다른 패널에도 놓을 수 있어 그 종류를 유지한다).
+		const char* Types[] = { EditorDragDrop::ContentMove, EditorDragDrop::Texture, EditorDragDrop::Font, EditorDragDrop::Blueprint };
+		for (const char* Type : Types)
+		{
+			if (ImGui::AcceptDragDropPayload(Type))
+			{
+				PendingMovePaths = DragPaths;
+				PendingMoveTarget = TargetFolder;
+				break;
+			}
+		}
+	}
+	ImGui::EndDragDropTarget();
+}
+
+void FContentDrawerPanel::ProcessPendingMove()
+{
+	if (PendingMovePaths.empty())
+		return;
+	const std::vector<fs::path> Paths = std::move(PendingMovePaths);
+	const fs::path Target = std::move(PendingMoveTarget);
+	PendingMovePaths.clear();
+	PendingMoveTarget.clear();
+	DragPaths.clear();
+
+	std::vector<FString> Moved;
+	for (const fs::path& Source : Paths)
+	{
+		if (!CanMoveInto(Source, Target))
+			continue;
+		const fs::path Destination = Target / Source.filename();
+		std::error_code Error;
+		if (fs::exists(Destination, Error))
+		{
+			HTR_LOG(Warning, "Move skipped, '{}' already exists in '{}'", Source.filename().string(), Target.generic_string());
+			continue;
+		}
+		fs::rename(Source, Destination, Error);
+		if (Error)
+		{
+			HTR_LOG(Warning, "Failed to move '{}': {}", Source.generic_string(), Error.message());
+			continue;
+		}
+		OnPathMoved(Source, Destination);
+		Moved.push_back(Destination.generic_string());
+	}
+	if (!Moved.empty())
+		HTR_LOG(Info, "Moved {} item(s) to {}", Moved.size(), Target.generic_string());
+}
+
+void FContentDrawerPanel::DrawItemContextMenu(const fs::path& Path, bool bDirectory, bool bSkeletalMesh, const FString& PathString)
+{
+	const int32 Count = static_cast<int32>(SelectedPaths.size());
+	const bool bMulti = Count > 1 && IsSelected(PathString);
+
+	if (bDirectory && !bMulti)
+	{
+		if (ImGui::MenuItem(IsFavorite(Path) ? "Remove from Favorites" : "Add to Favorites"))
+			ToggleFavorite(Path);
+		ImGui::Separator();
+	}
+	if (bSkeletalMesh && !bMulti)
+	{
+		BlendSpaceCreator.DrawMenuItems(PathString, CurrentPath);
+		AnimBlueprintCreator.DrawMenuItems(PathString, CurrentPath);
+		ImGui::Separator();
+	}
+
+	if (ImGui::MenuItem("Rename", "F2", false, !bMulti))
+		BeginRename(Path);
+	char DeleteLabel[48];
+	if (bMulti)
+		std::snprintf(DeleteLabel, sizeof(DeleteLabel), "Delete %d Items", Count);
+	else
+		std::snprintf(DeleteLabel, sizeof(DeleteLabel), "Delete");
+	if (ImGui::MenuItem(DeleteLabel, "Del"))
+		BeginDelete(bMulti ? GetSelectedFsPaths() : std::vector<fs::path>{ Path });
+	ImGui::Separator();
+	if (ImGui::MenuItem("Show in Explorer"))
+	{
+		std::error_code Error;
+		const std::wstring Abs = fs::absolute(Path, Error).make_preferred().wstring();
+		const std::wstring Args = L"/select,\"" + Abs + L"\"";
+		ShellExecuteW(nullptr, L"open", L"explorer.exe", Args.c_str(), nullptr, SW_SHOWNORMAL);
+	}
+}
+
+void FContentDrawerPanel::DrawRenameDeletePopups()
+{
+	if (bOpenRename) { ImGui::OpenPopup("Rename"); bOpenRename = false; }
+	if (bOpenDelete) { ImGui::OpenPopup("Delete Assets"); bOpenDelete = false; }
+
+	if (ImGui::BeginPopupModal("Rename", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		if (ImGui::IsWindowAppearing())
+			ImGui::SetKeyboardFocusHere();
+		ImGui::SetNextItemWidth(260.0f * EditorIcons::GetScale());
+		const bool bEnter = ImGui::InputText("##RenameName", RenameBuffer, sizeof(RenameBuffer),
+			ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+		if (!RenameExtension.empty())
+		{
+			ImGui::SameLine();
+			ImGui::TextDisabled("%s", RenameExtension.c_str());
+		}
+
+		const FString NewName = FString(RenameBuffer) + RenameExtension;
+		const fs::path Destination = RenameTarget.parent_path() / NewName;
+		const bool bUnchanged = Destination == RenameTarget;
+		std::error_code Error;
+		// 대소문자만 바꾸는 경우는 같은 파일이 있다고 나오므로 막지 않는다
+		const bool bCaseOnly = !bUnchanged && ToLower(Destination.generic_string()) == ToLower(RenameTarget.generic_string());
+		const bool bExists = !bUnchanged && !bCaseOnly && fs::exists(Destination, Error);
+		const bool bNameOk = IsValidFileName(RenameBuffer);
+		if (!bNameOk) ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "Invalid name.");
+		else if (bExists) ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "An item with this name already exists.");
+
+		const bool bValid = bNameOk && !bExists;
+		ImGui::BeginDisabled(!bValid);
+		if (ImGui::Button("Rename") || (bEnter && bValid))
+		{
+			if (!bUnchanged)
+			{
+				fs::rename(RenameTarget, Destination, Error);
+				if (Error)
+					HTR_LOG(Warning, "Failed to rename '{}': {}", RenameTarget.generic_string(), Error.message());
+				else
+				{
+					OnPathMoved(RenameTarget, Destination);
+					if (Destination.parent_path() == CurrentPath)
+						SelectOnly(Destination.generic_string());
+				}
+			}
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+		ImGui::EndPopup();
+	}
+
+	if (ImGui::BeginPopupModal("Delete Assets", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		if (DeleteTargets.size() == 1)
+			ImGui::Text("Delete '%s'?", DeleteTargets[0].filename().string().c_str());
+		else
+			ImGui::Text("Delete %d items?", static_cast<int32>(DeleteTargets.size()));
+		int32 Shown = 0;
+		if (DeleteTargets.size() > 1)
+		{
+			for (const fs::path& Path : DeleteTargets)
+			{
+				if (++Shown > 8) { ImGui::TextDisabled("  ... and %d more", static_cast<int32>(DeleteTargets.size()) - 8); break; }
+				ImGui::TextDisabled("  %s", Path.filename().string().c_str());
+			}
+		}
+		bool bHasFolder = false;
+		for (const fs::path& Path : DeleteTargets)
+		{
+			std::error_code Error;
+			bHasFolder |= fs::is_directory(Path, Error);
+		}
+		if (bHasFolder)
+			ImGui::TextColored(ImVec4(1, 0.75f, 0.3f, 1), "Folders are deleted with everything inside them.");
+		ImGui::TextDisabled("Items are moved to the Recycle Bin.");
+
+		if (ImGui::Button("Delete") || ImGui::IsKeyPressed(ImGuiKey_Enter))
+		{
+			const std::vector<fs::path> Targets = std::move(DeleteTargets);
+			DeleteTargets.clear();
+			for (const fs::path& Path : Targets)
+			{
+				if (MoveToRecycleBin(Path))
+					OnPathMoved(Path, {});
+				else
+					HTR_LOG(Warning, "Failed to delete '{}'", Path.generic_string());
+			}
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+		{
+			DeleteTargets.clear();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
 }
 
 void FContentDrawerPanel::OnRender()
@@ -394,11 +885,22 @@ void FContentDrawerPanel::RenderContents()
 		ImGui::EndChild();
 
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3.0f * S);
-		ImGui::TextDisabled("%d item%s (%d selected)", VisibleItemCount, VisibleItemCount == 1 ? "" : "s", bSelectionVisible ? 1 : 0);
+		ImGui::TextDisabled("%d item%s (%d selected)", VisibleItemCount, VisibleItemCount == 1 ? "" : "s", SelectedVisibleCount);
 	}
 	ImGui::EndChild();
 
 	DrawCreatePopups();
+	DrawRenameDeletePopups();
+	ProcessPendingMove();
+	ProcessReferenceFixups();
+	// 끌기 미리보기는 이 값을 다음 프레임에 읽는다 (원본 카드가 놓기 대상보다 먼저 그려지므로)
+	PrevDragHoverTargetName = std::move(DragHoverTargetName);
+	bPrevDragHoverValid = bDragHoverValid;
+	DragHoverTargetName.clear();
+	bDragHoverValid = false;
+	// 끌기가 끝났는데 아무 데도 놓지 않았으면 옮길 목록을 비운다
+	if (!DragPaths.empty() && ImGui::GetDragDropPayload() == nullptr && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		DragPaths.clear();
 }
 
 // ---------------- 사이드바 ----------------
@@ -564,12 +1066,25 @@ void FContentDrawerPanel::DrawFolderTree(const fs::path& Path)
 	DrawList->AddText(ImVec2(X + 19.0f * S, MidY - ImGui::GetFontSize() * 0.5f), ImGui::GetColorU32(ImGuiCol_Text),
 		Path.filename().string().c_str());
 
+	// 같은 단계의 폴더 노드끼리 팝업 ID가 겹치지 않게 경로로 구분한다 (안 그러면 형제 폴더 메뉴가 같이 열린다).
+	ImGui::PushID(PathString.c_str());
 	if (ImGui::BeginPopupContextItem("##FolderContext"))
 	{
 		if (ImGui::MenuItem(IsFavorite(Path) ? "Remove from Favorites" : "Add to Favorites"))
 			ToggleFavorite(Path);
+		if (!bRoot)
+		{
+			ImGui::Separator();
+			if (ImGui::MenuItem("Rename"))
+				BeginRename(Path);
+			if (ImGui::MenuItem("Delete"))
+				BeginDelete({ Path });
+		}
 		ImGui::EndPopup();
 	}
+	ImGui::PopID();
+	// 그리드에서 끌어 온 항목을 이 폴더로 옮긴다
+	AcceptMoveDrop(Path);
 
 	if (bOpen)
 	{
@@ -891,6 +1406,29 @@ void FContentDrawerPanel::DrawAssetGrid()
 	});
 	VisibleItemCount = static_cast<int32>(Entries.size());
 	bSelectionVisible = false;
+	SelectedVisibleCount = 0;
+
+	// 단축키: Ctrl+A 모두 선택, F2 이름 변경, Delete 삭제 (그리드에 포커스가 있고 글자 입력 중이 아닐 때)
+	if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) && !ImGui::GetIO().WantTextInput
+		&& !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+	{
+		if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_A))
+		{
+			SelectedPaths.clear();
+			for (const FEntry& Entry : Entries)
+				SelectedPaths.push_back(Entry.PathString);
+		}
+		// 화면에 보이는 선택만 대상으로 한다 (검색/필터로 숨은 항목을 모르게 지우지 않게)
+		std::vector<fs::path> VisibleSelected;
+		for (const FEntry& Entry : Entries)
+			if (IsSelected(Entry.PathString))
+				VisibleSelected.push_back(Entry.Path);
+		if (ImGui::IsKeyPressed(ImGuiKey_F2, false) && VisibleSelected.size() == 1)
+			BeginRename(VisibleSelected[0]);
+		if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && !VisibleSelected.empty())
+			BeginDelete(VisibleSelected);
+	}
+	bool bAnyItemHovered = false;
 
 	if (Entries.empty())
 	{
@@ -961,11 +1499,54 @@ void FContentDrawerPanel::DrawAssetGrid()
 		const ImVec2 Min = ImGui::GetCursorScreenPos();
 		const ImVec2 Max(Min.x + CardWidth, Min.y + CardHeight);
 		ImGui::InvisibleButton("##Item", ImVec2(CardWidth, CardHeight));
-		const bool bHovered = ImGui::IsItemHovered();
-		if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right))
-			HighlightPath = Entry.PathString;
-		const bool bSelected = Entry.PathString == HighlightPath;
+		const bool bHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+		bAnyItemHovered |= bHovered;
+		{
+			// Ctrl: 하나씩 더하고 빼기, Shift: 기준 항목부터 범위, 그냥 클릭: 그것만.
+			// 이미 선택된 항목을 그냥 누르면 여러 개를 같이 끌 수 있게 놓을 때까지 미룬다.
+			const ImGuiIO& IO = ImGui::GetIO();
+			if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+			{
+				PendingSelectOnly.clear();
+				if (IO.KeyShift && !HighlightPath.empty())
+				{
+					size_t Anchor = Entries.size();
+					for (size_t I = 0; I < Entries.size(); ++I)
+						if (Entries[I].PathString == HighlightPath) { Anchor = I; break; }
+					if (Anchor == Entries.size())
+						SelectOnly(Entry.PathString);
+					else
+					{
+						if (!IO.KeyCtrl)
+							SelectedPaths.clear();
+						for (size_t I = ImMin(Anchor, Index); I <= ImMax(Anchor, Index); ++I)
+							if (!IsSelected(Entries[I].PathString))
+								SelectedPaths.push_back(Entries[I].PathString);
+					}
+				}
+				else if (IO.KeyCtrl)
+					ToggleSelected(Entry.PathString);
+				else if (IsSelected(Entry.PathString))
+				{
+					PendingSelectOnly = Entry.PathString;
+					HighlightPath = Entry.PathString;
+				}
+				else
+					SelectOnly(Entry.PathString);
+			}
+			if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && !IsSelected(Entry.PathString))
+				SelectOnly(Entry.PathString);
+			if (ImGui::IsItemDeactivated() && PendingSelectOnly == Entry.PathString)
+			{
+				const float Threshold = IO.MouseDragThreshold;
+				if (IO.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] < Threshold * Threshold)
+					SelectOnly(Entry.PathString);
+				PendingSelectOnly.clear();
+			}
+		}
+		const bool bSelected = IsSelected(Entry.PathString);
 		bSelectionVisible |= bSelected;
+		SelectedVisibleCount += bSelected ? 1 : 0;
 		if (bSelected && bScrollToHighlight)
 		{
 			ImGui::SetScrollHereY(0.5f);
@@ -1044,44 +1625,84 @@ void FContentDrawerPanel::DrawAssetGrid()
 		if (bHovered && !ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 			ImGui::SetTooltip("%s\n%s", Entry.Name.c_str(), Entry.Category == EAssetCategory::Other ? "File" : Info.Label);
 
-		// 우클릭 메뉴: 폴더는 즐겨찾기, 스켈레탈 메시는 블렌드 스페이스 / 애님 블루프린트 만들기
+		// 우클릭 메뉴: 이름 변경 / 삭제 + 폴더는 즐겨찾기, 스켈레탈 메시는 블렌드 스페이스 / 애님 블루프린트 만들기
 		const bool bSkeletalMesh = Entry.Category == EAssetCategory::SkeletalMesh;
-		if ((Entry.bDirectory || bSkeletalMesh) && ImGui::BeginPopupContextItem("##AssetContext"))
+		if (ImGui::BeginPopupContextItem("##AssetContext"))
 		{
-			if (Entry.bDirectory)
-			{
-				if (ImGui::MenuItem(IsFavorite(Entry.Path) ? "Remove from Favorites" : "Add to Favorites"))
-					ToggleFavorite(Entry.Path);
-			}
-			else
-			{
-				BlendSpaceCreator.DrawMenuItems(Entry.PathString, CurrentPath);
-				AnimBlueprintCreator.DrawMenuItems(Entry.PathString, CurrentPath);
-			}
+			DrawItemContextMenu(Entry.Path, Entry.bDirectory, bSkeletalMesh, Entry.PathString);
 			ImGui::EndPopup();
 		}
 
-		// 페이로드에 포인터를 그대로 실어서 받는 쪽이 AssetMap을 다시 뒤지지 않게 한다.
-		if (TextureAsset && ImGui::BeginDragDropSource())
+		// 끌기: 이 항목이 선택돼 있으면 선택된 것 전부, 아니면 이것만 옮길 목록에 담는다.
+		// 한 개만 끌 때 텍스처/폰트/Blueprint는 다른 패널에 놓을 수 있게 그 종류의 페이로드를 싣는다.
+		// 미리보기 툴팁은 마우스 아래에 작게 뜨도록 여백을 줄인다 (스타일 값은 툴팁 창을 여는 순간에 쓰인다).
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f * S, 4.0f * S));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(5.0f * S, 2.0f * S));
+		const bool bDragSource = ImGui::BeginDragDropSource();
+		ImGui::PopStyleVar(2);
+		if (bDragSource)
 		{
-			ImGui::SetDragDropPayload(EditorDragDrop::Texture, &TextureAsset, sizeof(UTexture2D*));
-			ImGui::Image((ImTextureID)TextureAsset->GetResource()->GetSRV(), { 64.0f * S, 64.0f * S });
-			ImGui::TextUnformatted(Entry.Name.c_str());
+			if (!IsSelected(Entry.PathString))
+				SelectOnly(Entry.PathString);
+			PendingSelectOnly.clear();
+			DragPaths = GetSelectedFsPaths();
+			const bool bSingle = DragPaths.size() <= 1;
+			if (bSingle && TextureAsset)
+				// 페이로드에 포인터를 그대로 실어서 받는 쪽이 AssetMap을 다시 뒤지지 않게 한다.
+				ImGui::SetDragDropPayload(EditorDragDrop::Texture, &TextureAsset, sizeof(UTexture2D*));
+			else if (bSingle && FontAsset)
+				ImGui::SetDragDropPayload(EditorDragDrop::Font, &FontAsset, sizeof(UFont*));
+			else if (bSingle && Entry.Category == EAssetCategory::Blueprint)
+				// Blueprint는 레벨 뷰포트로 끌어다 놓아 배치한다. 경로 문자열을 그대로 싣는다.
+				ImGui::SetDragDropPayload(EditorDragDrop::Blueprint, Entry.PathString.c_str(), Entry.PathString.size() + 1);
+			else
+				ImGui::SetDragDropPayload(EditorDragDrop::ContentMove, nullptr, 0);
+
+			// 작은 아이콘(텍스처면 썸네일) + 이름, 여러 개면 개수 배지. 놓을 폴더 위면 아랫줄에 대상 폴더.
+			const float Icon = std::floor(20.0f * S);
+			const ImVec2 IconMin = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(Icon, Icon));
+			ImDrawList* TipDraw = ImGui::GetWindowDrawList();
+			if (Thumbnail && Thumbnail->GetResource() && Thumbnail->GetResource()->GetSRV())
+				TipDraw->AddImage((ImTextureID)Thumbnail->GetResource()->GetSRV(), IconMin, ImVec2(IconMin.x + Icon, IconMin.y + Icon));
+			else
+				EditorIcons::Draw(TipDraw, Entry.bDirectory ? EEditorIcon::Folder : Info.Icon,
+					ImVec2(IconMin.x + Icon * 0.5f, IconMin.y + Icon * 0.5f), Icon * (Entry.bDirectory ? 0.95f : 0.8f), Info.Color);
+			if (!bSingle)
+			{
+				// 아이콘 오른쪽 위에 개수 배지
+				char Badge[16];
+				std::snprintf(Badge, sizeof(Badge), "%d", static_cast<int32>(DragPaths.size()));
+				const float BadgeFont = std::floor(FontSize * 0.75f);
+				const ImVec2 BadgeText = ImGui::GetFont()->CalcTextSizeA(BadgeFont, FLT_MAX, 0.0f, Badge);
+				const float BadgeH = BadgeFont + 2.0f * S;
+				const float BadgeW = ImMax(BadgeH, BadgeText.x + 6.0f * S);
+				const ImVec2 BMin(IconMin.x + Icon - BadgeW * 0.6f, IconMin.y - BadgeH * 0.35f);
+				TipDraw->AddRectFilled(BMin, ImVec2(BMin.x + BadgeW, BMin.y + BadgeH), ImGui::GetColorU32(ImGuiCol_SeparatorActive), BadgeH * 0.5f);
+				TipDraw->AddText(ImGui::GetFont(), BadgeFont, ImVec2(BMin.x + (BadgeW - BadgeText.x) * 0.5f, BMin.y + 1.0f * S),
+					IM_COL32_WHITE, Badge);
+			}
+			ImGui::SameLine();
+			ImGui::BeginGroup();
+			FString Label = bSingle ? Entry.Name : (Entry.Name + " +" + std::to_string(DragPaths.size() - 1));
+			if (Label.size() > 32)
+				Label = Label.substr(0, 30) + "...";
+			ImGui::TextUnformatted(Label.c_str());
+			if (!PrevDragHoverTargetName.empty())
+			{
+				if (bPrevDragHoverValid)
+					ImGui::TextDisabled("Move to %s", PrevDragHoverTargetName.c_str());
+				else
+					ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "Can't move here");
+			}
+			else if (bSingle && Entry.Category == EAssetCategory::Blueprint)
+				ImGui::TextDisabled("Drop in viewport to place");
+			ImGui::EndGroup();
 			ImGui::EndDragDropSource();
 		}
-		if (FontAsset && ImGui::BeginDragDropSource())
-		{
-			ImGui::SetDragDropPayload(EditorDragDrop::Font, &FontAsset, sizeof(UFont*));
-			ImGui::TextUnformatted(Entry.Name.c_str());
-			ImGui::EndDragDropSource();
-		}
-		// Blueprint는 레벨 뷰포트로 끌어다 놓아 배치한다. 경로 문자열을 그대로 싣는다.
-		if (Entry.Category == EAssetCategory::Blueprint && ImGui::BeginDragDropSource())
-		{
-			ImGui::SetDragDropPayload(EditorDragDrop::Blueprint, Entry.PathString.c_str(), Entry.PathString.size() + 1);
-			ImGui::Text("Place %s", Entry.Path.stem().string().c_str());
-			ImGui::EndDragDropSource();
-		}
+		// 폴더 카드 위에 놓으면 그 폴더로 옮긴다
+		if (Entry.bDirectory)
+			AcceptMoveDrop(Entry.Path);
 
 		// 더블 클릭: 폴더는 들어가고, 에셋은 맞는 에디터로 연다.
 		if (bHovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -1110,6 +1731,11 @@ void FContentDrawerPanel::DrawAssetGrid()
 	}
 	ImGui::PopStyleVar();
 	ImGui::Dummy(ImVec2(0.0f, 4.0f * S));
+
+	// 빈 곳을 누르면 선택을 푼다 (Ctrl/Shift를 누르고 있으면 유지)
+	if (!bAnyItemHovered && ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)
+		&& !ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyShift)
+		ClearSelection();
 }
 
 namespace
@@ -1360,7 +1986,7 @@ void FContentDrawerPanel::DrawCreatePopups()
 		FString Error;
 		if (ParticleSystemFile::CreateDefault(Target, Error))
 		{
-			HighlightPath = Target.generic_string();
+			SelectOnly(Target.generic_string());
 			if (OnOpenMesh) OnOpenMesh(Target.generic_string());   // 만들자마자 에디터로 연다
 		}
 		else
@@ -1382,7 +2008,7 @@ void FContentDrawerPanel::DrawCreatePopups()
 			HTR_LOG(Warning, "Failed to create input asset: {}", Error);
 			return;
 		}
-		HighlightPath = Path;
+		SelectOnly(Path);
 		if (OnOpenMesh) OnOpenMesh(Path);
 	};
 	NameDialog("Create Input Action", FInputAssetLibrary::ActionExtension,
@@ -1394,7 +2020,7 @@ void FContentDrawerPanel::DrawCreatePopups()
 	{
 		std::error_code Error;
 		if (fs::create_directory(Target, Error))
-			HighlightPath = Target.generic_string();
+			SelectOnly(Target.generic_string());
 		else
 			HTR_LOG(Warning, "Failed to create folder: {}", Target.generic_string());
 	});
@@ -1514,7 +2140,7 @@ void FContentDrawerPanel::CreateBlueprintAsset(UClass* ParentClass)
 	FString CreateError;
 	if (FBlueprint::SaveBlueprint(Target, ParentClass, nullptr, CreateError))
 	{
-		HighlightPath = Target.generic_string();
+		SelectOnly(Target.generic_string());
 		if (OnOpenMesh) OnOpenMesh(Target.generic_string());   // 만들자마자 Blueprint 에디터로 연다
 	}
 	else

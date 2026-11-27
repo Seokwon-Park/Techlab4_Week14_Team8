@@ -15,4 +15,7 @@ namespace EditorDragDrop
 
 	// 페이로드 내용: 널로 끝나는 UTF-8 에셋 경로 ("Content/Blueprints/BP_Door.bp")
 	inline constexpr const char* Blueprint = "ASSET_BLUEPRINT";
+
+	// 콘텐츠 드로어 안에서 파일/폴더를 다른 폴더로 옮길 때. 옮길 목록은 드로어가 들고 있고 페이로드는 비어 있다.
+	inline constexpr const char* ContentMove = "CONTENT_MOVE";
 }

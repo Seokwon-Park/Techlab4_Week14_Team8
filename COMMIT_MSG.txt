@@ -1,0 +1,19 @@
+refactor: 에디터 테마 강조색을 파랑에서 밝은 분홍으로 통일
+
+- 뷰포트 설정 팝업의 Appearance/Theme 항목 제거 (Window > Theme 메뉴로 일원화)
+- Dark/Mid/Light 팔레트의 강조·선택·체크박스·슬라이더·탭 오버라인 색을 분홍 계열로 변경
+- 블루프린트 에디터 선택 줄, 출력 로그 텍스트 선택색도 하드코딩 파랑 대신 테마 색을 따르도록 수정
+
+변경 파일: EditorStyle.h, EditorViewportToolbar.cpp, BlueprintEditorTab.cpp, OutputLogPanel.cpp
+
+==================== (별도 커밋) ====================
+
+feat: 콘텐츠 드로어 이름 변경/삭제, 다중 선택, 드래그 앤 드롭 이동
+
+- 파일·폴더 우클릭(그리드/폴더 트리) 메뉴에 Rename(F2), Delete(Del), Show in Explorer 추가. 삭제는 휴지통으로 보냄
+- Ctrl/Shift 클릭, Ctrl+A 다중 선택, 빈 곳 클릭으로 선택 해제. 선택 항목을 폴더 카드나 트리 노드로 끌어 옮기기
+- 옮기거나 이름을 바꾸면 씬·위젯·BP·머티리얼·Lua·Config ini 안의 경로 문자열("Content/..."·"Models/..." 두 표기)을 새 경로로 일괄 치환
+- UAssetManager::RefreshAssetPaths로 미로드 등록 갱신 + 로드된 에셋을 새 키로 옮기고 GetPath()도 바꿔 열린 씬 저장 시에도 새 경로로 기록
+- 끌기 중 마우스 아래에 작은 미리보기(아이콘·이름·개수 배지·"Move to 폴더") 표시
+
+변경 파일: ContentDrawerPanel.h/.cpp, EditorDragDrop.h, AssetManager.h/.cpp

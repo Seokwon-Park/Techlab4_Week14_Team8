@@ -379,7 +379,7 @@ void FOutputLogPanel::RenderContents()
 	};
 
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, EditorColor::BgDeepest);
-	ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(38, 118, 224, 160));
+	ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, EditorColor::WithAlpha(EditorColor::Accent, 110));
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f * S, 4.0f * S));
 	if (LogFont) ImGui::PushFont(LogFont, 0.0f);

@@ -409,20 +409,6 @@ namespace EditorViewportUI
 				ImGui::SetNextItemWidth(120.0f * S);
 				ImGui::SliderInt("##VpGridSpacing", &Settings->GridSpacing, 1, 100);
 				ImGui::Checkbox("Draw PS Grid", &Settings->bDrawPSGrid);
-
-				ImGui::Spacing();
-				EditorIcons::MenuSection("Appearance");
-				const char* ThemeNames[] = { "Dark", "Mid", "Light", "Hitori" };
-				int ThemeIdx = static_cast<int>(Settings->Theme);
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextUnformatted("Theme");
-				ImGui::SameLine();
-				ImGui::SetNextItemWidth(120.0f * S);
-				if (ImGui::Combo("##VpTheme", &ThemeIdx, ThemeNames, IM_ARRAYSIZE(ThemeNames)))
-				{
-					Settings->Theme = static_cast<EEditorTheme>(ThemeIdx);
-					EditorStyle::SetTheme(Settings->Theme);
-				}
 			}
 			else
 			{

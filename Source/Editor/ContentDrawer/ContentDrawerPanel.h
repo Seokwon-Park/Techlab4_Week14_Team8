@@ -130,9 +130,54 @@ private:
 	std::vector<fs::path> FavoritePaths;   // 이번 실행 동안만 기억한다
 	bool bRevealCurrentFolder = true;      // 이동한 직후 한 번, 트리에서 지금 폴더의 조상 노드를 연다
 
-	// 선택(테두리) 표시할 파일. 그리드 항목 경로와 같은 형식("Content/Scenes/A.scene").
+	// 선택(테두리) 표시할 항목들. 그리드 항목 경로와 같은 형식("Content/Scenes/A.scene").
+	// HighlightPath는 마지막으로 고른 항목 (Shift 범위 선택의 기준, 스크롤 대상).
+	std::vector<FString> SelectedPaths;
 	FString HighlightPath;
 	bool bScrollToHighlight = false;
+	FString PendingSelectOnly;          // 이미 선택된 항목을 눌렀을 때, 끌지 않고 놓으면 그것만 남긴다
+	int32 SelectedVisibleCount = 0;
+
+	bool IsSelected(const FString& Path) const;
+	void SelectOnly(const FString& Path);
+	void ToggleSelected(const FString& Path);
+	void ClearSelection();
+
+	// 이름 변경 / 삭제 (우클릭 메뉴, F2, Delete). 다음 프레임에 창 기준으로 모달을 연다.
+	fs::path RenameTarget;
+	char RenameBuffer[128] = {};
+	FString RenameExtension;            // 파일은 확장자를 빼고 이름만 고친다 (".fbx.bin" 같은 겹확장자 포함)
+	bool bOpenRename = false;
+	std::vector<fs::path> DeleteTargets;
+	bool bOpenDelete = false;
+	void BeginRename(const fs::path& Path);
+	void BeginDelete(const std::vector<fs::path>& Paths);
+	void DrawRenameDeletePopups();
+	// 지금 선택된 항목들 (화면 순서와 무관)
+	std::vector<fs::path> GetSelectedFsPaths() const;
+	void DrawItemContextMenu(const fs::path& Path, bool bDirectory, bool bSkeletalMesh, const FString& PathString);
+
+	// 끌어다 놓아 옮기기. 끌기 시작할 때 옮길 항목을 담아 두고, 폴더에 놓으면 프레임 끝에 옮긴다.
+	std::vector<fs::path> DragPaths;
+	std::vector<fs::path> PendingMovePaths;
+	fs::path PendingMoveTarget;
+	// 폴더(그리드 카드나 트리 노드) 위에 놓기를 받는다. 마지막 아이템에 붙는다.
+	void AcceptMoveDrop(const fs::path& TargetFolder);
+	bool CanMoveInto(const fs::path& Source, const fs::path& TargetFolder) const;
+	void ProcessPendingMove();
+	// 파일/폴더가 옮겨지거나 이름이 바뀐 뒤 경로를 따라가야 하는 상태(현재 폴더, 즐겨찾기, 선택, 에셋 등록)를 고친다.
+	void OnPathMoved(const fs::path& OldPath, const fs::path& NewPath);
+
+	// 옮긴 (이전, 새) 경로. 프레임 끝에 한 번에 씬·에셋·설정 파일 안의 경로 문자열을 새 경로로 바꾼다.
+	struct FMovedPath { fs::path Old; fs::path New; bool bDirectory = false; };
+	std::vector<FMovedPath> PendingReferenceFixups;
+	void ProcessReferenceFixups();
+
+	// 끌기 미리보기에 "어디로 옮기는지"를 보이기 위한 값. 놓기 대상 위에 있는 프레임에 채워지고 다음 프레임에 읽는다.
+	FString DragHoverTargetName;
+	bool bDragHoverValid = false;
+	FString PrevDragHoverTargetName;
+	bool bPrevDragHoverValid = false;
 
 	// 보기 설정
 	enum class ESortMode : uint8 { NameAscending, NameDescending, Type };

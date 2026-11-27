@@ -309,6 +309,94 @@ URenderAsset* UAssetManager::FindLoadedAsset(const FString& Path)
 	return Found ? *Found : nullptr;
 }
 
+void UAssetManager::RefreshAssetPaths(const fs::path& OldPath, const fs::path& NewPath)
+{
+	UAssetManager& Self = Get();
+	const FString OldKey = MakeLookupKey(OldPath.generic_string());
+	if (!OldKey.empty())
+	{
+		TArray<FString> Stale;
+		for (const auto& [Key, Path] : Self.AssetPathMap)
+		{
+			if (Key == OldKey || Key.starts_with(OldKey + "/"))
+				Stale.Add(Key);
+		}
+		for (const FString& Key : Stale)
+			Self.AssetPathMap.Remove(Key);
+	}
+
+	// 이미 로드된 에셋은 새 키로 옮기고 경로 표기도 바꾼다. 씬을 저장할 때 GetPath()를 그대로 쓰기 때문이다.
+	const FString NewKey = NewPath.empty() ? FString() : MakeLookupKey(NewPath.generic_string());
+	if (!OldKey.empty() && !NewKey.empty())
+	{
+		// Key가 OldKey 자신이거나 그 아래면 NewKey로 바꾼 키, 아니면 빈 문자열
+		auto MapKey = [&OldKey, &NewKey](const FString& Key) -> FString
+		{
+			if (Key == OldKey) return NewKey;
+			if (Key.starts_with(OldKey + "/")) return NewKey + Key.substr(OldKey.size());
+			return FString();
+		};
+		auto RekeyMap = [&MapKey](auto& Map, auto&& OnMoved)
+		{
+			TArray<std::pair<FString, FString>> Moves;
+			for (const auto& [Key, Value] : Map)
+			{
+				FString Moved = MapKey(Key);
+				if (!Moved.empty())
+					Moves.Add({ Key, std::move(Moved) });
+			}
+			for (const auto& [From, To] : Moves)
+			{
+				auto Value = *Map.Find(From);
+				Map.Remove(From);
+				OnMoved(Value);
+				Map.Add(To, Value);
+			}
+		};
+
+		const FString ContentPrefix = FPaths::ProjectContentPath() + "/";
+		RekeyMap(Self.AssetMap, [&](URenderAsset* Asset)
+		{
+			if (!Asset) return;
+			// 원래 표기("Content/Models/a.png" 또는 "Models/a.png")를 지킨다
+			const FString& Path = Asset->GetPath();
+			const bool bContentForm = Path.starts_with(ContentPrefix);
+			const FString Moved = MapKey(bContentForm ? Path.substr(ContentPrefix.size()) : Path);
+			if (!Moved.empty())
+				Asset->SetPath(bContentForm ? ContentPrefix + Moved : Moved);
+		});
+		auto NoOp = [](auto*) {};
+		RekeyMap(Self.AnimSequenceMap, NoOp);
+		RekeyMap(Self.BlendSpaceMap, NoOp);
+		RekeyMap(Self.ParticleSystemMap, NoOp);
+	}
+
+	std::error_code Error;
+	if (NewPath.empty() || !fs::exists(NewPath, Error))
+		return;
+
+	auto Register = [&Self](const fs::path& File)
+	{
+		const FString Path = File.generic_string();
+		const FString Key = MakeLookupKey(Path);
+		if (GetAssetTypeFromPath(Path) != EAssetType::None && !Self.AssetMap.Contains(Key))
+			Self.AssetPathMap.Add(Key, Path);
+	};
+	if (fs::is_directory(NewPath, Error))
+	{
+		for (fs::recursive_directory_iterator It(NewPath, Error), End; !Error && It != End; It.increment(Error))
+		{
+			std::error_code TypeError;
+			if (It->is_regular_file(TypeError))
+				Register(It->path());
+		}
+	}
+	else
+	{
+		Register(NewPath);
+	}
+}
+
 EAssetType UAssetManager::GetUnloadedAssetType(const FString& Path)
 {
 	const FString Key = MakeLookupKey(Path);

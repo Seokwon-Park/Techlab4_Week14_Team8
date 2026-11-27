@@ -9,15 +9,16 @@
 #include "Editor/Details/PropertyEditor.h"
 #include "Editor/EditorUI/ComponentTypeInfo.h"
 #include "Editor/EditorUI/EditorIcons.h"
+#include "Editor/EditorUI/EditorStyle.h"
 #include "Editor/Viewports/EditorViewportToolbar.h"
 #include "Engine/Blueprint.h"
 #include "GameFramework/Actor.h"
 
 namespace
 {
-	// UE5 선택 줄 색
-	constexpr ImU32 SelectionBlue = IM_COL32(0, 112, 224, 255);
-	constexpr ImU32 SelectionBlueHovered = IM_COL32(24, 128, 236, 255);
+	// 선택 줄 색. 테마의 선택/강조색을 따른다.
+	const ImU32& SelectionBlue = EditorColor::BgSelected;
+	const ImU32& SelectionBlueHovered = EditorColor::BgSelected;
 
 	// UE5 My Blueprint / Details의 섹션 머리줄 (어두운 막대에 접기 화살표)
 	bool SectionHeader(const char* Label, ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_DefaultOpen)
@@ -110,7 +111,7 @@ void FBlueprintComponentsPanel::DrawContent()
 	}
 	ImGui::Spacing();
 
-	// 고른 줄은 UE5처럼 파란색으로 칠한다.
+	// 고른 줄은 테마 선택색(분홍)으로 칠한다.
 	ImGui::PushStyleColor(ImGuiCol_Header, SelectionBlue);
 	ImGui::PushStyleColor(ImGuiCol_HeaderHovered, SelectionBlueHovered);
 	ImGui::PushStyleColor(ImGuiCol_HeaderActive, SelectionBlue);

@@ -79,6 +79,11 @@ public:
 
 	void RegisterAsset(const FString& Key, URenderAsset* Asset);
 
+	// 콘텐츠 드로어에서 파일/폴더를 옮기거나 지운 뒤 부른다 (Content 기준 경로 또는 "Content/..." 경로).
+	// OldPath(폴더면 그 아래 전부)의 미로드 등록을 지우고, NewPath가 있으면 그 아래 파일을 다시 등록한다.
+	// 옮긴 경우 이미 로드된 에셋은 새 키로 옮기고 GetPath()도 새 경로로 바꾼다 (지운 경우는 쓰는 곳이 있을 수 있어 그대로 둔다).
+	static void RefreshAssetPaths(const fs::path& OldPath, const fs::path& NewPath = {});
+
 	//UStaticMesh* GetMesh(FString InName);
 	//UStaticMesh* GetMesh(EPrimitiveType Type); // 오버로드(수정 중)
 
