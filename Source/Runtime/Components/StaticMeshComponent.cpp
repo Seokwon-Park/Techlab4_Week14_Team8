@@ -104,6 +104,37 @@ void UStaticMeshComponent::SubmitToRenderQueue(FRenderQueue& RenderQueue, const 
 	SubmitToRenderQueue(RenderQueue, SelectedLOD);
 }
 
+void UStaticMeshComponent::SubmitScreenSizedIcon(FRenderQueue& RenderQueue, const FViewContext& ViewContext)
+{
+	const FPrimitiveSceneProxy* Proxy = GetSceneProxy();
+	if (!Proxy || !Proxy->GetMesh()) return;
+	const FMeshRenderState* State = Proxy->GetRenderState();
+	if (!State || State->LODCount == 0) return;
+
+	// 메시 원점(부모 라이트 위치)을 기준으로 줄인다. 행 벡터 규약이라 0~2행이 축이다.
+	FMatrix World = Proxy->GetLocalToWorld();
+	const FVector Origin(World.M[3][0], World.M[3][1], World.M[3][2]);
+	const float Scale = ComputeScreenSizeClampScale(Origin, ViewContext.CameraPosition, ViewContext.CameraForward,
+		ViewContext.bOrthographic, ViewContext.ProjectionScaleY, ScreenSizeRefSize, ScreenSize);
+	for (int32 Row = 0; Row < 3; ++Row)
+		for (int32 Col = 0; Col < 3; ++Col)
+			World.M[Row][Col] *= Scale;
+	const FMatrix* Model = RenderQueue.StoreWorldMatrix(World);
+
+	const FCachedMeshLOD& LOD = State->LODs[0];
+	for (uint32 I = 0; I < LOD.NumSections; ++I)
+	{
+		const FCachedMeshSection& Section = State->Sections[LOD.FirstSection + I];
+		FRenderPacket& Packet = RenderQueue.AddDefaulted_GetRef();
+		Packet.Mesh = Proxy->GetMesh();
+		Packet.Model = Model;
+		Packet.Material = Section.Material;
+		Packet.StartIndex = Section.StartIndex;
+		Packet.IndexCount = Section.IndexCount;
+		Packet.LODIndex = 0;
+	}
+}
+
 // 지정한 LOD의 Section으로 패킷을 만든다.
 void UStaticMeshComponent::SubmitToRenderQueue(FRenderQueue& RenderQueue, uint32 LODIndex)
 {

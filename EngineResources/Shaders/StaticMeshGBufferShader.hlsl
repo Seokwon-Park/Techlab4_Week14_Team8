@@ -18,7 +18,7 @@ cbuffer MaterialParams : register(b1)
     float4 BaseColor;
     float2 UVOffset;
     float2 TextureFlags; // x: 노멀맵 인코딩, y: 노멀맵 Y 반전
-    float4 MaskParams;   // x: Masked 알파 기준값(0이면 끔). FStaticMeshMaterialParams와 같은 순서
+    float4 MaskParams;   // x: Masked 알파 기준값(0이면 끔), y: Unlit이면 1. FStaticMeshMaterialParams와 같은 순서
 };
 
 // 정점 입력은 VertexFactory.hlsli의 FVertexFactoryInput (정점 타입별 변형)
@@ -98,6 +98,8 @@ GBUFFER_OUTPUT mainPS(PS_INPUT Input, bool bFrontFace : SV_IsFrontFace)
     Output.BaseColorMetallic = float4(LinearAlbedo, 0.0f);
     // bReceiveShadow가 꺼진 물체는 w를 음수(-Roughness - 1)로 저장한다. Deferred 조명이 그림자 마스크를 무시한다.
     const float Roughness = 0.8f;
+    // Unlit 머티리얼은 노멀을 0으로 남긴다. DeferredLightingShader가 이 픽셀은 조명 없이 알베도를 그대로 쓴다.
+    if (MaskParams.y > 0.5f) Normal = float3(0.0f, 0.0f, 0.0f);
     Output.NormalRoughness = float4(Normal, Input.ReceiveShadow > 0.5f ? Roughness : -Roughness - 1.0f);
     return Output;
 }

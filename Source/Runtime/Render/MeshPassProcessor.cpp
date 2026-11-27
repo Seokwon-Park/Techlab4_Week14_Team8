@@ -117,6 +117,8 @@ namespace
 				Params.BaseColor = Material->BaseColor;
 				Params.UVOffset = Material->UVScrollSpeed * EngineTimer::GetTotalTime();
 				Params.MaskParams.X = Material->GetMaskClipValue();
+				// y: Unlit이면 1. GBuffer 셰이더가 노멀을 0으로 써서 Deferred 조명이 알베도를 그대로 내보내게 한다
+				Params.MaskParams.Y = Material->IsUnlit() ? 1.0f : 0.0f;
 				if (Material->PSOType == EPSOType::StaticMesh_Translucent || Material->PSOType == EPSOType::StaticMesh_Additive)
 				{
 					UTexture2D* Color = Material->Textures.IsEmpty() ? nullptr : Material->Textures[0];

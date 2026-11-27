@@ -150,26 +150,13 @@ void UBillboardComponent::GetIconExtent(const FVector& WorldPos, const FVector& 
 	const FVector WorldScale = GetWorldScale3D();
 	OutWidth = bEditorIcon ? IconSize : WorldScale.Y;
 	OutHeight = bEditorIcon ? IconSize : WorldScale.Z;
-	if (!bEditorIcon || !bIsScreenSizeScaled || ScreenSize <= 0.0f || ProjectionScaleY <= 0.0f)
+	if (!bEditorIcon || !bIsScreenSizeScaled)
 		return;
 
-	// 화면 세로에서 차지하는 비율 = 높이 * 세로배율 / (2 * 깊이)  (직교는 깊이 1)
-	float Depth = 1.0f;
-	if (!bOrthographic)
-	{
-		const FVector Forward = CameraForward.Length() > 1e-6f ? CameraForward.Normalized() : (WorldPos - CameraPos).Normalized();
-		Depth = (WorldPos - CameraPos).Dot(Forward);
-		if (Depth <= 1e-3f)
-			return;   // 카메라 뒤나 바로 앞: 어차피 잘린다
-	}
-	const float MaxHeight = 2.0f * ScreenSize * Depth / ProjectionScaleY;
-	const float Largest = std::max(OutWidth, OutHeight);
-	if (Largest > MaxHeight && Largest > 0.0f)
-	{
-		const float Scale = MaxHeight / Largest;
-		OutWidth *= Scale;
-		OutHeight *= Scale;
-	}
+	const float Scale = ComputeScreenSizeClampScale(WorldPos, CameraPos, CameraForward, bOrthographic, ProjectionScaleY,
+		std::max(OutWidth, OutHeight), ScreenSize);
+	OutWidth *= Scale;
+	OutHeight *= Scale;
 }
 
 void UBillboardComponent::Serialize(FStructuredArchive::FRecord Record)

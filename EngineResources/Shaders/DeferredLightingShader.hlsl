@@ -178,6 +178,9 @@ float4 mainPS(FPSInput Input) : SV_Target
     // GBuffer가 bReceiveShadow를 w 부호에 넣는다 (StaticMeshGBufferShader.hlsl)
     const bool bReceiveShadow = NormalData.a >= 0.0f;
     float Roughness = bReceiveShadow ? NormalData.a : -NormalData.a - 1.0f;
+    // Unlit 머티리얼(StaticMeshGBufferShader가 노멀을 0으로 씀): 광원별 패스는 더하지 않고, 기본 패스에서 알베도를 그대로 낸다
+    if (dot(NormalData.xyz, NormalData.xyz) < 1.0e-8f)
+        return bSingleLightPass ? float4(0.0f, 0.0f, 0.0f, 0.0f) : float4(Albedo, 1.0f);
     float3 N = NormalData.xyz * rsqrt(max(dot(NormalData.xyz, NormalData.xyz), 1.0e-8f));
 
     float2 UV = (float2(Pixel) + 0.5f) / ViewportSize.xy;

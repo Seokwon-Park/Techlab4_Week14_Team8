@@ -574,6 +574,8 @@ void UAssetManager::CreateEditorArrowMaterial() {
 	UMaterial* BaseMaterial{ GetAssetByPath<UMaterial>("DefaultMaterial") };
 	UMaterial* ArrowMaterial{ UMaterial::CreateInstance(BaseMaterial) };
 	ArrowMaterial->BaseColor = FVector4{ 1.0f, 1.0f, 1.0f, 1.0f };
+	// UE 라이트 방향 화살표처럼 조명을 받지 않는다 (빛 반대쪽에서 봐도 검게 되지 않게)
+	ArrowMaterial->ShadingModel = EMaterialShadingModel::Unlit;
 	RegisterAsset("EditorArrowMaterial", ArrowMaterial);
 }
 

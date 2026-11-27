@@ -49,6 +49,9 @@ public:
 	bool bCastsShadow = true;
 	bool bReceiveShadow = true;
 	bool bReceivesDecals = true;
+	// 화면 크기에 따라 뷰마다 줄여 그리는 에디터 아이콘 메시 (라이트 방향 화살표 등).
+	// 고정 행렬을 쓰는 빠른 경로 대신 느린 경로에서 UStaticMeshComponent::SubmitScreenSizedIcon으로 그린다.
+	bool bScreenSizeScaledIcon = false;
 protected:
 	bool bSkinned = false;
 	TSharedPtr<const FMeshRenderState> RenderState;
