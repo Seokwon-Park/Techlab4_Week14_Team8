@@ -126,6 +126,26 @@ enum class EEditorIcon : uint8
 	NavMesh,            // 반투명하게 채운 폴리곤 두 개
 	NavPath,            // 시작 점 → 점선 경로 → 도착 깃발
 
+	// 시퀀서
+	SeqKey,
+	SeqKeyAll,
+	Wrench,
+	PlaybackOptions,
+	Magnet,
+	AutoScroll,
+	ToStart,
+	ToEnd,
+	StepBack,
+	StepForward,
+	PrevKey,
+	NextKey,
+	Loop,
+	Lock,
+	Unlock,
+	RangeStart,
+	RangeEnd,
+	TrackArea,
+
 	Count
 };
 
