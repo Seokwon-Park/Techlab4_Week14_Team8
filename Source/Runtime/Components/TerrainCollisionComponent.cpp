@@ -20,7 +20,7 @@ bool UTerrainCollisionComponent::ShouldCreatePhysicsState() const
 void UTerrainCollisionComponent::OnCreatePhysicsState()
 {
 	Super::OnCreatePhysicsState();
-	
+
 	using namespace physx;
 	ATerrain* Terrain = Cast<ATerrain>(GetOwner());
 	FPhysicsScene* Scene = GetWorld()->GetPhysicsScene();
@@ -31,20 +31,16 @@ void UTerrainCollisionComponent::OnCreatePhysicsState()
 	const FTerrainCoordinates Coords = Terrain->GetCoordinates();
 	const TArray<uint16>& Heights = Terrain->GetHeights();
 
-	// 샘플 배열 만들기
 	TArray<PxHeightFieldSample> Samples;
 	Samples.SetNum(Heights.Num());
 	for (int32 Index = 0; Index < Heights.Num(); ++Index)
 	{
 		PxHeightFieldSample& Sample = Samples[Index];
 		Sample.height = static_cast<PxI16>(static_cast<int32>(Heights[Index]) - TERRAIN_HEIGHT_MID);
-		Sample.materialIndex0 = 0;
-		Sample.materialIndex1 = 0;
 		// 대각선 (X,Y)→(X+1,Y+1). 렌더 메시와 같은 분할
 		Sample.setTessFlag();
 	}
 
-	// 하이트 필드 생성
 	PxHeightFieldDesc Desc;
 	Desc.format = PxHeightFieldFormat::eS16_TM;
 	Desc.nbRows = static_cast<PxU32>(Coords.SizeY);
@@ -61,7 +57,6 @@ void UTerrainCollisionComponent::OnCreatePhysicsState()
 	if (!HeightField)
 		return;
 
-	// 형상, 재질, actor, shape 생성.
 	const PxHeightFieldGeometry Geometry(HeightField, PxMeshGeometryFlags(),
 		Coords.GetWorldHeightScale(), Coords.GetWorldCellSize(), Coords.GetWorldCellSize());
 
