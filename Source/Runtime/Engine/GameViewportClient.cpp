@@ -158,6 +158,7 @@ FSceneView FGameViewportClient::CalcSceneView(const FRect& InViewRect)
 {
 	FSceneView OutView;
 	OutView.ViewIndex = 0;
+	OutView.ViewStateKey = reinterpret_cast<uint64>(this);
 	OutView.bGameView = true;
 	OutView.ViewRect = InViewRect;
 

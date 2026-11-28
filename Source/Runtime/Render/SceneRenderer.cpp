@@ -1509,7 +1509,7 @@ void FSceneRenderer::GatherRenderPackets(FScene& Scene, FSceneRenderData& Data,
 
 	RenderStats.TotalPrimitives = Scene.PrimitiveSceneProxies.Num();
 
-	// GPU 오클루전: 프러스텀을 통과한 물체를 GPU에서 가림 판정하고 결과를 이번 프레임에 받아 온다.
+	// GPU 오클루전: 프러스텀을 통과한 물체를 GPU에서 가림 판정한다. 비동기 모드(기본)는 이미 끝난 지난 판정을 기다리지 않고 받아 온다.
 	// Cull이 켜져 있으면 가려진 물체를 목록에서 빼서 이후 Gather·정렬·드로우를 모두 건너뛴다.
 	// 꺼져 있으면(검증 모드) 목록은 그대로 두고 패킷에 판정만 표시한다.
 	const uint8* OccludedMask = nullptr;

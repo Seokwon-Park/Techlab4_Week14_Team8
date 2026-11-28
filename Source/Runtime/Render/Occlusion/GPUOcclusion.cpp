@@ -220,14 +220,14 @@ bool FGPUOcclusion::Init()
 
 bool FGPUOcclusion::EnsureTargets(uint32 Width, uint32 Height)
 {
-	if (OccluderDSV && TargetWidth == Width && TargetHeight == Height)
+	if (V->OccluderDSV && V->TargetWidth == Width && V->TargetHeight == Height)
 		return true;
 
 	ID3D11Device* Device = FRenderDevice::Get()->GetDevice();
-	TargetWidth = TargetHeight = 0;
-	OccluderDepth.Reset(); OccluderDSV.Reset(); OccluderDepthSRV.Reset();
-	HiZ.Reset(); HiZSRV.Reset(); HiZMipSRVs.clear(); HiZMipUAVs.clear();
-	MipWidths.clear(); MipHeights.clear();
+	V->TargetWidth = V->TargetHeight = 0;
+	V->OccluderDepth.Reset(); V->OccluderDSV.Reset(); V->OccluderDepthSRV.Reset();
+	V->HiZ.Reset(); V->HiZSRV.Reset(); V->HiZMipSRVs.clear(); V->HiZMipUAVs.clear();
+	V->MipWidths.clear(); V->MipHeights.clear();
 
 	// 가림막 깊이: DSV로 쓰고 SRV로 읽어야 해서 TYPELESS로 만든다.
 	D3D11_TEXTURE2D_DESC DepthDesc{};
@@ -239,7 +239,7 @@ bool FGPUOcclusion::EnsureTargets(uint32 Width, uint32 Height)
 	DepthDesc.SampleDesc.Count = 1;
 	DepthDesc.Usage = D3D11_USAGE_DEFAULT;
 	DepthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
-	if (FAILED(Device->CreateTexture2D(&DepthDesc, nullptr, OccluderDepth.GetAddressOf())))
+	if (FAILED(Device->CreateTexture2D(&DepthDesc, nullptr, V->OccluderDepth.GetAddressOf())))
 		return false;
 
 	D3D11_DEPTH_STENCIL_VIEW_DESC DsvDesc{};
@@ -249,8 +249,8 @@ bool FGPUOcclusion::EnsureTargets(uint32 Width, uint32 Height)
 	DepthSrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	DepthSrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	DepthSrvDesc.Texture2D.MipLevels = 1;
-	if (FAILED(Device->CreateDepthStencilView(OccluderDepth.Get(), &DsvDesc, OccluderDSV.GetAddressOf())) ||
-		FAILED(Device->CreateShaderResourceView(OccluderDepth.Get(), &DepthSrvDesc, OccluderDepthSRV.GetAddressOf())))
+	if (FAILED(Device->CreateDepthStencilView(V->OccluderDepth.Get(), &DsvDesc, V->OccluderDSV.GetAddressOf())) ||
+		FAILED(Device->CreateShaderResourceView(V->OccluderDepth.Get(), &DepthSrvDesc, V->OccluderDepthSRV.GetAddressOf())))
 		return false;
 
 	// Hi-Z: 화면 절반(올림)에서 1x1까지. D3D 밉 크기는 내림으로 줄어드는데, 홀수로 남는 줄은 BuildHiZ가 마지막 텍셀에 합친다.
@@ -269,16 +269,16 @@ bool FGPUOcclusion::EnsureTargets(uint32 Width, uint32 Height)
 	HiZDesc.SampleDesc.Count = 1;
 	HiZDesc.Usage = D3D11_USAGE_DEFAULT;
 	HiZDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-	if (FAILED(Device->CreateTexture2D(&HiZDesc, nullptr, HiZ.GetAddressOf())) ||
-		FAILED(Device->CreateShaderResourceView(HiZ.Get(), nullptr, HiZSRV.GetAddressOf())))
+	if (FAILED(Device->CreateTexture2D(&HiZDesc, nullptr, V->HiZ.GetAddressOf())) ||
+		FAILED(Device->CreateShaderResourceView(V->HiZ.Get(), nullptr, V->HiZSRV.GetAddressOf())))
 		return false;
 
-	HiZMipSRVs.resize(MipCount);
-	HiZMipUAVs.resize(MipCount);
+	V->HiZMipSRVs.resize(MipCount);
+	V->HiZMipUAVs.resize(MipCount);
 	for (uint32 Level = 0; Level < MipCount; ++Level)
 	{
-		MipWidths.push_back(std::max(1u, Width0 >> Level));
-		MipHeights.push_back(std::max(1u, Height0 >> Level));
+		V->MipWidths.push_back(std::max(1u, Width0 >> Level));
+		V->MipHeights.push_back(std::max(1u, Height0 >> Level));
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc{};
 		SrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
@@ -289,13 +289,13 @@ bool FGPUOcclusion::EnsureTargets(uint32 Width, uint32 Height)
 		UavDesc.Format = DXGI_FORMAT_R32_FLOAT;
 		UavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 		UavDesc.Texture2D.MipSlice = Level;
-		if (FAILED(Device->CreateShaderResourceView(HiZ.Get(), &SrvDesc, HiZMipSRVs[Level].GetAddressOf())) ||
-			FAILED(Device->CreateUnorderedAccessView(HiZ.Get(), &UavDesc, HiZMipUAVs[Level].GetAddressOf())))
+		if (FAILED(Device->CreateShaderResourceView(V->HiZ.Get(), &SrvDesc, V->HiZMipSRVs[Level].GetAddressOf())) ||
+			FAILED(Device->CreateUnorderedAccessView(V->HiZ.Get(), &UavDesc, V->HiZMipUAVs[Level].GetAddressOf())))
 			return false;
 	}
 
-	TargetWidth = Width;
-	TargetHeight = Height;
+	V->TargetWidth = Width;
+	V->TargetHeight = Height;
 	return true;
 }
 
@@ -309,7 +309,7 @@ bool FGPUOcclusion::EnsureItemCapacity(uint32 Count)
 		NewCapacity *= 2;
 
 	ID3D11Device* Device = FRenderDevice::Get()->GetDevice();
-	ItemBuffer.Reset(); ItemSRV.Reset(); ResultBuffer.Reset(); ResultUAV.Reset(); ResultStaging.Reset();
+	ItemBuffer.Reset(); ItemSRV.Reset(); ResultBuffer.Reset(); ResultUAV.Reset();
 	ItemCapacity = 0;
 
 	D3D11_BUFFER_DESC ItemDesc{};
@@ -339,14 +339,26 @@ bool FGPUOcclusion::EnsureItemCapacity(uint32 Count)
 		FAILED(Device->CreateUnorderedAccessView(ResultBuffer.Get(), &ResultUavDesc, ResultUAV.GetAddressOf())))
 		return false;
 
+	ItemCapacity = NewCapacity;
+	return true;
+}
+
+// 스테이징 칸은 결과 버퍼와 크기가 달라도 된다 (CopySubresourceRegion으로 Count개만 복사한다).
+bool FGPUOcclusion::EnsureSlotCapacity(FReadbackSlot& Slot, uint32 Count)
+{
+	if (Slot.Staging && Slot.Capacity >= Count)
+		return true;
+
+	const uint32 NewCapacity = std::max(ItemCapacity, Count);
 	D3D11_BUFFER_DESC StagingDesc{};
 	StagingDesc.ByteWidth = NewCapacity * sizeof(uint32);
 	StagingDesc.Usage = D3D11_USAGE_STAGING;
 	StagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	if (FAILED(Device->CreateBuffer(&StagingDesc, nullptr, ResultStaging.GetAddressOf())))
+	Slot.Staging.Reset();
+	Slot.Capacity = 0;
+	if (FAILED(FRenderDevice::Get()->GetDevice()->CreateBuffer(&StagingDesc, nullptr, Slot.Staging.GetAddressOf())))
 		return false;
-
-	ItemCapacity = NewCapacity;
+	Slot.Capacity = NewCapacity;
 	return true;
 }
 
@@ -442,7 +454,7 @@ void FGPUOcclusion::DrawOccluders(const FPrimitiveSceneProxy* const* Proxies, co
 	// 가장 먼저 비운다. 가림막을 하나도 못 그리고 끝나도 깊이가 1(아무것도 안 가림)이어야 한다.
 	// (지난 프레임 깊이가 남아 있으면 지금 보이는 물체를 가려진 것으로 판정할 수 있다.)
 	ID3D11DeviceContext* Context = FRenderDevice::Get()->GetContext();
-	Context->ClearDepthStencilView(OccluderDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+	Context->ClearDepthStencilView(V->OccluderDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	{
 	// 가림막 고르기: 화면에 크게 보이는 것부터 넓이를 쌓아, 화면 OccluderCoverage장분을 덮거나 MaxOccluders개가 되면 멈춘다.
@@ -537,8 +549,8 @@ void FGPUOcclusion::DrawOccluders(const FPrimitiveSceneProxy* const* Proxies, co
 
 	Context->UpdateSubresource(ViewCB.Get(), 0, nullptr, &View.ViewProjection, 0, 0);
 
-	Context->OMSetRenderTargets(0, nullptr, OccluderDSV.Get());   // 색 없이 깊이만
-	const D3D11_VIEWPORT Viewport{ 0.0f, 0.0f, static_cast<float>(TargetWidth), static_cast<float>(TargetHeight), 0.0f, 1.0f };
+	Context->OMSetRenderTargets(0, nullptr, V->OccluderDSV.Get());   // 색 없이 깊이만
+	const D3D11_VIEWPORT Viewport{ 0.0f, 0.0f, static_cast<float>(V->TargetWidth), static_cast<float>(V->TargetHeight), 0.0f, 1.0f };
 	Context->RSSetViewports(1, &Viewport);
 
 	RenderCommand::SetDepthStencilState(EDepthStencilState::Default);
@@ -579,19 +591,19 @@ void FGPUOcclusion::BuildHiZ()
 
 	ID3D11ShaderResourceView* NullSRV = nullptr;
 	ID3D11UnorderedAccessView* NullUAV = nullptr;
-	for (uint32 Level = 0; Level < static_cast<uint32>(HiZMipUAVs.size()); ++Level)
+	for (uint32 Level = 0; Level < static_cast<uint32>(V->HiZMipUAVs.size()); ++Level)
 	{
 		FHiZParams Params;
-		Params.SrcSize[0] = Level == 0 ? TargetWidth : MipWidths[Level - 1];
-		Params.SrcSize[1] = Level == 0 ? TargetHeight : MipHeights[Level - 1];
-		Params.DstSize[0] = MipWidths[Level];
-		Params.DstSize[1] = MipHeights[Level];
+		Params.SrcSize[0] = Level == 0 ? V->TargetWidth : V->MipWidths[Level - 1];
+		Params.SrcSize[1] = Level == 0 ? V->TargetHeight : V->MipHeights[Level - 1];
+		Params.DstSize[0] = V->MipWidths[Level];
+		Params.DstSize[1] = V->MipHeights[Level];
 		Context->UpdateSubresource(HiZParamsCB.Get(), 0, nullptr, &Params, 0, 0);
 
-		ID3D11ShaderResourceView* Src = Level == 0 ? OccluderDepthSRV.Get() : HiZMipSRVs[Level - 1].Get();
+		ID3D11ShaderResourceView* Src = Level == 0 ? V->OccluderDepthSRV.Get() : V->HiZMipSRVs[Level - 1].Get();
 		Context->CSSetShaderResources(0, 1, &Src);
-		Context->CSSetUnorderedAccessViews(0, 1, HiZMipUAVs[Level].GetAddressOf(), nullptr);
-		Context->Dispatch((MipWidths[Level] + 7) / 8, (MipHeights[Level] + 7) / 8, 1);
+		Context->CSSetUnorderedAccessViews(0, 1, V->HiZMipUAVs[Level].GetAddressOf(), nullptr);
+		Context->Dispatch((V->MipWidths[Level] + 7) / 8, (V->MipHeights[Level] + 7) / 8, 1);
 
 		// 다음 밉에서 이 밉을 읽으므로 쓰기 바인딩을 먼저 푼다.
 		Context->CSSetUnorderedAccessViews(0, 1, &NullUAV, nullptr);
@@ -605,15 +617,15 @@ void FGPUOcclusion::Cull(const FMatrix& ViewProjection, uint32 Count)
 
 	FCullParams Params;
 	Params.ViewProjection = ViewProjection;
-	Params.ScreenSize[0] = static_cast<float>(TargetWidth);
-	Params.ScreenSize[1] = static_cast<float>(TargetHeight);
+	Params.ScreenSize[0] = static_cast<float>(V->TargetWidth);
+	Params.ScreenSize[1] = static_cast<float>(V->TargetHeight);
 	Params.NumItems = Count;
 	Params.Padding = 0;
 	Context->UpdateSubresource(CullParamsCB.Get(), 0, nullptr, &Params, 0, 0);
 
 	Context->CSSetShader(CullCS.Get(), nullptr, 0);
 	Context->CSSetConstantBuffers(1, 1, CullParamsCB.GetAddressOf());
-	ID3D11ShaderResourceView* SRVs[2] = { ItemSRV.Get(), HiZSRV.Get() };
+	ID3D11ShaderResourceView* SRVs[2] = { ItemSRV.Get(), V->HiZSRV.Get() };
 	Context->CSSetShaderResources(1, 2, SRVs);
 	Context->CSSetUnorderedAccessViews(1, 1, ResultUAV.GetAddressOf(), nullptr);
 
@@ -624,19 +636,19 @@ void FGPUOcclusion::Cull(const FMatrix& ViewProjection, uint32 Count)
 	Context->CSSetShaderResources(0, 3, NullSRVs);
 	Context->CSSetUnorderedAccessViews(0, 2, NullUAVs, nullptr);
 	Context->CSSetShader(nullptr, nullptr, 0);
-
-	Context->CopyResource(ResultStaging.Get(), ResultBuffer.Get());
 }
 
-// 판정 결과를 기다려 읽는다. 여기서 CPU가 GPU를 기다린다 (GPU에 쌓인 이전 작업 + 가림막 패스 + 판정).
-bool FGPUOcclusion::ReadBack(uint32 Count)
+// 동기 모드: 방금 낸 판정을 기다려 읽는다. 여기서 CPU가 GPU를 기다린다 (GPU에 쌓인 이전 작업 + 가림막 패스 + 판정).
+bool FGPUOcclusion::ReadBackSync(FReadbackSlot& Slot, uint32 Count)
 {
 	SCOPE_CYCLE_COUNTER(STAT_GPUOcclusionWait);
 	const auto Start = std::chrono::high_resolution_clock::now();
 
 	ID3D11DeviceContext* Context = FRenderDevice::Get()->GetContext();
 	D3D11_MAPPED_SUBRESOURCE Mapped{};
-	if (FAILED(Context->Map(ResultStaging.Get(), 0, D3D11_MAP_READ, 0, &Mapped)))
+	const HRESULT Hr = Context->Map(Slot.Staging.Get(), 0, D3D11_MAP_READ, 0, &Mapped);
+	Slot.State = FReadbackSlot::EState::Free;
+	if (FAILED(Hr))
 		return false;
 
 	const uint32* Result = static_cast<const uint32*>(Mapped.pData);
@@ -647,10 +659,139 @@ bool FGPUOcclusion::ReadBack(uint32 Count)
 		Occluded[i] = static_cast<uint8>(Result[i]);
 		OccludedCount += Result[i];
 	}
-	Context->Unmap(ResultStaging.Get(), 0);
+	Context->Unmap(Slot.Staging.Get(), 0);
 
 	Stats.Occluded = OccludedCount;
 	Stats.WaitMs = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - Start).count();
+	return true;
+}
+
+// 끝난 판정을 읽어 가려진 물체만 남긴다. bWait가 false면 GPU가 아직일 때 바로 돌아온다.
+bool FGPUOcclusion::FinishSlot(FReadbackSlot& Slot, bool bWait)
+{
+	ID3D11DeviceContext* Context = FRenderDevice::Get()->GetContext();
+	D3D11_MAPPED_SUBRESOURCE Mapped{};
+	const HRESULT Hr = Context->Map(Slot.Staging.Get(), 0, D3D11_MAP_READ,
+		bWait ? 0 : D3D11_MAP_FLAG_DO_NOT_WAIT, &Mapped);
+	if (Hr == DXGI_ERROR_WAS_STILL_DRAWING)
+		return false;
+	if (FAILED(Hr))
+	{
+		Slot.State = FReadbackSlot::EState::Free;
+		return false;
+	}
+
+	const uint32* Result = static_cast<const uint32*>(Mapped.pData);
+	Slot.OccludedEntries.clear();
+	for (uint32 i = 0; i < Slot.Count; ++i)
+		if (Result[i])
+			Slot.OccludedEntries.push_back({ Slot.Proxies[i], Slot.PackedIndices[i], Slot.Bounds[i] });
+	Context->Unmap(Slot.Staging.Get(), 0);
+
+	// 목록은 더 필요 없다 (용량은 다음 판정에 재사용)
+	Slot.Proxies.clear();
+	Slot.PackedIndices.clear();
+	Slot.Bounds.clear();
+	Slot.State = FReadbackSlot::EState::Ready;
+	return true;
+}
+
+void FGPUOcclusion::PollPendingSlots()
+{
+	// GPU는 낸 순서대로 끝내므로 오래된 것부터 본다. 하나라도 아직이면 그 뒤도 아직이다.
+	for (;;)
+	{
+		FReadbackSlot* Oldest = nullptr;
+		for (FReadbackSlot& Slot : V->ReadbackSlots)
+			if (Slot.State == FReadbackSlot::EState::Pending && (!Oldest || Slot.IssueSerial < Oldest->IssueSerial))
+				Oldest = &Slot;
+		if (!Oldest || !FinishSlot(*Oldest, false))
+			return;
+	}
+}
+
+FGPUOcclusion::FReadbackSlot* FGPUOcclusion::AcquireFreeSlot()
+{
+	FReadbackSlot* OldestReady = nullptr;
+	for (FReadbackSlot& Slot : V->ReadbackSlots)
+	{
+		if (Slot.State == FReadbackSlot::EState::Free)
+			return &Slot;
+		if (Slot.State == FReadbackSlot::EState::Ready && (!OldestReady || Slot.IssueSerial < OldestReady->IssueSerial))
+			OldestReady = &Slot;
+	}
+	// 빈 칸이 없으면 낡은 결과를 덮어쓴다. 모두 GPU를 기다리는 중이면 이번엔 판정을 내지 않는다.
+	return OldestReady;
+}
+
+// 이 뷰에서 가장 최근에 끝난 판정을 지금 목록에 프록시 단위로 옮긴다.
+// 지난 판정에 없던 물체, 그 뒤 위치·크기가 바뀐 물체는 보이는 것으로 둔다 (잘못 가리지 않는 쪽).
+bool FGPUOcclusion::ApplyReadyResult(const FPrimitiveSceneProxy* const* Proxies, uint32 Count, const FViewContext& View)
+{
+	FReadbackSlot* Newest = nullptr;
+	for (FReadbackSlot& Slot : V->ReadbackSlots)
+		if (Slot.State == FReadbackSlot::EState::Ready &&
+			(!Newest || Slot.IssueSerial > Newest->IssueSerial))
+			Newest = &Slot;
+	if (!Newest)
+		return false;
+
+	// 더 오래된 결과는 쓸 일이 없다
+	for (FReadbackSlot& Slot : V->ReadbackSlots)
+		if (&Slot != Newest && Slot.State == FReadbackSlot::EState::Ready)
+			Slot.State = FReadbackSlot::EState::Free;
+
+	// 판정을 낸 뒤로 카메라가 많이 움직였으면 그때의 Hi-Z로는 지금 화면을 판정할 수 없다
+	const FVector Moved = View.CameraPosition - Newest->CameraPosition;
+	const float MaxMove = Settings.MaxReuseCameraMove;
+	const FVector OldForward = Newest->CameraForward.Normalized();
+	const FVector NewForward = View.CameraForward.Normalized();
+	if (Moved.Dot(Moved) > MaxMove * MaxMove || OldForward.Dot(NewForward) < Settings.MinReuseCameraForwardDot)
+	{
+		++Stats.DroppedCameraMoved;
+		Newest->State = FReadbackSlot::EState::Free;
+		return false;
+	}
+
+	// 세대 번호로 표를 지우지 않고 재사용한다
+	if (++CurrentStampGeneration == 0)
+	{
+		std::fill(StampGeneration.begin(), StampGeneration.end(), 0u);
+		CurrentStampGeneration = 1;
+	}
+	const auto& Entries = Newest->OccludedEntries;
+	for (uint32 e = 0; e < static_cast<uint32>(Entries.size()); ++e)
+	{
+		const int32 Index = Entries[e].PackedIndex;
+		if (Index < 0)
+			continue;
+		if (static_cast<size_t>(Index) >= StampGeneration.size())
+		{
+			StampGeneration.resize(size_t(Index) + 1, 0u);
+			StampEntry.resize(size_t(Index) + 1, 0u);
+		}
+		StampGeneration[Index] = CurrentStampGeneration;
+		StampEntry[Index] = e;
+	}
+
+	Occluded.assign(Count, 0);
+	uint32 OccludedCount = 0;
+	for (uint32 i = 0; i < Count; ++i)
+	{
+		const FPrimitiveSceneProxy* Proxy = Proxies[i];
+		const int32 Index = Proxy->GetPackedIndex();
+		if (Index < 0 || static_cast<size_t>(Index) >= StampGeneration.size() || StampGeneration[Index] != CurrentStampGeneration)
+			continue;
+		const auto& Entry = Entries[StampEntry[Index]];
+		// 같은 칸에 다른 프록시가 들어왔거나(지워진 뒤 자리 바꿈), 그 뒤로 움직였으면 쓰지 않는다
+		if (Entry.Proxy != Proxy || std::memcmp(&Entry.Bounds, &Proxy->GetBounds(), sizeof(FAABB)) != 0)
+			continue;
+		Occluded[i] = 1;
+		++OccludedCount;
+	}
+
+	Stats.Occluded = OccludedCount;
+	Stats.LatencyFrames = static_cast<uint32>(RunSerial - Newest->IssueSerial);
 	return true;
 }
 
@@ -658,12 +799,49 @@ bool FGPUOcclusion::Run(const FPrimitiveSceneProxy* const* Proxies, uint32 Count
 {
 	SCOPE_CYCLE_COUNTER(STAT_GPUOcclusion);
 
+	++RunSerial;
 	Stats.Tested = Count;
 	Stats.Occluded = 0;
+	Stats.WaitMs = 0.0;
+	Stats.LatencyFrames = 0;
+	Stats.bUsedResult = false;
 	if (!Settings.bEnabled || Count == 0 || View.Width == 0 || View.Height == 0 || !CullCS || !BuildHiZCS)
 		return false;
+
+	// 이 뷰의 상태를 고른다 (없으면 만든다). 오래 안 쓴 뷰(닫힌 에셋 에디터 등)의 상태는 가끔 치운다.
+	TUniquePtr<FViewState>& State = ViewStates[View.ViewStateKey];
+	if (!State)
+		State = MakeUnique<FViewState>();
+	V = State.get();
+	V->LastUsedSerial = RunSerial;
+	if ((RunSerial & 255) == 0)
+		EvictUnusedViewStates();
+
 	if (!EnsureTargets(View.Width, View.Height) || !EnsureItemCapacity(Count))
 		return false;
+
+	const bool bAsync = Settings.bAsyncReadback;
+	bool bApplied = false;
+	if (bAsync)
+	{
+		// 기다리지 않고 이미 끝난 판정만 거둬 이번 목록에 적용한다
+		PollPendingSlots();
+		bApplied = ApplyReadyResult(Proxies, Count, View);
+	}
+	else
+	{
+		// 비동기에서 바꿨을 때 남은 칸은 버린다 (같은 스테이징에 다시 복사해도 D3D가 순서를 지킨다)
+		for (FReadbackSlot& Slot : V->ReadbackSlots)
+			Slot.State = FReadbackSlot::EState::Free;
+	}
+
+	FReadbackSlot* Slot = AcquireFreeSlot();
+	if (!Slot || !EnsureSlotCapacity(*Slot, Count))
+	{
+		++Stats.SkippedNoFreeSlot;
+		Stats.bUsedResult = bApplied;
+		return bApplied;
+	}
 
 	ID3D11DeviceContext* Context = FRenderDevice::Get()->GetContext();
 
@@ -684,6 +862,27 @@ bool FGPUOcclusion::Run(const FPrimitiveSceneProxy* const* Proxies, uint32 Count
 			DrawOccluders(Proxies, View);
 			BuildHiZ();
 			Cull(View.ViewProjection, Count);
+
+			const D3D11_BOX Box{ 0, 0, 0, Count * static_cast<UINT>(sizeof(uint32)), 1, 1 };
+			Context->CopySubresourceRegion(Slot->Staging.Get(), 0, 0, 0, 0, ResultBuffer.Get(), 0, &Box);
+
+			Slot->State = FReadbackSlot::EState::Pending;
+			Slot->Count = Count;
+			Slot->IssueSerial = RunSerial;
+			Slot->CameraPosition = View.CameraPosition;
+			Slot->CameraForward = View.CameraForward;
+			if (bAsync)
+			{
+				// 결과가 올 때쯤엔 프록시가 지워졌을 수 있으므로 지금 값을 복사해 둔다 (주소는 비교에만 쓴다)
+				Slot->Proxies.assign(Proxies, Proxies + Count);
+				Slot->PackedIndices.resize(Count);
+				Slot->Bounds.resize(Count);
+				for (uint32 i = 0; i < Count; ++i)
+				{
+					Slot->PackedIndices[i] = Proxies[i]->GetPackedIndex();
+					Slot->Bounds[i] = Proxies[i]->GetBounds();
+				}
+			}
 		}
 	}
 
@@ -691,5 +890,21 @@ bool FGPUOcclusion::Run(const FPrimitiveSceneProxy* const* Proxies, uint32 Count
 	if (ViewportCount > 0)
 		Context->RSSetViewports(1, &SavedViewport);
 
-	return bFilled && ReadBack(Count);
+	if (!bAsync)
+		bApplied = bFilled && ReadBackSync(*Slot, Count);
+
+	Stats.bUsedResult = bApplied;
+	return bApplied;
+}
+
+void FGPUOcclusion::EvictUnusedViewStates()
+{
+	constexpr uint64 MaxIdleRuns = 1024;
+	for (auto It = ViewStates.begin(); It != ViewStates.end();)
+	{
+		if (It->second.get() != V && RunSerial - It->second->LastUsedSerial > MaxIdleRuns)
+			It = ViewStates.erase(It);
+		else
+			++It;
+	}
 }
