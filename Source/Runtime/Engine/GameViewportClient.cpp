@@ -17,6 +17,8 @@
 #include "Render/Renderer.h"
 #include "Render/SceneRenderer.h"
 #include "Launch/LaunchEngineLoop.h"
+#include "Debug/DrawDebugHelpers.h"
+#include "Render/LineBatcher.h"
 
 FGameViewportClient::FGameViewportClient()
 {
@@ -330,7 +332,28 @@ void FGameViewportClient::Draw(FViewport* InViewport, FUIRenderer* Canvas)
 				};
 
 			// 에디터가 등록해 둔 디버그 요소가 있으면 같이 등록한다.
-			if (DebugDrawDelegate) DebugDrawDelegate(SceneView, Callbacks.Overlays);
+			if (DebugDrawDelegate)
+			{
+				DebugDrawDelegate(SceneView, Callbacks.Overlays);
+			}
+			else
+			{
+				// [B] 에디터 없이 실행한 게임(HitoriGame.exe)에서도 DrawDebug* 선과 NavMesh 오버레이를 그린다.
+				// PIE는 위의 DebugDrawDelegate(에디터 DrawPIEDebug)가 같은 일을 하므로 두 번 그리지 않게 else에 둔다.
+				Callbacks.Overlays.EditorLines = [this, &SceneView]
+					{
+						FLineBatcher* LineBatcher = World ? World->LineBatcher.get() : nullptr;
+						if (!LineBatcher) return;
+						LineBatcher->BeginFrame();
+						DrawWorldDebugToLineBatcher(World, *LineBatcher, EngineShowFlags, EDebugDepthPriority::World);
+						LineBatcher->OnRender(SceneView.ViewProjectionMatrix);
+						LineBatcher->BeginFrame();
+						DrawWorldDebugToLineBatcher(World, *LineBatcher, EngineShowFlags, EDebugDepthPriority::Foreground);
+						LineBatcher->SetDepthTest(false);
+						LineBatcher->OnRender(SceneView.ViewProjectionMatrix);
+						LineBatcher->SetDepthTest(true);
+					};
+			}
 		});
 }
 

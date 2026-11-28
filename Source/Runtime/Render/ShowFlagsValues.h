@@ -38,3 +38,10 @@ SHOWFLAG(RootBone,        false, false, Developer,   "SkeletalMesh",   "Root Bon
 
 // ---------- Render ----------
 SHOWFLAG(AntiAliasing,    false, false, Render,      "ShowAntiAliasing", "Anti-Aliasing (FXAA)")
+
+// ---------- Terrain / Navigation ----------
+SHOWFLAG(TerrainWireframe, false, false, Developer, "TerrainWireframe", "Terrain Wireframe")
+SHOWFLAG(TerrainLODColor, false, false, Developer, "TerrainLODColor", "Terrain LOD Color")
+SHOWFLAG(TerrainBounds, false, false, Developer, "TerrainBounds", "Terrain Chunk Bounds")
+SHOWFLAG(Navigation, false, false, Developer, "NavMesh", "Navigation (NavMesh)")
+SHOWFLAG(NavPath,	true, true, Developer, "NavPath", "Navigation Path")

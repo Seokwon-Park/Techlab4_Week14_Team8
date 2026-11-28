@@ -119,6 +119,47 @@ enum class EEditorIcon : uint8
 	VisualEffects,      // 반짝이
 	AllClasses,         // 겹친 카드
 
+	// 지형 · 내비게이션 쇼 플래그
+	TerrainWireframe,   // 산 실루엣 + 삼각형 분할선
+	TerrainLODColor,    // 크기가 다른 청크 칸 (진할수록 높은 LOD)
+	TerrainBounds,      // 점선 상자 안의 산
+	NavMesh,            // 반투명하게 채운 폴리곤 두 개
+	NavPath,            // 시작 점 → 점선 경로 → 도착 깃발
+
+	// 시퀀서
+	SeqKey,
+	SeqKeyAll,
+	Wrench,
+	PlaybackOptions,
+	Magnet,
+	AutoScroll,
+	ToStart,
+	ToEnd,
+	StepBack,
+	StepForward,
+	PrevKey,
+	NextKey,
+	Loop,
+	Lock,
+	Unlock,
+	RangeStart,
+	RangeEnd,
+	TrackArea,
+
+	// UI(위젯) 에디터
+	WidgetButton,
+	WidgetImage,
+	WidgetText,
+	WidgetProgressBar,
+	WidgetCanvasPanel,
+	WidgetVerticalBox,
+	Undo,
+	Redo,
+	Designer,
+	ZoomFit,
+	Anchor,
+	Grid,
+
 	Count
 };
 

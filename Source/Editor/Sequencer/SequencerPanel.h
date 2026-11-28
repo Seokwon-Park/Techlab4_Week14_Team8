@@ -6,6 +6,8 @@
 #include <functional>
 
 class UWorld;
+class UClass;
+class AActor;
 class UObject;
 class UCameraComponent;
 class ULevelSequence;
@@ -45,8 +47,9 @@ private:
 	};
 
 	void DrawToolbar();
-	void DrawAddActorPopup();
-	void DrawAddTrackPopup();
+	void DrawOutlinerHeader(const ImVec2& Min, float Width, float Height);
+	void DrawTransportBar(const ImVec2& Min, float Width, float Height);
+	void DrawRangeBar(const ImVec2& Min, float Width, float Height);
 	void DrawTimeline();
 	void DrawDetails();
 	void DrawChannelDetails(UMovieSceneSection& Section, FMovieSceneFloatChannel& Channel);
@@ -57,6 +60,23 @@ private:
 
 	void BuildRows(TArray<FRow>& OutRows) const;
 	void NewSequence();
+	void SaveSequence();
+	void LoadSequence();
+	void PlaceSequenceActor();
+	void AddActorBinding(AActor& Actor);
+	void AddGlobalTrack(UClass* TrackClass);
+	void DeleteSelectedKey();
+	void DeleteSelectedTrack();
+	void SetAllExpanded(bool bExpanded);
+	FMovieSceneFloatChannel* GetSelectedChannel() const;
+
+	// 재생 헤드 이동 (트랜스포트 버튼)
+	void JumpToSeconds(float Seconds);
+	void StepFrames(int32 Delta);
+	void JumpToAdjacentKey(bool bNext);
+	void TogglePlay();
+	void ZoomToFit(float TimelineWidth);
+	void ClampView();
 	void ResetPlayer();
 	void KeySelectedTrack();
 	void ClearSelection();
@@ -71,6 +91,8 @@ private:
 	FFrameNumber SecondsToFrame(float Seconds) const;
 	float GetLengthSeconds() const;
 	float GetPlayheadSeconds() const;
+	double GetDisplayRate() const;
+	int32 SecondsToDisplayFrame(float Seconds) const;
 
 	ULevelSequence* Sequence = nullptr;
 	ULevelSequencePlayer* Player = nullptr;
@@ -79,15 +101,21 @@ private:
 	std::function<void(UCameraComponent*)> PilotCamera;
 
 	float PixelsPerSecond = 120.0f;
-	float ViewStart = 0.0f;
+	float ViewStart = -0.5f;
+	float RowScroll = 0.0f;              // 트랙 목록 세로 스크롤 (px)
 	bool bSnap = true;
+	bool bAutoScroll = false;            // 재생 중 재생 헤드를 따라 화면을 민다
+	bool bShowDetails = true;            // 아래 키/섹션 편집 칸
+	bool bFitPending = true;             // 다음 그리기에서 재생 범위를 화면에 맞춘다
+	bool bShowGlobalTracks = true;
+	bool bShowBindings = true;
+	char SearchBuffer[64] = "";
 
 	UMovieSceneTrack* SelectedTrack = nullptr;
 	FGuid SelectedBinding;
 	int32 SelectedChannel = -1;
 	int32 SelectedKey = -1;
 
-	FString AddActorName;
 	char PropertyNameBuffer[64] = "FieldOfView";
 	FGuid NewCutCamera;
 	FMovieSceneEvent NewEvent;
