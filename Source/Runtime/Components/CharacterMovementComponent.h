@@ -1,7 +1,17 @@
 #pragma once
 
 #include "PawnMovementComponent.h"
+#include "Collision/HitResult.h"
 #include "CharacterMovementComponent.generated.h"
+
+struct FFindFloorResult
+{
+	bool bBlockingHit = false;
+	bool bWalkableFloor = false;
+	// 캡슐 바닥에서 지면까지 거리 (m)
+	float FloorDist = 0.0f;
+	FHitResult HitResult;
+};
 
 // UE EMovementMode의 일부
 enum class ECharacterMovementMode : uint8
@@ -73,6 +83,13 @@ public:
 	UPROPERTY(EditAnywhere)
 	bool bScalePushForceToVelocity = true;
 
+	// 이 각도(deg)보다 가파른 면은 걸어서 오를 수 없다
+	float WalkableFloorAngle = 44.765f;
+
+	void SetWalkableFloorAngle(float InAngle);
+	float GetWalkableFloorZ() const { return WalkableFloorZ; }
+	bool IsWalkable(const FHitResult& Hit) const;
+
 	FVector GetCurrentAcceleration() const { return Acceleration; }
 
 	ECharacterMovementMode GetMovementMode() const { return MovementMode; }
@@ -102,8 +119,15 @@ protected:
 	void PhysFalling(float DeltaTime);
 	// 걷는 중 이동이 끝난 뒤 바닥에 발을 붙인다. 바닥이 없으면 Falling
 	void MaintainFloor();
-	// 캡슐 중심에서 아래로 (반높이 + ExtraDistance)만큼 바닥을 찾는다. Hit.Distance는 중심~바닥 거리
-	bool FindFloor(float ExtraDistance, FHitResult& OutHit) const;
+	// 캡슐로 sweep해서 이동
+	bool MoveUpdatedComponent(const FVector& Delta, const FRotator& NewRotation, bool bSweep, FHitResult* OutHit) override;
+	// 바닥 판정. SweepDistance만큼 아래로 쏴서 바닥을 찾는다. OutFloor는 바닥 정보
+	bool FindFloor(float SweepDistance, FFindFloorResult& OutFloor) const;
+	// 부딪힌 지점이 발에서 MaxStepHeight 이내인지 검사
+	bool CanStepUp(const FHitResult& Hit) const;
+	// 올라감 -> 전진 -> 내려감 시도, 걸을 수 있는 면에 내려서면 true, 아니면 false
+	bool StepUp(const FVector& Delta);
+
 	float GetCapsuleHalfHeight() const;
 	// 바닥 판정을 쓸 수 있는지 (Actor 충돌이 켜져 있고 World가 있을 때)
 	bool CanUseFloor() const;
@@ -123,4 +147,8 @@ protected:
 
 	FVector Acceleration;
 	ECharacterMovementMode MovementMode = ECharacterMovementMode::Walking;
+
+	// 걸을 수 있는 바닥 노멀 Z의 최솟값
+	float WalkableFloorZ = 0.71f;
+	FFindFloorResult CurrentFloor;
 };

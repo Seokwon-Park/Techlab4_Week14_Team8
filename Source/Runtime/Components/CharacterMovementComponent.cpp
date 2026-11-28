@@ -7,8 +7,17 @@
 #include "Collision/HitResult.h"
 #include "Engine/World.h"
 #include "UObject/Casts.h"
+#include "Physics/PhysicsScene.h"
+#include "AI/Navigation/NavigationTypes.h"
 #include <algorithm>
 #include <cmath>
+
+namespace
+{
+	// 바닥 위에 띄워 두는 틈 (cm). 바닥에 붙어 있으면 수평 sweep이 겹친 채 시작해서 막힌다
+	constexpr float MIN_FLOOR_DIST = 1.9f;
+	constexpr float MAX_FLOOR_DIST = 2.4f;
+}
 
 UCharacterMovementComponent::UCharacterMovementComponent()
 {
@@ -19,6 +28,9 @@ UCharacterMovementComponent::UCharacterMovementComponent()
 void UCharacterMovementComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
+	const FNavAgentProperties& Agent = GetDefaultNavAgent();
+	SetWalkableFloorAngle(Agent.AgentMaxSlope);
+	MaxStepHeight = Agent.AgentStepHeight;
 }
 
 void UCharacterMovementComponent::TickComponent(float DeltaTime)
@@ -28,6 +40,41 @@ void UCharacterMovementComponent::TickComponent(float DeltaTime)
 
 	const FVector InputVector = ConsumeInputVector();
 	ControlledCharacterMove(InputVector, DeltaTime);
+}
+
+void UCharacterMovementComponent::SetWalkableFloorAngle(float InAngle)
+{
+	WalkableFloorAngle = std::clamp(InAngle, 0.0f, 90.0f);
+	WalkableFloorZ = std::cos(FMath::DegreesToRadians(WalkableFloorAngle));
+}
+
+bool UCharacterMovementComponent::IsWalkable(const FHitResult& Hit) const
+{
+	if (!Hit.bBlockingHit)
+		return false;
+	return Hit.ImpactNormal.Z > KINDA_SMALL_NUMBER && Hit.ImpactNormal.Z >= WalkableFloorZ;
+}
+
+bool UCharacterMovementComponent::MoveUpdatedComponent(const FVector& Delta, const FRotator& NewRotation,
+	bool bSweep, FHitResult* OutHit)
+{
+	const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(UpdatedComponent);
+	FPhysicsScene* Physics = CanUseFloor() ? GetWorld()->GetPhysicsScene() : nullptr;
+	const float Distance = Delta.Size();
+	if (!bSweep || !Capsule || !Physics || Distance <= KINDA_SMALL_NUMBER)
+		return Super::MoveUpdatedComponent(Delta, NewRotation, bSweep, OutHit);
+
+	const FVector Start = UpdatedComponent->GetWorldLocation();
+	FHitResult Hit(1.0f);
+	const bool bHit = Physics->SweepCapsule(FRay(Start, Delta * (1.0f / Distance)), Distance,
+		Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight(),
+		FQuat(UpdatedComponent->GetWorldRotation()), Hit, GetOwner());
+
+	const FVector Destination = bHit ? Start + Delta * Hit.Time + Hit.ImpactNormal * 0.001f : Start + Delta;
+	UpdatedComponent->SetWorldLocationAndRotation(Destination, NewRotation, false);
+	if (OutHit)
+		*OutHit = bHit ? Hit : FHitResult(1.0f);
+	return !bHit;
 }
 
 void UCharacterMovementComponent::ControlledCharacterMove(const FVector& InputVector, float DeltaTime)
@@ -81,21 +128,21 @@ void UCharacterMovementComponent::PhysWalking(float DeltaTime)
 
 void UCharacterMovementComponent::PhysFalling(float DeltaTime)
 {
-	// 수평: 입력은 AirControl 비율만 쓰고, 마찰·제동은 없다 (UE FallingLateralFriction/BrakingDecelerationFalling = 0)
+	// 수평: 입력은 AirControl 비율만 쓰고, 마찰·제동은 없다
 	const float VerticalSpeed = Velocity.Z;
 	Velocity.Z = 0.0f;
 	const FVector InputAcceleration = Acceleration;
 	Acceleration = InputAcceleration * AirControl;
 	CalcVelocity(DeltaTime, 0.0f, 0.0f);
-	Acceleration = InputAcceleration;   // 회전(bOrientRotationToMovement)은 원래 입력 방향을 쓴다
+	Acceleration = InputAcceleration;   // 회전은 원래 입력 방향을 쓴다
 
 	const FRotator Rotation = UpdatedComponent->GetWorldRotation();
 	const FVector Horizontal = Velocity * DeltaTime;
 	if (Horizontal.SizeSquared() > SMALL_NUMBER)
-		SafeMoveWithSlide(Horizontal, Rotation);   // 벽에 막히면 미끄러진다 (Velocity.Z는 아직 0)
+		SafeMoveWithSlide(Horizontal, Rotation);   // 벽에 막히면 미끄러진다
 
-	// 수직: 중력 적분 (사다리꼴)
-	const float GravityZ = -GetEffectiveGravity() * GravityScale;   // 월드 단위 m/s²
+	// 수직: 중력 적분
+	const float GravityZ = -GetEffectiveGravity() * GravityScale;
 	const float NewVerticalSpeed = std::max(VerticalSpeed + GravityZ * DeltaTime, -TerminalVelocity * CmToWorld);
 	const float DeltaZ = 0.5f * (VerticalSpeed + NewVerticalSpeed) * DeltaTime;
 	Velocity.Z = NewVerticalSpeed;
@@ -107,53 +154,72 @@ void UCharacterMovementComponent::PhysFalling(float DeltaTime)
 		return;
 	}
 
-	// 내려가는 중: 이번 프레임에 발이 바닥을 지나치면 바닥 위에 세우고 착지
-	FHitResult Floor;
-	const float FallDistance = -DeltaZ;
-	if (FindFloor(FallDistance + KINDA_SMALL_NUMBER, Floor))
+	// 내려가는 중: 걸을 수 있는 면에 닿으면 착지, 가파른 면이면 면을 따라 미끄러진다
+	FHitResult Hit(1.0f);
+	if (MoveUpdatedComponent(FVector(0.0f, 0.0f, DeltaZ), Rotation, true, &Hit))
+		return;
+
+	if (IsWalkable(Hit))
 	{
-		const float Gap = Floor.Distance - GetCapsuleHalfHeight();   // 발과 바닥 사이 (음수면 이미 묻힘)
-		if (Gap <= FallDistance)
-		{
-			MoveUpdatedComponent(FVector(0.0f, 0.0f, -Gap), Rotation, false, nullptr);
-			ProcessLanded(Floor);
-			return;
-		}
+		ProcessLanded(Hit);
+		return;
 	}
 
-	MoveUpdatedComponent(FVector(0.0f, 0.0f, DeltaZ), Rotation, false, nullptr);
+	const float VDotN = Velocity.Dot(Hit.ImpactNormal);
+	if (VDotN < 0.0f) Velocity = Velocity - Hit.ImpactNormal * VDotN;
+	const FVector Slide = ComputeSlideVector(FVector(0.0f, 0.0f, DeltaZ), 1.0f - Hit.Time, Hit.ImpactNormal, Hit);
+	if (Slide.SizeSquared() > SMALL_NUMBER)
+		MoveUpdatedComponent(Slide, Rotation, true, &Hit);
+}
+
+bool UCharacterMovementComponent::FindFloor(float SweepDistance, FFindFloorResult& OutFloor) const
+{
+	OutFloor = FFindFloorResult();
+	const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(UpdatedComponent);
+	FPhysicsScene* Physics = CanUseFloor() ? GetWorld()->GetPhysicsScene() : nullptr;
+	if (!Capsule || !Physics || SweepDistance <= 0.0f)
+		return false;
+
+	FHitResult Hit;
+	const FVector Start = UpdatedComponent->GetWorldLocation();
+	if (!Physics->SweepCapsule(FRay(Start, FVector(0.0f, 0.0f, -1.0f)), SweepDistance,
+		Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight(),
+		FQuat(UpdatedComponent->GetWorldRotation()), Hit, GetOwner()))
+		return false;
+
+	OutFloor.bBlockingHit = true;
+	// 겹친 채 시작했으면 그 깊이만큼 음수
+	OutFloor.FloorDist = Hit.Distance - Hit.PenetrationDepth;
+	OutFloor.bWalkableFloor = IsWalkable(Hit);
+	OutFloor.HitResult = Hit;
+	return true;
 }
 
 void UCharacterMovementComponent::MaintainFloor()
 {
 	if (!CanUseFloor()) return;
 
-	FHitResult Floor;
-	if (FindFloor(MaxStepHeight * CmToWorld, Floor))
+	const float MinDist = MIN_FLOOR_DIST * CmToWorld;
+	const float MaxDist = MAX_FLOOR_DIST * CmToWorld;
+	FindFloor(MaxStepHeight * CmToWorld + MaxDist, CurrentFloor);
+
+	if (CurrentFloor.bWalkableFloor)
 	{
-		// 경사·계단을 따라 발을 바닥에 붙인다. 묻혀 있으면 위로 올린다
-		const float Gap = Floor.Distance - GetCapsuleHalfHeight();
-		if (std::abs(Gap) > KINDA_SMALL_NUMBER)
-			MoveUpdatedComponent(FVector(0.0f, 0.0f, -Gap), UpdatedComponent->GetWorldRotation(), false, nullptr);
+		if (CurrentFloor.FloorDist < MinDist || CurrentFloor.FloorDist > MaxDist)
+		{
+			const float TargetDist = 0.5f * (MinDist + MaxDist);
+			MoveUpdatedComponent(FVector(0.0f, 0.0f, TargetDist - CurrentFloor.FloorDist),
+				UpdatedComponent->GetWorldRotation(), false, nullptr);
+		}
 		return;
 	}
 
-	// 발밑에 바닥이 없다 (절벽 끝): 떨어진다
+	// 바닥이 없거나 너무 가파르다: 떨어지면서 경사를 따라 미끄러진다
 	if (GravityScale > 0.0f)
 	{
 		Velocity.Z = 0.0f;
 		SetMovementMode(ECharacterMovementMode::Falling);
 	}
-}
-
-bool UCharacterMovementComponent::FindFloor(float ExtraDistance, FHitResult& OutHit) const
-{
-	if (!CanUseFloor()) return false;
-
-	// 반지름 0 Sweep = 아래 방향 레이. PhysX 바디가 있으면 BodySetup 형상에, 없으면 메시 AABB 윗면이나 스킨드 메시 삼각형에 닿는다
-	const FVector Start = UpdatedComponent->GetWorldLocation();
-	const float TraceLength = GetCapsuleHalfHeight() + std::max(ExtraDistance, 0.0f);
-	return GetOwner()->GetWorld()->SweepSingle(FRay(Start, FVector(0.0f, 0.0f, -1.0f)), TraceLength, 0.0f, OutHit, GetOwner());
 }
 
 float UCharacterMovementComponent::GetCapsuleHalfHeight() const
@@ -342,8 +408,7 @@ void UCharacterMovementComponent::SafeMoveWithSlide(const FVector& Delta, const 
 	FHitResult Hit(1.0f);
 	if (MoveUpdatedComponent(Delta, NewRotation, true, &Hit)) return;
 
-	// 시작부터 겹쳐 있던 표면(예: 캡슐이 묻힌 바닥)이 이동 방향을 막지 않으면 Sweep 없이 원래 Delta만큼 간다.
-	// MoveComponent가 막힌 위치에 법선 방향으로 살짝 밀어 두므로 그만큼을 빼서 Start + Delta에 맞춘다.
+	// 시작부터 겹친 표면이 이동 방향을 막지 않으면 sweep 없이 간다
 	if (Hit.Time <= KINDA_SMALL_NUMBER && Hit.ImpactNormal.Dot(Delta) >= 0.0f)
 	{
 		MoveUpdatedComponent(Start + Delta - UpdatedComponent->GetWorldLocation(), NewRotation, false, nullptr);
@@ -351,13 +416,62 @@ void UCharacterMovementComponent::SafeMoveWithSlide(const FVector& Delta, const 
 	}
 
 	HandleImpact(Hit, 0.0f, Delta);
+	const FVector Remaining = Delta * (1.0f - Hit.Time);
 
-	// 벽으로 들어가는 속도 성분을 없애고 남은 이동을 표면을 따라 한 번 더 시도한다
-	const FVector Normal = Hit.ImpactNormal;
+	FVector Normal = Hit.ImpactNormal;
+	if (IsMovingOnGround() && !IsWalkable(Hit))
+	{
+		if (CanStepUp(Hit) && StepUp(Remaining))
+			return;
+		// 걸을 수 없는 경사에 밀려 올라가지 않게 노멀을 수평으로 눕힌다
+		if (Normal.Z > 0.0f)
+			Normal = FVector(Normal.X, Normal.Y, 0.0f).GetSafeNormal();
+	}
+
 	const float VDotN = Velocity.Dot(Normal);
 	if (VDotN < 0.0f) Velocity = Velocity - Normal * VDotN;
 
 	const FVector Slide = ComputeSlideVector(Delta, 1.0f - Hit.Time, Normal, Hit);
 	if (Slide.SizeSquared() > SMALL_NUMBER)
 		MoveUpdatedComponent(Slide, NewRotation, true, &Hit);
+}
+
+bool UCharacterMovementComponent::CanStepUp(const FHitResult& Hit) const
+{
+	if (!Hit.bBlockingHit || !IsMovingOnGround()) return false;
+	const float FootZ = UpdatedComponent->GetWorldLocation().Z - GetCapsuleHalfHeight();
+	const float StepZ = Hit.ImpactPoint.Z - FootZ;
+	return StepZ > 0.0f && StepZ <= MaxStepHeight * CmToWorld;
+}
+
+bool UCharacterMovementComponent::StepUp(const FVector& Delta)
+{
+	const FRotator Rotation = UpdatedComponent->GetWorldRotation();
+	const FVector Start = UpdatedComponent->GetWorldLocation();
+	const float StepZ = MaxStepHeight * CmToWorld;
+	const auto Revert = [&]()
+		{
+			MoveUpdatedComponent(Start - UpdatedComponent->GetWorldLocation(), Rotation, false, nullptr);
+			return false;
+		};
+
+	FHitResult UpHit(1.0f);
+	MoveUpdatedComponent(FVector(0.0f, 0.0f, StepZ), Rotation, true, &UpHit);
+	const float RaisedZ = UpdatedComponent->GetWorldLocation().Z - Start.Z;
+
+	FHitResult ForwardHit(1.0f);
+	MoveUpdatedComponent(Delta, Rotation, true, &ForwardHit);
+	if (ForwardHit.bBlockingHit && ForwardHit.Time <= KINDA_SMALL_NUMBER)
+		return Revert();
+
+	FHitResult DownHit(1.0f);
+	MoveUpdatedComponent(FVector(0.0f, 0.0f, -(RaisedZ + MAX_FLOOR_DIST * CmToWorld)), Rotation, true, &DownHit);
+	if (!DownHit.bBlockingHit || !IsWalkable(DownHit))
+		return Revert();
+
+	const float FootZ = Start.Z - GetCapsuleHalfHeight();
+	if (DownHit.ImpactPoint.Z - FootZ > StepZ)
+		return Revert();
+
+	return true;
 }
