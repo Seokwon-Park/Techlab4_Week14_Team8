@@ -213,6 +213,32 @@ bool FBodyInstance::InitBody(const UBodySetup& InBodySetup, const FTransform& In
     return true;
 }
 
+bool FBodyInstance::InitBodyFromActor(physx::PxRigidActor& InActor, UPrimitiveComponent* InOwnerComponent,
+    FPhysicsScene& InScene)
+{
+    physx::PxScene* NativeScene = InScene.GetPxScene();
+    if (Actor || !NativeScene)
+    {
+        return false;
+    }
+
+    ApplyCollisionSettings(InActor, InOwnerComponent);
+
+    SCOPED_SCENE_WRITE_LOCK(NativeScene);
+    NativeScene->addActor(InActor);
+    if (InActor.getScene() != NativeScene)
+    {
+        return false;
+    }
+
+    Actor = &InActor;
+    Scene = &InScene;
+    OwnerComponent = InOwnerComponent;
+    Scale3D = FVector(1.0f, 1.0f, 1.0f);
+    Actor->userData = this;
+    return true;
+}
+
 void FBodyInstance::TermBody()
 {
     // 콜백 역참조 해제와 네이티브 액터 반환

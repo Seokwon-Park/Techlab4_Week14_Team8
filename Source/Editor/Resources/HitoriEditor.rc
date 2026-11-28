@@ -9,7 +9,7 @@ LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON2 ICON "../../../EngineResources/Icons/Logo/Hitori.ico"
+IDI_ICON2 ICON "../../../EngineResources/Icons/Logo/hitori-icon-3.ico"
 
 // exe 파일 속성의 자세히 탭에 보이는 정보. 이 정보가 없으면 MS 정책(Wacatac 등)에 오탐될 수 있다.
 VS_VERSION_INFO VERSIONINFO

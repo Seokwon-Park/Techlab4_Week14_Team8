@@ -13,6 +13,7 @@ public:
 	void OnLevelLoad(const FLevelLoadContext& Context) override;
 	// Terrain::Release() → VB/IB/SRV 해제, 개수 0 확인
 	void OnLevelUnload() override;
+	void OnTerrainDestroyed(const ATerrain* DestroyedTerrain);
 	int32 GetLoadOrder() const override { return 100; }
 	void GetStats(FWorldSubsystemStats& Out) const override;
 

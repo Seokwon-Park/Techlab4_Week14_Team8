@@ -43,6 +43,10 @@ struct FBodyInstance
     bool InitBody(const UBodySetup& InBodySetup, const FTransform& InWorldTransform,
         UPrimitiveComponent* InOwnerComponent, FPhysicsScene& InScene, EPhysicsBodyType InBodyType);
 
+    // 밖에서 형상을 붙인 actor(하이트필드 등)를 바디로 등록한다. 성공하면 actor 소유권이 넘어온다
+    bool InitBodyFromActor(physx::PxRigidActor& InActor, UPrimitiveComponent* InOwnerComponent,
+        FPhysicsScene& InScene);
+
     // 씬 등록 해제와 액터 정리
     void TermBody();
     // 등록된 형상의 충돌·쿼리 플래그 동기화
