@@ -5,6 +5,7 @@
 
 #include "Math/Vector.h"
 #include "Math/Vector2.h"
+#include "Math/EngineMath.h"
 #include "Containers/Array.h"
 
 
@@ -30,22 +31,28 @@ struct FTerrainCoordinates
     UPROPERTY(EditAnywhere) int32   SizeY    = 0;
     UPROPERTY(EditAnywhere) int32   ChunkQuads = 64;                // 청크당 쿼드 수 (2^n). SizeX = ChunksX * ChunkQuads + 1
 
+    //CellSize, ZScale은 UE와 같은 cm 기준으로 저장하고, 월드(m)로 나갈 때 여기서만 CmToWorld로 변환한다.
+    float GetWorldCellSize() const { return CellSize * CmToWorld; }
+    float GetWorldHeightScale() const { return ZScale * TERRAIN_ZSCALE * CmToWorld; }
+
     // 16bit 원본 값 → 월드 Z
     float DecodeHeight(uint16 Raw) const
     {
-        return Origin.Z + (float(Raw) - TERRAIN_HEIGHT_MID) * ZScale * TERRAIN_ZSCALE;
+        return Origin.Z + (float(Raw) - TERRAIN_HEIGHT_MID) * GetWorldHeightScale();
     }
 
     // 월드 XY → 연속 그리드 좌표 (정수부 = 셀, 소수부 = 셀 안 위치)
     FVector2 WorldToGrid(const FVector& World) const
     {
-        return FVector2((World.X - Origin.X) / CellSize, (World.Y - Origin.Y) / CellSize);
+        const float Cell = GetWorldCellSize();
+        return FVector2((World.X - Origin.X) / Cell, (World.Y - Origin.Y) / Cell);
     }
 
     // 그리드 샘플 → 월드 위치 (Z는 높이 배열에서)
     FVector GridToWorld(int32 X, int32 Y, uint16 Raw) const
     {
-        return FVector(Origin.X + X * CellSize, Origin.Y + Y * CellSize, DecodeHeight(Raw));
+        const float Cell = GetWorldCellSize();
+        return FVector(Origin.X + X * Cell, Origin.Y + Y * Cell, DecodeHeight(Raw));
     }
 
     bool IsInside(const FVector2& Grid) const
@@ -81,8 +88,9 @@ struct FTerrainCoordinates
         const float hU = DecodeHeight(Heights[SampleIndex(X, Up)]);
         const float hD = DecodeHeight(Heights[SampleIndex(X, Down)]);
 
-        const float DhDx = (hR - hL) / ((Right - Left) * CellSize);
-        const float DhDy = (hU - hD) / ((Up - Down) * CellSize);
+        const float Cell = GetWorldCellSize();
+        const float DhDx = (hR - hL) / ((Right - Left) * Cell);
+        const float DhDy = (hU - hD) / ((Up - Down) * Cell);
 
         FVector Tx = FVector(1, 0, DhDx);
         FVector Ty = FVector(0, 1, DhDy);
