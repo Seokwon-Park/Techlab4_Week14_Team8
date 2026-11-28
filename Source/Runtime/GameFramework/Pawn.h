@@ -69,7 +69,7 @@ protected:
 	void AddInputMappingContext(UInputMappingContext* Context, int32 Priority = 0);
 
 	// 기본 이동/시점 입력. 감도 등 값 가공은 IMC_Default의 Modifier가 한다
-	void Move(const FInputActionValue& Value);
+	virtual void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 
 	// SetupPlayerInputComponent에서 위 경로로 읽어 둔다. 에셋은 FInputAssetLibrary가 소유한다

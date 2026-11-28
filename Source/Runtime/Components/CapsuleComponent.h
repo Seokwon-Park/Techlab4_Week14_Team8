@@ -20,6 +20,8 @@ public:
 	virtual void DrawDebug(FLineBatcher*, const FVector4&) const override;
 	virtual void PostEditChangeProperty(const FProperty& Property) override;
 
+	void SetCapsuleRadius(float InCapsuleRadius) { CapsuleRadius = InCapsuleRadius; }
+
 protected:
 	virtual void UpdateBodySetup(FKAggregateGeom& AggGeom) const override;
 };

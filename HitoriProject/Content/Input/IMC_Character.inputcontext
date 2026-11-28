@@ -1,6 +1,7 @@
 {
     "Mappings": [
         { "Action": "Content/Input/IA_Jump.inputaction", "Key": "Space" },
-        { "Action": "Content/Input/IA_Attack.inputaction", "Key": "LeftMouseButton" }
+        { "Action": "Content/Input/IA_Attack.inputaction", "Key": "LeftMouseButton" },
+	{ "Action": "Content/Input/IA_NavMove.inputaction", "Key": "G" }
     ]
 }

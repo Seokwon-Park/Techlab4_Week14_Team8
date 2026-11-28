@@ -29,7 +29,10 @@ namespace
 		Config.cs = Resolution.CellSize * CmToWorld;
 		Config.ch = Resolution.CellHeight * CmToWorld;
 		Config.walkableHeight = FMath::Max(3, static_cast<int>(std::ceil(Agent.AgentHeight * CmToWorld / Config.ch)));
-		Config.walkableRadius = static_cast<int>(std::ceil(Agent.AgentRadius * CmToWorld / Config.cs));
+		//Config.walkableRadius = static_cast<int>(std::ceil(Agent.AgentRadius * CmToWorld / Config.cs));
+		constexpr float NavClearanceCm = 16.0f;
+		const float BuildRadiusWorld = (Agent.AgentRadius + NavClearanceCm) * CmToWorld;
+		Config.walkableRadius = static_cast<int>(std::ceil(BuildRadiusWorld / Config.cs));
 		Config.walkableClimb = static_cast<int>(std::floor(Agent.AgentStepHeight * CmToWorld / Config.ch));
 		Config.walkableSlopeAngle = Agent.AgentMaxSlope;
 
@@ -446,7 +449,7 @@ FNavPathResult FNavigationSubsystem::FindPath(const FVector& Start, const FVecto
 	const float HalfExtents[] = { 0.50f, 0.30f, 0.50f };
 
 	dtQueryFilter Filter;
-	Filter.setIncludeFlags(1); // BuildNavigation()의 WalkFlag와 동일한 값
+	Filter.setIncludeFlags(1); 
 
 	dtPolyRef StartRef = 0;
 	dtPolyRef EndRef = 0;

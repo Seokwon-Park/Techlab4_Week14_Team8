@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameFramework/Character.h"
+#include "AI/Navigation/NavigationTypes.h"
 #include "MyCharacter.generated.h"
 
 class USpringArmComponent;
@@ -15,11 +16,14 @@ class AMyCharacter : public ACharacter
 public:
 	AMyCharacter();
 
+	bool RequestMoveTo(const FVector& Goal);
+
 	// ACharacter는 루트를 직접 돌리지만, 여기서는 PlayerController가 갱신한 ControlRotation을
 	// SpringArm/Camera가 읽으므로 몸은 돌리지 않는다
 	virtual void AddControllerYawInput(float Value) override {}
 	virtual void AddControllerPitchInput(float Value) override {}
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 	// Super(IA_Move / IA_Look) 위에 IA_Jump(Space), IA_Attack(LMB)을 추가한다
 	virtual void SetupPlayerInputComponent(UEnhancedInputComponent* PlayerInputComponent) override;
 
@@ -47,9 +51,26 @@ public:
 	FString JumpActionPath = "Content/Input/IA_Jump.inputaction";
 	UPROPERTY(EditAnywhere)
 	FString AttackActionPath = "Content/Input/IA_Attack.inputaction";
+	UPROPERTY(EditAnywhere)
+	FString NavMoveActionPath = "Content/Input/IA_NavMove.inputaction";
 
 protected:
+	void Move(const FInputActionValue& Value) override;
+
 	UInputAction* JumpAction = nullptr;
 	UInputAction* AttackAction = nullptr;
+	UInputAction* NavMoveAction = nullptr;
 	UInputMappingContext* CharacterMappingContext = nullptr;
+
+private:
+	void ClearPathFollowing();
+	void StartTestNavMove();
+
+	FNavPathResult ActiveNavPath;
+	int32 CurrentPathPointIndex = INDEX_NONE;
+	uint32 ActiveNavigationRevision = 0;
+	float AcceptanceRadius = 0.30f;
+
+	float BestDistanceToPathPoint = 0.0f;
+	float SecondsWithoutProgress = 0.0f;
 };

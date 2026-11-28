@@ -158,6 +158,11 @@ void FLevelEditorTab::DrawMenuBar()
 
 	if (ImGui::BeginMenu("Build"))
 	{
+		const bool bCanPackage = !IsPackaging || !IsPackaging();
+		if (ImGui::MenuItem("Package Game (Release)", nullptr, false, bCanPackage)) { OnPackageGame.Broadcast(); }
+
+		ImGui::Separator();
+
 		UWorld* World = GEditor ? GEditor->GetEditorWorld() : nullptr;
 		FNavigationSubsystem* Navigation = World ? World->GetSubsystem<FNavigationSubsystem>() : nullptr;
 		if (ImGui::MenuItem("Build Navigation", nullptr, false, Navigation != nullptr))
@@ -165,10 +170,6 @@ void FLevelEditorTab::DrawMenuBar()
 			Navigation->BuildNavigation();
 		}
 
-		ImGui::Separator();
-
-		const bool bCanPackage = !IsPackaging || !IsPackaging();
-		if (ImGui::MenuItem("Package Game (Release)", nullptr, false, bCanPackage)) { OnPackageGame.Broadcast(); }
 		ImGui::EndMenu();
 	}
 }
