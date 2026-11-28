@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hitori 컨테이너 디버거 시각화. 안쪽 std 컨테이너를 그대로 펼쳐 보여 준다. -->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="TArray&lt;*&gt;">
+    <DisplayString>Num={mDatas.size()}</DisplayString>
+    <Expand>
+      <ExpandedItem>mDatas</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="TMap&lt;*&gt;">
+    <DisplayString>Num={mMap.size()}</DisplayString>
+    <Expand>
+      <ExpandedItem>mMap</ExpandedItem>
+    </Expand>
+  </Type>
+  <Type Name="TSet&lt;*&gt;">
+    <DisplayString>Num={mSet.size()}</DisplayString>
+    <Expand>
+      <ExpandedItem>mSet</ExpandedItem>
+    </Expand>
+  </Type>
+</AutoVisualizer>

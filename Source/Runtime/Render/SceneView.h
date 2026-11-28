@@ -18,6 +18,8 @@
 struct FSceneView
 {
 	int32 ViewIndex = 0;
+	// 뷰 단위로 상태를 이어 가는 시스템(GPU 오클루전)이 뷰를 구분하는 키. 보통 뷰포트 클라이언트 주소. 0이면 공용.
+	uint64 ViewStateKey = 0;
 	FVector ViewLocation{};
 	FRotator ViewRotation{};
 	FVector ViewForward{};
@@ -56,6 +58,7 @@ struct FSceneView
 	{
 		FViewContext Context{};
 		Context.ViewIndex = ViewIndex;
+		Context.ViewStateKey = ViewStateKey;
 		Context.Width = static_cast<uint32>(ViewRect.Width);
 		Context.Height = static_cast<uint32>(ViewRect.Height);
 		Context.CameraPosition = ViewLocation;
