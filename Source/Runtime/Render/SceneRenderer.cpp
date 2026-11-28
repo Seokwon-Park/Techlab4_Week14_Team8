@@ -345,15 +345,18 @@ bool FSceneRenderer::AddWorldNormalPass(FRenderGraphBuilder& Graph, FRenderer* R
 	Pass.ColorAttachments = { { SceneColor, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 1.0f } } };
 	Pass.DepthAttachment = { Depth, ERenderGraphLoadAction::Clear, 1.0f, 0 };
 	return Graph.AddRasterPass(std::move(Pass), [this, Renderer, bDrawPrimitives = ViewFamily.EngineShowFlags.Rendering]
-		{
-			if (!bDrawPrimitives) return;
-			FMeshPassProcessor Processor;
-			TArray<FMeshDrawBatch> Batches;
-			bCorePassSucceeded = Processor.Build(View, RenderData.RenderQueue,
-				&RenderData, EMeshPassType::WorldNormal, Batches);
-			if (bCorePassSucceeded)
-				Renderer->DrawMeshes(Batches);
-		});
+		{ ExecuteWorldNormalPass(Renderer, bDrawPrimitives); });
+}
+
+void FSceneRenderer::ExecuteWorldNormalPass(FRenderer* Renderer, bool bDrawPrimitives)
+{
+	if (!bDrawPrimitives) return;
+	FMeshPassProcessor Processor;
+	TArray<FMeshDrawBatch> Batches;
+	bCorePassSucceeded = Processor.Build(View, RenderData.RenderQueue,
+		&RenderData, EMeshPassType::WorldNormal, Batches);
+	if (bCorePassSucceeded)
+		Renderer->DrawMeshes(Batches);
 }
 
 bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Renderer, FSceneViewTargets& Targets,
@@ -396,11 +399,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 	Sky.ColorAttachments = {
 		{ LightingHDR, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 1.0f } }
 	};
-	if (!Graph.AddRasterPass(std::move(Sky), [this, Skybox]
-		{
-			if (bCorePassSucceeded && Skybox)
-				Skybox->OnRender(View.ViewProjectionMatrix, View.ViewLocation);
-		})) return false;
+	if (!Graph.AddRasterPass(std::move(Sky), [this, Skybox] { ExecuteSkyboxPass(Skybox); })) return false;
 
 	// 언리얼 RenderShadowDepthMaps: 할당된 그림자 맵마다 Caster 깊이를 아틀라스에 그린다.
 	FTexture2D* ShadowDepthAtlas = RenderData.ViewLightResources.GetShadowDepthAtlas();
@@ -418,10 +417,7 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 		ShadowDepths.Name = "ShadowDepths";
 		ShadowDepths.DepthAttachment = { AtlasRef, ERenderGraphLoadAction::Clear, 1.0f, 0 };   // 단계 8에서 Load로
 		if (!Graph.AddRasterPass(std::move(ShadowDepths), [this, Renderer, &Graph, AtlasRef]
-			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_ShadowDepths);
-				RenderShadowDepthMaps(Renderer, static_cast<FTexture2DArray*>(Graph.Resolve(AtlasRef)));
-			})) return false;
+			{ ExecuteShadowDepthsPass(Renderer, static_cast<FTexture2DArray*>(Graph.Resolve(AtlasRef))); })) return false;
 	}
 
 	if (Options.RenderingPath == ERenderingPath::Deferred) // Deferred rendering
@@ -451,23 +447,13 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 				Projection.ReadTextures = { Depth, ShadowAtlasRef };   // t0 장면 깊이, t1 깊이 아틀라스
 				Projection.ColorAttachments = { { ShadowMask, ERenderGraphLoadAction::Clear, { 1.0f, 1.0f, 1.0f, 1.0f } } };
 				if (!Graph.AddRasterPass(std::move(Projection), [this, Width, Height]
-					{
-						RenderShadowMaskVisualizationProjections(Width, Height);
-					})) return false;
+					{ RenderShadowMaskVisualizationProjections(Width, Height); })) return false;
 
 				FRenderGraphRasterPassDesc Visualize{};
 				Visualize.Name = "ShadowMaskVisualization";
 				Visualize.ReadTextures = { ShadowMask };
 				Visualize.ColorAttachments = { { LightingHDR, ERenderGraphLoadAction::Load } };
-				if (!Graph.AddRasterPass(std::move(Visualize), [this]
-					{
-						if (!bCorePassSucceeded) return;
-						FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::ShadowMaskVisualize);
-						if (!Pipeline || !Pipeline->Shader || !Pipeline->Shader->VertexShader || !Pipeline->Shader->PixelShader) return;
-						RenderCommand::BindPipelineState(*Pipeline);
-						RenderCommand::BindVertexBuffer(nullptr);
-						RenderCommand::Draw(3);
-					})) return false;
+				if (!Graph.AddRasterPass(std::move(Visualize), [this] { ExecuteShadowMaskVisualizePass(); })) return false;
 			}
 		}
 		else
@@ -532,6 +518,28 @@ bool FSceneRenderer::AddCorePasses(FRenderGraphBuilder& Graph, FRenderer* Render
 	return true;
 }
 
+void FSceneRenderer::ExecuteSkyboxPass(FSkyboxRenderer* Skybox)
+{
+	if (bCorePassSucceeded && Skybox)
+		Skybox->OnRender(View.ViewProjectionMatrix, View.ViewLocation);
+}
+
+void FSceneRenderer::ExecuteShadowDepthsPass(FRenderer* Renderer, FTexture2DArray* Atlas)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_ShadowDepths);
+	RenderShadowDepthMaps(Renderer, Atlas);
+}
+
+void FSceneRenderer::ExecuteShadowMaskVisualizePass()
+{
+	if (!bCorePassSucceeded) return;
+	FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::ShadowMaskVisualize);
+	if (!Pipeline || !Pipeline->Shader || !Pipeline->Shader->VertexShader || !Pipeline->Shader->PixelShader) return;
+	RenderCommand::BindPipelineState(*Pipeline);
+	RenderCommand::BindVertexBuffer(nullptr);
+	RenderCommand::Draw(3);
+}
+
 // 안개·반투명·DOF·렌즈 플레어까지 HDR에서 끝난 장면을 한 번에 노출·톤맵해서 화면 색(SceneColor)으로 바꾼다.
 bool FSceneRenderer::AddToneMapPasses(FRenderGraphBuilder& Graph, FRenderer* Renderer, const FSceneRenderOptions& Options,
 	FRenderGraphTextureRef LightingHDR, FRenderGraphTextureRef SceneColor)
@@ -548,10 +556,7 @@ bool FSceneRenderer::AddToneMapPasses(FRenderGraphBuilder& Graph, FRenderer* Ren
 			Metering.ReadTextures = { LightingHDR };
 			Metering.ColorAttachments = { { Graph.ImportTexture(Meter->GetTarget(), "ExposureMeterTarget"), ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
 			if (!Graph.AddRasterPass(std::move(Metering), [this, Meter, &Graph, LightingHDR]
-				{
-					if (bCorePassSucceeded)
-						Meter->Render(Graph.Resolve(LightingHDR));
-				})) return false;
+				{ ExecuteExposureMeterPass(Meter, Graph.Resolve(LightingHDR)); })) return false;
 		}
 	}
 
@@ -564,28 +569,34 @@ bool FSceneRenderer::AddToneMapPasses(FRenderGraphBuilder& Graph, FRenderer* Ren
 	ToneMap.ColorAttachments = { { SceneColor, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 1.0f } } };
 	if (!Graph.AddRasterPass(std::move(ToneMap), [this, Renderer, bGamma = Options.bGammaCorrection, DisplayGamma = Options.DisplayGamma,
 		ExposureEV = Options.ExposureCompensation, CameraExposure = PP.GetExposureScale(AdaptedEV100)]
-		{
-			if (bCorePassSucceeded)
-			{
-				if (FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::ToneMap);
-					Pipeline && Pipeline->Shader && Pipeline->Shader->VertexShader && Pipeline->Shader->PixelShader)
-				{
-					FToneMapData Data{};
-					Data.InvGamma = 1.0f / std::max(DisplayGamma, 0.01f);
-					Data.bGammaCorretion = bGamma ? 1.0f : 0.0f;
-					Data.Exposure = std::exp2(ExposureEV) * CameraExposure;
-					FConstantBuffer* Constants = Renderer->GetToneMapConstants();
-					RenderCommand::UpdateBufferData(Constants, &Data, sizeof(Data));
-
-					RenderCommand::BindPipelineState(*Pipeline);
-					RenderCommand::BindConstantBuffer(0, Constants, EShaderBindFlagBits::Pixel);
-					RenderCommand::BindVertexBuffer(nullptr);
-					RenderCommand::Draw(3);
-				}
-			}
-		})) return false;
+		{ ExecuteToneMapPass(Renderer, bGamma, DisplayGamma, ExposureEV, CameraExposure); })) return false;
 
 	return true;
+}
+
+void FSceneRenderer::ExecuteExposureMeterPass(FExposureMeterRenderer* Meter, FTexture2D* LightingHDR)
+{
+	if (bCorePassSucceeded)
+		Meter->Render(LightingHDR);
+}
+
+void FSceneRenderer::ExecuteToneMapPass(FRenderer* Renderer, bool bGamma, float DisplayGamma, float ExposureEV, float CameraExposure)
+{
+	if (!bCorePassSucceeded) return;
+	FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::ToneMap);
+	if (!Pipeline || !Pipeline->Shader || !Pipeline->Shader->VertexShader || !Pipeline->Shader->PixelShader) return;
+
+	FToneMapData Data{};
+	Data.InvGamma = 1.0f / std::max(DisplayGamma, 0.01f);
+	Data.bGammaCorretion = bGamma ? 1.0f : 0.0f;
+	Data.Exposure = std::exp2(ExposureEV) * CameraExposure;
+	FConstantBuffer* Constants = Renderer->GetToneMapConstants();
+	RenderCommand::UpdateBufferData(Constants, &Data, sizeof(Data));
+
+	RenderCommand::BindPipelineState(*Pipeline);
+	RenderCommand::BindConstantBuffer(0, Constants, EShaderBindFlagBits::Pixel);
+	RenderCommand::BindVertexBuffer(nullptr);
+	RenderCommand::Draw(3);
 }
 
 // 불투명 물체를 그린다. UE의 FDeferredShadingSceneRenderer::RenderBasePass와 같은 자리다.
@@ -610,18 +621,7 @@ bool FSceneRenderer::RenderBasePass(FRenderGraphBuilder& Graph, FRenderer* Rende
 
 		GBuffer.DepthAttachment = { Depth, ERenderGraphLoadAction::Clear, 1.0f, 0 }; // GBuffer Pass 에는 Depth Texture가 Clear된 상태로 필요하다
 
-		if (!Graph.AddRasterPass(std::move(GBuffer), [this, Renderer]
-			{
-				TArray<FMeshDrawBatch> Batches;
-				FMeshPassProcessor Processor;
-				bCorePassSucceeded = Processor.Build(View, RenderData.RenderQueue,
-					&RenderData, EMeshPassType::GBuffer, Batches);
-				if (bCorePassSucceeded)
-				{
-					Renderer->UploadViewMatrix(View.ViewProjectionMatrix);
-					Renderer->DrawMeshes(Batches);
-				}
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(GBuffer), [this, Renderer] { ExecuteGBufferPass(Renderer); })) return false;
 	}
 	else
 	{
@@ -635,23 +635,41 @@ bool FSceneRenderer::RenderBasePass(FRenderGraphBuilder& Graph, FRenderer* Rende
 		};
 		Forward.DepthAttachment = { Depth, bUseDepthPrepass ? ERenderGraphLoadAction::Load : ERenderGraphLoadAction::Clear, 1.0f, 0 };
 		if (!Graph.AddRasterPass(std::move(Forward), [this, Renderer, &Graph, LightingOptions = Options, bUseDepthPrepass, ForwardShadowMask]
-		{
-			if (!ViewFamily.EngineShowFlags.Rendering) return;
-			bCorePassSucceeded = BindForwardLighting(Renderer, LightingOptions, ForwardShadowMask ? Graph.Resolve(ForwardShadowMask) : nullptr);
-			if (!bCorePassSucceeded) return;
-			if (bUseDepthPrepass)
-			{
-				for (FMeshDrawBatch& Batch : ForwardBatches)
-				{
-					Batch.Pipeline.DepthStencilState = EDepthStencilState::PrepassReadOnly;
-				}
-			}
-			SCOPED_GPU_STAT(GPUStats::STAT_GPU_ForwardOpaque);
-			Renderer->DrawMeshes(ForwardBatches);
-			UnbindForwardLighting(Renderer);
-		})) return false;
+			{ ExecuteForwardOpaquePass(Renderer, LightingOptions, bUseDepthPrepass, ForwardShadowMask ? Graph.Resolve(ForwardShadowMask) : nullptr); }))
+			return false;
 	}
 	return true;
+}
+
+void FSceneRenderer::ExecuteGBufferPass(FRenderer* Renderer)
+{
+	TArray<FMeshDrawBatch> Batches;
+	FMeshPassProcessor Processor;
+	bCorePassSucceeded = Processor.Build(View, RenderData.RenderQueue,
+		&RenderData, EMeshPassType::GBuffer, Batches);
+	if (bCorePassSucceeded)
+	{
+		Renderer->UploadViewMatrix(View.ViewProjectionMatrix);
+		Renderer->DrawMeshes(Batches);
+	}
+}
+
+void FSceneRenderer::ExecuteForwardOpaquePass(FRenderer* Renderer, const FSceneRenderOptions& LightingOptions,
+	bool bUseDepthPrepass, FTexture2D* ShadowMask)
+{
+	if (!ViewFamily.EngineShowFlags.Rendering) return;
+	bCorePassSucceeded = BindForwardLighting(Renderer, LightingOptions, ShadowMask);
+	if (!bCorePassSucceeded) return;
+	if (bUseDepthPrepass)
+	{
+		for (FMeshDrawBatch& Batch : ForwardBatches)
+		{
+			Batch.Pipeline.DepthStencilState = EDepthStencilState::PrepassReadOnly;
+		}
+	}
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_ForwardOpaque);
+	Renderer->DrawMeshes(ForwardBatches);
+	UnbindForwardLighting(Renderer);
 }
 
 // Deferred 조명. GBuffer를 읽어 광원의 빛을 Color에 더한다. UE의 FDeferredShadingSceneRenderer::RenderLights와 같은 자리다.
@@ -659,48 +677,14 @@ bool FSceneRenderer::RenderLights(FRenderGraphBuilder& Graph, FRenderer* Rendere
 {
 	const uint32 Width = static_cast<uint32>(SceneTextures.Extent.X);
 	const uint32 Height = static_cast<uint32>(SceneTextures.Extent.Y);
-	const FRenderGraphTextureRef BaseColor = SceneTextures.BaseColorMetallic;
-	const FRenderGraphTextureRef Normal = SceneTextures.NormalRoughness;
 	const FRenderGraphTextureRef Depth = SceneTextures.Depth;
-	const FRenderGraphTextureRef LightingHDR = SceneTextures.Color;
 	const FRenderGraphTextureRef ShadowAtlasRef = SceneTextures.ShadowDepthAtlas;
 
 	// 언리얼 RenderLights: 그림자 없는 광원은 한 번에 그리고, 그림자 광원은 광원마다
 	// 마스크를 지우고 → 그 광원의 그림자를 Projection하고 → 그 광원만 가산 블렌드로 더한다. 마스크 한 장을 계속 재사용한다.
 	const FRenderGraphTextureRef ShadowMask = ShadowAtlasRef && !ShadowedLights.IsEmpty()
 		? Graph.CreateTexture({ Width, Height, ETextureFormat::R8G8B8A8_UNorm }, "ScreenShadowMask") : FRenderGraphTextureRef{};
-	auto AddDeferredLightPass = [&](const char* Name, int32 SingleLightIndex) -> bool
-		{
-			FRenderGraphRasterPassDesc LightingPass{};
-			LightingPass.Name = Name;
-			LightingPass.ReadTextures = { BaseColor, Normal, Depth };
-			if (SingleLightIndex >= 0) LightingPass.ReadTextures.push_back(ShadowMask);   // t3
-			LightingPass.ColorAttachments = { { LightingHDR, ERenderGraphLoadAction::Load } };
-			return Graph.AddRasterPass(std::move(LightingPass), [this, Renderer, Width, Height, SingleLightIndex]
-				{
-					if (!bCorePassSucceeded) return;
-					if (!BindDeferredLighting(Renderer, Width, Height, SingleLightIndex))
-					{
-						bCorePassSucceeded = false;
-						return;
-					}
-
-					// 단일 광원 패스는 같은 셰이더에 가산 블렌드 상태를 쓴다.
-					FPipelineState* Pipeline = FRenderResourceManager::GetPSO(SingleLightIndex >= 0 ? EPSOType::DeferredPointLighting : EPSOType::DeferredLighting);
-					if (Pipeline && Pipeline->Shader && Pipeline->Shader->VertexShader && Pipeline->Shader->PixelShader)
-					{
-						RenderCommand::BindPipelineState(*Pipeline);
-						RenderCommand::BindVertexBuffer(nullptr);
-						RenderCommand::Draw(3);
-					}
-					else
-					{
-						bCorePassSucceeded = false;
-					}
-					RenderCommand::UnbindShaderResources(3, 2, EShaderBindFlagBits::Pixel);
-				});
-		};
-	if (!AddDeferredLightPass("DeferredLighting", -1)) return false;
+	if (!AddDeferredLightPass(Graph, Renderer, SceneTextures, ShadowMask, "DeferredLighting", -1)) return false;
 
 	if (ShadowMask)
 	{
@@ -711,54 +695,97 @@ bool FSceneRenderer::RenderLights(FRenderGraphBuilder& Graph, FRenderer* Rendere
 			Projection.ReadTextures = { Depth, ShadowAtlasRef };   // t0 장면 깊이, t1 깊이 아틀라스
 			Projection.ColorAttachments = { { ShadowMask, ERenderGraphLoadAction::Clear, { 1.0f, 1.0f, 1.0f, 1.0f } } };
 			if (!Graph.AddRasterPass(std::move(Projection), [this, Width, Height, LightId = Light.LightId]
-				{
-					if (!bCorePassSucceeded) return;
-					RenderShadowProjectionsForLight(RenderData.VisibleLightInfos[LightId], 0, Width, Height);
-					RenderCommand::BindConstantBuffer(0, nullptr, EShaderBindFlagBits::Pixel);
-				})) return false;
+				{ ExecuteDeferredShadowProjectionPass(LightId, Width, Height); })) return false;
 
-			if (!AddDeferredLightPass("DeferredShadowedLight", Light.VisibleLightIndex)) return false;
+			if (!AddDeferredLightPass(Graph, Renderer, SceneTextures, ShadowMask, "DeferredShadowedLight", Light.VisibleLightIndex)) return false;
 		}
 	}
 	return true;
 }
 
+// 조명 패스 하나를 등록한다. SingleLightIndex가 -1이면 그림자 없는 광원 전체, 0 이상이면 그 광원 하나만 ShadowMask(t3)와 함께 더한다.
+bool FSceneRenderer::AddDeferredLightPass(FRenderGraphBuilder& Graph, FRenderer* Renderer, const FSceneTextures& SceneTextures,
+	FRenderGraphTextureRef ShadowMask, const char* Name, int32 SingleLightIndex)
+{
+	const uint32 Width = static_cast<uint32>(SceneTextures.Extent.X);
+	const uint32 Height = static_cast<uint32>(SceneTextures.Extent.Y);
+	FRenderGraphRasterPassDesc LightingPass{};
+	LightingPass.Name = Name;
+	LightingPass.ReadTextures = { SceneTextures.BaseColorMetallic, SceneTextures.NormalRoughness, SceneTextures.Depth };
+	if (SingleLightIndex >= 0) LightingPass.ReadTextures.push_back(ShadowMask);   // t3
+	LightingPass.ColorAttachments = { { SceneTextures.Color, ERenderGraphLoadAction::Load } };
+	return Graph.AddRasterPass(std::move(LightingPass), [this, Renderer, Width, Height, SingleLightIndex]
+		{ ExecuteDeferredLightPass(Renderer, Width, Height, SingleLightIndex); });
+}
+
+void FSceneRenderer::ExecuteDeferredLightPass(FRenderer* Renderer, uint32 Width, uint32 Height, int32 SingleLightIndex)
+{
+	if (!bCorePassSucceeded) return;
+	if (!BindDeferredLighting(Renderer, Width, Height, SingleLightIndex))
+	{
+		bCorePassSucceeded = false;
+		return;
+	}
+
+	// 단일 광원 패스는 같은 셰이더에 가산 블렌드 상태를 쓴다.
+	FPipelineState* Pipeline = FRenderResourceManager::GetPSO(SingleLightIndex >= 0 ? EPSOType::DeferredPointLighting : EPSOType::DeferredLighting);
+	if (Pipeline && Pipeline->Shader && Pipeline->Shader->VertexShader && Pipeline->Shader->PixelShader)
+	{
+		RenderCommand::BindPipelineState(*Pipeline);
+		RenderCommand::BindVertexBuffer(nullptr);
+		RenderCommand::Draw(3);
+	}
+	else
+	{
+		bCorePassSucceeded = false;
+	}
+	RenderCommand::UnbindShaderResources(3, 2, EShaderBindFlagBits::Pixel);
+}
+
+void FSceneRenderer::ExecuteDeferredShadowProjectionPass(int32 LightId, uint32 Width, uint32 Height)
+{
+	if (!bCorePassSucceeded) return;
+	RenderShadowProjectionsForLight(RenderData.VisibleLightInfos[LightId], 0, Width, Height);
+	RenderCommand::BindConstantBuffer(0, nullptr, EShaderBindFlagBits::Pixel);
+}
+
 // 조명보다 먼저 불투명 물체의 깊이만 그린다. Forward 경로에서 쓴다. UE의 FDeferredShadingSceneRenderer::RenderPrePass와 같은 자리다.
 bool FSceneRenderer::RenderPrePass(FRenderGraphBuilder& Graph, FRenderer* Renderer, const FSceneTextures& SceneTextures)
 {
-	const FRenderGraphTextureRef Depth = SceneTextures.Depth;
-
 	FPipelineState* DepthPipeline = FRenderResourceManager::GetPSO(EPSOType::StaticMesh_DepthOnly);
 	if (!DepthPipeline || !DepthPipeline->Shader || !DepthPipeline->Shader->PixelShader) return false;
 	// 기존 프리패스를 유지해 ForwardOpaque에서 깊이를 재사용한다.
 	FRenderGraphRasterPassDesc Prepass{};
 	Prepass.Name = "DepthPrepass";
-	Prepass.DepthAttachment = { Depth, ERenderGraphLoadAction::Clear, 1.0f, 0 };
+	Prepass.DepthAttachment = { SceneTextures.Depth, ERenderGraphLoadAction::Clear, 1.0f, 0 };
 	if (!Graph.AddRasterPass(std::move(Prepass), [this, Renderer, DepthPipeline]
-		{
-			if (ForwardBatches.IsEmpty()) return;
-
-			// 실제 메시 패스와 같은 VS를 사용해 깊이 계산을 일치시킨다.
-			// Masked 머티리얼은 알파로 픽셀을 버리는 깊이 PS를 쓴다. 없으면 일반 깊이 PS로 대신한다
-			const FShaderProgram* MaskedDepth = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("DepthPrepassMasked.hlsl"));
-			FPixelShader* MaskedDepthPS = MaskedDepth && MaskedDepth->PixelShader ? MaskedDepth->PixelShader : DepthPipeline->Shader->PixelShader;
-
-			// 배치마다 VS(정점 타입, 조명 변형)와 PS(Masked 여부) 조합이 다르므로 프로그램을 배치 수만큼 만든다
-			TArray<FMeshDrawBatch> DepthBatches = ForwardBatches;
-			TArray<FShaderProgram> DepthPrograms;
-			DepthPrograms.Reserve(DepthBatches.Num());
-			for (FMeshDrawBatch& Batch : DepthBatches)
-			{
-				// 실제 메시 패스와 같은 VS를 사용해 깊이 계산을 일치시킨다.
-				FShaderProgram& Program = DepthPrograms.Emplace_GetRef(Batch.Pipeline.Shader->VertexShader,
-					Batch.bIsMasked ? MaskedDepthPS : DepthPipeline->Shader->PixelShader);
-				Batch.Pipeline = *DepthPipeline;
-				Batch.Pipeline.Shader = &Program;
-			}
-			SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthPrepass);
-			Renderer->DrawMeshes(DepthBatches);
-		})) return false;
+		{ ExecuteDepthPrepass(Renderer, DepthPipeline); })) return false;
 	return true;
+}
+
+void FSceneRenderer::ExecuteDepthPrepass(FRenderer* Renderer, FPipelineState* DepthPipeline)
+{
+	if (ForwardBatches.IsEmpty()) return;
+
+	// 실제 메시 패스와 같은 VS를 사용해 깊이 계산을 일치시킨다.
+	// Masked 머티리얼은 알파로 픽셀을 버리는 깊이 PS를 쓴다. 없으면 일반 깊이 PS로 대신한다
+	const FShaderProgram* MaskedDepth = FRenderResourceManager::GetShaderProgram(HITORI_ENGINE_SHADER("DepthPrepassMasked.hlsl"));
+	FPixelShader* MaskedDepthPS = MaskedDepth && MaskedDepth->PixelShader ? MaskedDepth->PixelShader : DepthPipeline->Shader->PixelShader;
+
+	// 배치마다 VS(정점 타입, 조명 변형)와 PS(Masked 여부) 조합이 다르므로 프로그램을 배치 수만큼 만든다
+	TArray<FMeshDrawBatch> DepthBatches = ForwardBatches;
+	TArray<FShaderProgram> DepthPrograms;
+	DepthPrograms.Reserve(DepthBatches.Num());
+	for (FMeshDrawBatch& Batch : DepthBatches)
+	{
+		// 실제 메시 패스와 같은 VS를 사용해 깊이 계산을 일치시킨다.
+		FShaderProgram& Program = DepthPrograms.Emplace_GetRef(Batch.Pipeline.Shader->VertexShader,
+			Batch.bIsMasked ? MaskedDepthPS : DepthPipeline->Shader->PixelShader);
+		Batch.Pipeline = *DepthPipeline;
+		Batch.Pipeline.Shader = &Program;
+	}
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthPrepass);
+	Renderer->DrawMeshes(DepthBatches);
 }
 
 // Forward 경로의 그림자. 그림자 광원을 화면 크기의 마스크(ScreenShadowMask)에 그려 두면 RenderBasePass가 읽는다.
@@ -779,13 +806,16 @@ bool FSceneRenderer::RenderForwardShadowProjections(FRenderGraphBuilder& Graph, 
 	Projection.ReadTextures = { Depth, ShadowAtlasRef };   // t0 장면 깊이, t1 깊이 아틀라스
 	Projection.ColorAttachments = { { ForwardShadowMask, ERenderGraphLoadAction::Clear, { 1.0f, 1.0f, 1.0f, 1.0f } } };
 	if (!Graph.AddRasterPass(std::move(Projection), [this, Width, Height]
-		{
-			if (!bCorePassSucceeded) return;
-			for (const FShadowedLight& Light : ShadowedLights)
-				RenderShadowProjectionsForLight(RenderData.VisibleLightInfos[Light.LightId], Light.Channel, Width, Height);
-			RenderCommand::BindConstantBuffer(0, nullptr, EShaderBindFlagBits::Pixel);
-		})) return false;
+		{ ExecuteForwardShadowProjectionPass(Width, Height); })) return false;
 	return true;
+}
+
+void FSceneRenderer::ExecuteForwardShadowProjectionPass(uint32 Width, uint32 Height)
+{
+	if (!bCorePassSucceeded) return;
+	for (const FShadowedLight& Light : ShadowedLights)
+		RenderShadowProjectionsForLight(RenderData.VisibleLightInfos[Light.LightId], Light.Channel, Width, Height);
+	RenderCommand::BindConstantBuffer(0, nullptr, EShaderBindFlagBits::Pixel);
 }
 
 // 화면을 칸(타일 또는 클러스터)으로 나눠 칸마다 영향을 주는 광원 목록을 만든다. Forward 경로에서 쓴다.
@@ -808,12 +838,15 @@ bool FSceneRenderer::ComputeLightGrid(FRenderGraphBuilder& Graph, FRenderer* Ren
 	Culling.WriteResources.assign(Writes.begin(), Writes.end());
 	if (!Graph.AddComputePass(std::move(Culling),
 		[this, Renderer, SceneLights, DepthTexture = Targets.Depth.get()]
-		{
-			if (bCorePassSucceeded)
-				bTilesBuilt = RenderData.ViewLightResources.GetTiles().ExecuteBuild(Renderer, DepthTexture, SceneLights);
-		})) 
+		{ ExecuteLightGridPass(Renderer, DepthTexture, SceneLights); }))
 		return false;
 	return true;
+}
+
+void FSceneRenderer::ExecuteLightGridPass(FRenderer* Renderer, FTexture2D* DepthTexture, FStructuredBuffer* SceneLights)
+{
+	if (bCorePassSucceeded)
+		bTilesBuilt = RenderData.ViewLightResources.GetTiles().ExecuteBuild(Renderer, DepthTexture, SceneLights);
 }
 
 // 조명 계산을 끝낸 불투명 표면 위에 깊이 테스트를 사용해 데칼을 덧그린다.
@@ -829,171 +862,176 @@ bool FSceneRenderer::RenderDecals(FRenderGraphBuilder& Graph, FRenderer* Rendere
 	Decal.DepthAttachment = { Depth, ERenderGraphLoadAction::Load, 1.0f, 0 };
 	Decal.ReadTextures = {};
 	Decal.Viewport = {};
-	if (!Graph.AddRasterPass(std::move(Decal), [this, Renderer, bDecalCulling = Options.bDecalCulling, 
+	if (!Graph.AddRasterPass(std::move(Decal), [this, Renderer, bDecalCulling = Options.bDecalCulling,
 		bDecalNarrowCulling = Options.bDecalNarrowCulling, bDecalBVHCulling = Options.bDecalBVHCulling,
 		bDecalOBBTree = Options.bDecalOBBTree, bDeferred = Options.RenderingPath == ERenderingPath::Deferred]
-		{
-			SCOPE_CYCLE_COUNTER(STAT_DecalPass);
-			if (!bCorePassSucceeded) return;
-			// 데칼 VS는 World, View, Projection을 b0에서 읽으므로 두 경로 모두 Forward 배치 형식을 사용한다.
-			TArray<FMeshDrawBatch> DeferredReceivers;
-			if (bDeferred)
-			{
-				FMeshPassProcessor Processor;
-				if (!Processor.Build(View, RenderData.RenderQueue, &RenderData, EMeshPassType::Forward, DeferredReceivers)) return;
-			}
-			const TArray<FMeshDrawBatch>& Receivers = bDeferred ? DeferredReceivers : ForwardBatches;
-			if (Receivers.IsEmpty()) return;
-
-			FPipelineState* DecalPipeline = FRenderResourceManager::GetPSO(EPSOType::Decal);
-			FPipelineState* DecalAdditivePipeline = FRenderResourceManager::GetPSO(EPSOType::DecalAdditive);
-			if (!DecalPipeline || !DecalPipeline->Shader) return;
-			if (!DecalAdditivePipeline || !DecalAdditivePipeline->Shader) return;
-
-			// 여기부터 패스 끝까지가 GPU 측정 구간이다. 위의 조기 return은 잴 것이 없으므로 제외한다.
-			SCOPED_GPU_STAT(GPUStats::STAT_GPU_Decal);
-
-			FConstantBuffer* Constants = Renderer->GetDecalConstants();
-			TArray<FMeshDrawBatch> DecalBatches;
-			DecalBatches.Reserve(Receivers.Num());
-			FDecalData Data{};
-
-			const FScene& Scene = World->GetScene();
-			RenderData.RenderStats.DecalCount = Scene.Decals.Num();
-
-			TArray <UDecalComponent*> SortedDecals = Scene.Decals;
-			std::sort(SortedDecals.begin(), SortedDecals.end(), CompareDecalSortOrder);
-
-			TArray <FMeshDrawBatch> DecalHeaders;
-			DecalHeaders.Reserve(Receivers.Num());
-			TArray <FDecalItemRef> ItemRefs;
-
-			TArray <uint32> TouchedBatches;
-
-			for (int32 BatchIndex = 0; BatchIndex < Receivers.Num(); ++BatchIndex)
-			{
-				const FMeshDrawBatch& Src = Receivers[BatchIndex];
-				DecalHeaders.Add(Src);
-				FMeshDrawBatch& Header = DecalHeaders.Last();
-				Header.Items.Reset();
-				Header.Sampler = ESamplerState::LinearClamp;
-
-				for (uint32 ItemIndex = 0; ItemIndex < static_cast<uint32>(Src.Items.Num()); ItemIndex++)
-				{
-					const FMeshDrawBatch::FItem& Item = Src.Items[ItemIndex];
-					if (!Item.bReceivesDecals) continue;
-					ItemRefs.Add({ Item.Proxy, static_cast<uint32>(BatchIndex), ItemIndex });
-				}
-			}
-
-			std::sort(ItemRefs.begin(), ItemRefs.end(), CompareDecalItemRef);
-
-			for (auto Decal : SortedDecals) {
-				if (Decal->GetDecalTexture() == nullptr) continue;
-				RenderData.RenderStats.DecalsRendered++;
-
-				Decal->SetDecalViewProj();
-				Data.Fade = Decal->GetFade();
-				Data.bAdditive = Decal->IsAdditive() ? 1.0f : 0.0f;
-				Data.VP = Decal->GetDecalVP();
-
-				RenderCommand::UpdateBufferData(Constants, &Data, sizeof(Data));
-				RenderCommand::BindConstantBuffer(1, Constants, EShaderBindFlagBits::Pixel);
-
-				DecalBatches.Reset();
-				TouchedBatches.Reset();
-				uint32 ReceiverItems = 0;
-				const FAABB DecalAABB = Decal->GetWorldAABB();
-				const FOBB DecalOBB = Decal->GetWorldOBB();
-
-				const FBox DecalBox{ DecalAABB.Center - DecalAABB.Extent, DecalAABB.Center + DecalAABB.Extent };
-
-				// 아이템 하나 검사 
-				const auto ConsiderItem = [&](const FDecalItemRef& Ref)
-					{
-						const FMeshDrawBatch::FItem& Item = Receivers[Ref.Batch].Items[Ref.Item];
-						RenderData.RenderStats.DecalItemsTested++;
-
-						if (!bDecalBVHCulling && bDecalCulling) {
-							RenderData.RenderStats.DecalBroadTests++;
-							if (!IntersectAABB(DecalAABB, Item.Bounds)) return;
-						}
-
-						RenderData.RenderStats.DecalNarrowTested++;
-						if (bDecalNarrowCulling && !IntersectOBBAABB(DecalOBB, Item.Bounds)) return;
-
-						if (bDecalNarrowCulling && bDecalOBBTree && Item.Proxy && Item.Proxy->GetMesh()) {
-							const FStaticMeshData& MeshData = Item.Proxy->GetMesh()->GetMeshData();
-							FMatrix LocalToWorld = Item.Proxy->GetLocalToWorld();
-							if (MeshData.OBBTree) {
-								RenderData.RenderStats.DecalOBBTreeTested++;
-								if (!MeshData.OBBTree->Intersects(DecalOBB, LocalToWorld)) return;
-							}
-
-						}
-
-						FMeshDrawBatch& Header = DecalHeaders[Ref.Batch];
-						if (Header.Items.IsEmpty()) TouchedBatches.Add(Ref.Batch);
-						Header.Items.Add(Item);
-					};
-
-				// BVH 질의 후 index 하나씩 돌며 검사
-				{
-					SCOPE_CYCLE_COUNTER(STAT_DecalGatherItems);
-					if (bDecalBVHCulling) {
-						Scene.BVH.Query(
-							[&](const FBox& Bounds) {
-								RenderData.RenderStats.DecalBroadTests++;
-								return UWorld::AreAABBsOverlapping(DecalBox, Bounds);
-							},
-							[&](FPrimitiveSceneProxy* Proxy) { 
-								// BVH에서 얻은 Proxy를 ItemRefs에서 찾아서 ConsiderItem 호출
-								auto it = std::lower_bound(ItemRefs.begin(), ItemRefs.end(), Proxy, CompareDecalItemRefProxy);
-								while (it != ItemRefs.end() && it->Proxy == Proxy) {
-									ConsiderItem(*it);
-									++it;
-								}
-							});
-					}
-					else {
-						for (const FDecalItemRef& Ref : ItemRefs) {
-							ConsiderItem(Ref);
-						}
-					}
-				}
-
-				if (TouchedBatches.IsEmpty()) continue;
-				std::sort(TouchedBatches.begin(), TouchedBatches.end());
-
-				for (uint32 BatchIndex : TouchedBatches) {
-					FMeshDrawBatch& Header = DecalHeaders[BatchIndex];
-					Header.Pipeline = Decal->IsAdditive() ? *DecalAdditivePipeline : *DecalPipeline;
-					// 받는 쪽 정점 타입(GPU 스킨, 메시 파티클)에 맞는 데칼 셰이더 변형을 쓴다
-					const EVertexFactoryType ReceiverVF = Header.GetVertexFactoryType();
-					if (ReceiverVF == EVertexFactoryType::MeshParticle)
-						Header.MeshParticleFallbackVS = Header.Pipeline.Shader->VertexShader;
-					if (FShaderProgram* Resolved = FRenderResourceManager::ResolveShader(Header.Pipeline.Shader, ReceiverVF))
-						Header.Pipeline.Shader = Resolved;
-					Header.Textures = { { Decal->GetDecalTexture(), EShaderBindFlagBits::Pixel } };
-					ReceiverItems += Header.Items.Num();
-					DecalBatches.Add(std::move(Header));
-				}
-
-				{
-					SCOPE_CYCLE_COUNTER(STAT_DecalDraw);
-					Renderer->DrawMeshes(DecalBatches);
-				}
-				RenderData.RenderStats.DecalDrawCalls += ReceiverItems;
-
-				for (uint32 Index = 0; Index < static_cast<uint32>(TouchedBatches.Num()); ++Index) {
-					FMeshDrawBatch& Header = DecalHeaders[TouchedBatches[Index]];
-					Header = std::move(DecalBatches[Index]);
-					Header.Items.Reset();
-				}
-
-			}
-		})) return false;
+		{ ExecuteDecalPass(Renderer, bDecalCulling, bDecalNarrowCulling, bDecalBVHCulling, bDecalOBBTree, bDeferred); }))
+		return false;
 	return true;
+}
+
+void FSceneRenderer::ExecuteDecalPass(FRenderer* Renderer, bool bDecalCulling, bool bDecalNarrowCulling,
+	bool bDecalBVHCulling, bool bDecalOBBTree, bool bDeferred)
+{
+	SCOPE_CYCLE_COUNTER(STAT_DecalPass);
+	if (!bCorePassSucceeded) return;
+	// 데칼 VS는 World, View, Projection을 b0에서 읽으므로 두 경로 모두 Forward 배치 형식을 사용한다.
+	TArray<FMeshDrawBatch> DeferredReceivers;
+	if (bDeferred)
+	{
+		FMeshPassProcessor Processor;
+		if (!Processor.Build(View, RenderData.RenderQueue, &RenderData, EMeshPassType::Forward, DeferredReceivers)) return;
+	}
+	const TArray<FMeshDrawBatch>& Receivers = bDeferred ? DeferredReceivers : ForwardBatches;
+	if (Receivers.IsEmpty()) return;
+
+	FPipelineState* DecalPipeline = FRenderResourceManager::GetPSO(EPSOType::Decal);
+	FPipelineState* DecalAdditivePipeline = FRenderResourceManager::GetPSO(EPSOType::DecalAdditive);
+	if (!DecalPipeline || !DecalPipeline->Shader) return;
+	if (!DecalAdditivePipeline || !DecalAdditivePipeline->Shader) return;
+
+	// 여기부터 패스 끝까지가 GPU 측정 구간이다. 위의 조기 return은 잴 것이 없으므로 제외한다.
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_Decal);
+
+	FConstantBuffer* Constants = Renderer->GetDecalConstants();
+	TArray<FMeshDrawBatch> DecalBatches;
+	DecalBatches.Reserve(Receivers.Num());
+	FDecalData Data{};
+
+	const FScene& Scene = World->GetScene();
+	RenderData.RenderStats.DecalCount = Scene.Decals.Num();
+
+	TArray <UDecalComponent*> SortedDecals = Scene.Decals;
+	std::sort(SortedDecals.begin(), SortedDecals.end(), CompareDecalSortOrder);
+
+	TArray <FMeshDrawBatch> DecalHeaders;
+	DecalHeaders.Reserve(Receivers.Num());
+	TArray <FDecalItemRef> ItemRefs;
+
+	TArray <uint32> TouchedBatches;
+
+	for (int32 BatchIndex = 0; BatchIndex < Receivers.Num(); ++BatchIndex)
+	{
+		const FMeshDrawBatch& Src = Receivers[BatchIndex];
+		DecalHeaders.Add(Src);
+		FMeshDrawBatch& Header = DecalHeaders.Last();
+		Header.Items.Reset();
+		Header.Sampler = ESamplerState::LinearClamp;
+
+		for (uint32 ItemIndex = 0; ItemIndex < static_cast<uint32>(Src.Items.Num()); ItemIndex++)
+		{
+			const FMeshDrawBatch::FItem& Item = Src.Items[ItemIndex];
+			if (!Item.bReceivesDecals) continue;
+			ItemRefs.Add({ Item.Proxy, static_cast<uint32>(BatchIndex), ItemIndex });
+		}
+	}
+
+	std::sort(ItemRefs.begin(), ItemRefs.end(), CompareDecalItemRef);
+
+	for (auto Decal : SortedDecals) {
+		if (Decal->GetDecalTexture() == nullptr) continue;
+		RenderData.RenderStats.DecalsRendered++;
+
+		Decal->SetDecalViewProj();
+		Data.Fade = Decal->GetFade();
+		Data.bAdditive = Decal->IsAdditive() ? 1.0f : 0.0f;
+		Data.VP = Decal->GetDecalVP();
+
+		RenderCommand::UpdateBufferData(Constants, &Data, sizeof(Data));
+		RenderCommand::BindConstantBuffer(1, Constants, EShaderBindFlagBits::Pixel);
+
+		DecalBatches.Reset();
+		TouchedBatches.Reset();
+		uint32 ReceiverItems = 0;
+		const FAABB DecalAABB = Decal->GetWorldAABB();
+		const FOBB DecalOBB = Decal->GetWorldOBB();
+
+		const FBox DecalBox{ DecalAABB.Center - DecalAABB.Extent, DecalAABB.Center + DecalAABB.Extent };
+
+		// 아이템 하나 검사 
+		const auto ConsiderItem = [&](const FDecalItemRef& Ref)
+			{
+				const FMeshDrawBatch::FItem& Item = Receivers[Ref.Batch].Items[Ref.Item];
+				RenderData.RenderStats.DecalItemsTested++;
+
+				if (!bDecalBVHCulling && bDecalCulling) {
+					RenderData.RenderStats.DecalBroadTests++;
+					if (!IntersectAABB(DecalAABB, Item.Bounds)) return;
+				}
+
+				RenderData.RenderStats.DecalNarrowTested++;
+				if (bDecalNarrowCulling && !IntersectOBBAABB(DecalOBB, Item.Bounds)) return;
+
+				if (bDecalNarrowCulling && bDecalOBBTree && Item.Proxy && Item.Proxy->GetMesh()) {
+					const FStaticMeshData& MeshData = Item.Proxy->GetMesh()->GetMeshData();
+					FMatrix LocalToWorld = Item.Proxy->GetLocalToWorld();
+					if (MeshData.OBBTree) {
+						RenderData.RenderStats.DecalOBBTreeTested++;
+						if (!MeshData.OBBTree->Intersects(DecalOBB, LocalToWorld)) return;
+					}
+
+				}
+
+				FMeshDrawBatch& Header = DecalHeaders[Ref.Batch];
+				if (Header.Items.IsEmpty()) TouchedBatches.Add(Ref.Batch);
+				Header.Items.Add(Item);
+			};
+
+		// BVH 질의 후 index 하나씩 돌며 검사
+		{
+			SCOPE_CYCLE_COUNTER(STAT_DecalGatherItems);
+			if (bDecalBVHCulling) {
+				Scene.BVH.Query(
+					[&](const FBox& Bounds) {
+						RenderData.RenderStats.DecalBroadTests++;
+						return UWorld::AreAABBsOverlapping(DecalBox, Bounds);
+					},
+					[&](FPrimitiveSceneProxy* Proxy) { 
+						// BVH에서 얻은 Proxy를 ItemRefs에서 찾아서 ConsiderItem 호출
+						auto it = std::lower_bound(ItemRefs.begin(), ItemRefs.end(), Proxy, CompareDecalItemRefProxy);
+						while (it != ItemRefs.end() && it->Proxy == Proxy) {
+							ConsiderItem(*it);
+							++it;
+						}
+					});
+			}
+			else {
+				for (const FDecalItemRef& Ref : ItemRefs) {
+					ConsiderItem(Ref);
+				}
+			}
+		}
+
+		if (TouchedBatches.IsEmpty()) continue;
+		std::sort(TouchedBatches.begin(), TouchedBatches.end());
+
+		for (uint32 BatchIndex : TouchedBatches) {
+			FMeshDrawBatch& Header = DecalHeaders[BatchIndex];
+			Header.Pipeline = Decal->IsAdditive() ? *DecalAdditivePipeline : *DecalPipeline;
+			// 받는 쪽 정점 타입(GPU 스킨, 메시 파티클)에 맞는 데칼 셰이더 변형을 쓴다
+			const EVertexFactoryType ReceiverVF = Header.GetVertexFactoryType();
+			if (ReceiverVF == EVertexFactoryType::MeshParticle)
+				Header.MeshParticleFallbackVS = Header.Pipeline.Shader->VertexShader;
+			if (FShaderProgram* Resolved = FRenderResourceManager::ResolveShader(Header.Pipeline.Shader, ReceiverVF))
+				Header.Pipeline.Shader = Resolved;
+			Header.Textures = { { Decal->GetDecalTexture(), EShaderBindFlagBits::Pixel } };
+			ReceiverItems += Header.Items.Num();
+			DecalBatches.Add(std::move(Header));
+		}
+
+		{
+			SCOPE_CYCLE_COUNTER(STAT_DecalDraw);
+			Renderer->DrawMeshes(DecalBatches);
+		}
+		RenderData.RenderStats.DecalDrawCalls += ReceiverItems;
+
+		for (uint32 Index = 0; Index < static_cast<uint32>(TouchedBatches.Num()); ++Index) {
+			FMeshDrawBatch& Header = DecalHeaders[TouchedBatches[Index]];
+			Header = std::move(DecalBatches[Index]);
+			Header.Items.Reset();
+		}
+
+	}
 }
 
 bool FSceneRenderer::RenderTireMarks(FRenderGraphBuilder& Graph, FRenderer* Renderer, const FSceneTextures& SceneTextures)
@@ -1008,46 +1046,50 @@ bool FSceneRenderer::RenderTireMarks(FRenderGraphBuilder& Graph, FRenderer* Rend
 	FRenderGraphRasterPassDesc Pass = MakeViewportPass("TireMarks", SceneTextures.Color);
 	Pass.ReadTextures = { SceneTextures.Depth };
 	return Graph.AddRasterPass(std::move(Pass), [this, &Scene, Shader, ViewBuffer, MarkBuffer, Extent = SceneTextures.Extent]
-		{
-			if (!bCorePassSucceeded) return;
-			SCOPED_GPU_STAT(GPUStats::STAT_GPU_Decal);
-			FTireMark Visible[FTireMark::MaxCount];
-			uint32 Count = 0;
-			for (const FTireMark& Mark : Scene.GetTireMarks())
-			{
-				const FVector Center(Mark.CenterAndDepth.X, Mark.CenterAndDepth.Y, Mark.CenterAndDepth.Z);
-				const float DistanceSquared = (Center - View.ViewLocation).SizeSquared();
-				const float Opacity = FMath::Clamp((75.0f * 75.0f - DistanceSquared) / (75.0f * 75.0f - 55.0f * 55.0f), 0.0f, 1.0f);
-				const FVector HalfBounds(Mark.CenterAndDepth.W + Mark.AlongAndLength.W + Mark.AcrossAndWidth.W);
-				if (Opacity <= 0.0f || !IsAABBInFrustum({ Center, HalfBounds }, View.Frustum)) continue;
-				Visible[Count] = Mark;
-				Visible[Count++].NormalAndOpacity.W = Opacity;
-			}
-			RenderData.RenderStats.DecalCount += Scene.GetTireMarks().Num();
-			if (!Count) return;
+		{ ExecuteTireMarksPass(Scene, Shader, ViewBuffer, MarkBuffer, Extent); });
+}
 
-			const FTireMarkViewData Data{ View.ViewProjectionMatrix, View.ViewProjectionMatrix.Inverse(),
-				FVector4(1.0f / Extent.X, 1.0f / Extent.Y, 0.0f, 0.0f) };
-			RenderCommand::UpdateBufferData(ViewBuffer, &Data, sizeof(Data));
-			RenderCommand::UpdateBufferData(MarkBuffer, Visible, Count * sizeof(FTireMark));
-			const auto Stages = EShaderBindFlagBits::Vertex | EShaderBindFlagBits::Pixel;
-			RenderCommand::BindConstantBuffer(0, ViewBuffer, Stages);
-			RenderCommand::BindShaderResource(1, Scene.TireMarkTexture, EShaderBindFlagBits::Pixel);
-			RenderCommand::BindShaderResource(2, MarkBuffer, Stages);
-			RenderCommand::BindSamplerState(0, ESamplerState::LinearClamp, EShaderBindFlagBits::Pixel);
-			FPipelineState Pipeline;
-			Pipeline.Shader = Shader;
-			Pipeline.Topology = EPrimitiveTopology::TriangleList;
-			Pipeline.RasterizerState = ERasterizerState::SolidNone;
-			Pipeline.BlendState = EBlendState::AlphaBlend;
-			Pipeline.DepthStencilState = EDepthStencilState::Disabled;
-			RenderCommand::BindPipelineState(Pipeline);
-			RenderCommand::BindVertexBuffer(nullptr);
-			RenderCommand::Draw(Count * 6);
-			RenderCommand::UnbindShaderResources(0, 3, Stages);
-			RenderData.RenderStats.DecalsRendered += Count;
-			++RenderData.RenderStats.DecalDrawCalls;
-		});
+void FSceneRenderer::ExecuteTireMarksPass(const FScene& Scene, FShaderProgram* Shader, FConstantBuffer* ViewBuffer,
+	FStructuredBuffer* MarkBuffer, FIntPoint Extent)
+{
+	if (!bCorePassSucceeded) return;
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_Decal);
+	FTireMark Visible[FTireMark::MaxCount];
+	uint32 Count = 0;
+	for (const FTireMark& Mark : Scene.GetTireMarks())
+	{
+		const FVector Center(Mark.CenterAndDepth.X, Mark.CenterAndDepth.Y, Mark.CenterAndDepth.Z);
+		const float DistanceSquared = (Center - View.ViewLocation).SizeSquared();
+		const float Opacity = FMath::Clamp((75.0f * 75.0f - DistanceSquared) / (75.0f * 75.0f - 55.0f * 55.0f), 0.0f, 1.0f);
+		const FVector HalfBounds(Mark.CenterAndDepth.W + Mark.AlongAndLength.W + Mark.AcrossAndWidth.W);
+		if (Opacity <= 0.0f || !IsAABBInFrustum({ Center, HalfBounds }, View.Frustum)) continue;
+		Visible[Count] = Mark;
+		Visible[Count++].NormalAndOpacity.W = Opacity;
+	}
+	RenderData.RenderStats.DecalCount += Scene.GetTireMarks().Num();
+	if (!Count) return;
+
+	const FTireMarkViewData Data{ View.ViewProjectionMatrix, View.ViewProjectionMatrix.Inverse(),
+		FVector4(1.0f / Extent.X, 1.0f / Extent.Y, 0.0f, 0.0f) };
+	RenderCommand::UpdateBufferData(ViewBuffer, &Data, sizeof(Data));
+	RenderCommand::UpdateBufferData(MarkBuffer, Visible, Count * sizeof(FTireMark));
+	const auto Stages = EShaderBindFlagBits::Vertex | EShaderBindFlagBits::Pixel;
+	RenderCommand::BindConstantBuffer(0, ViewBuffer, Stages);
+	RenderCommand::BindShaderResource(1, Scene.TireMarkTexture, EShaderBindFlagBits::Pixel);
+	RenderCommand::BindShaderResource(2, MarkBuffer, Stages);
+	RenderCommand::BindSamplerState(0, ESamplerState::LinearClamp, EShaderBindFlagBits::Pixel);
+	FPipelineState Pipeline;
+	Pipeline.Shader = Shader;
+	Pipeline.Topology = EPrimitiveTopology::TriangleList;
+	Pipeline.RasterizerState = ERasterizerState::SolidNone;
+	Pipeline.BlendState = EBlendState::AlphaBlend;
+	Pipeline.DepthStencilState = EDepthStencilState::Disabled;
+	RenderCommand::BindPipelineState(Pipeline);
+	RenderCommand::BindVertexBuffer(nullptr);
+	RenderCommand::Draw(Count * 6);
+	RenderCommand::UnbindShaderResources(0, 3, Stages);
+	RenderData.RenderStats.DecalsRendered += Count;
+	++RenderData.RenderStats.DecalDrawCalls;
 }
 
 bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Renderer,
@@ -1109,11 +1151,7 @@ bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Re
 		Setup.ReadTextures = { Depth };
 		Setup.ColorAttachments = { { CoC, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
 		if (!Graph.AddRasterPass(std::move(Setup), [this, Renderer, &Graph, Depth]
-			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
-				if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
-					DOF->RenderSetup(View, Graph.Resolve(Depth));
-			})) return false;
+			{ ExecuteDOFSetupPass(Renderer, Graph.Resolve(Depth)); })) return false;
 	}
 
 	if (bDepthOfField && !bVisualizingDOF)
@@ -1132,14 +1170,8 @@ bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Re
 		Downsample.Name = "DOFDownsample";
 		Downsample.ReadTextures = { LightingHDR, CoC };
 		Downsample.ColorAttachments = { { HalfRes, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
-		if (!Graph.AddRasterPass(std::move(Downsample), [Renderer, &Graph, CoC, SceneCopy, LightingHDR]
-			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
-				FTexture2D* Copy = Graph.Resolve(SceneCopy);
-				RenderCommand::CopyTexture(Copy, Graph.Resolve(LightingHDR));
-				if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
-					DOF->RenderDownsample(Copy, Graph.Resolve(CoC));
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(Downsample), [this, Renderer, &Graph, CoC, SceneCopy, LightingHDR]
+			{ ExecuteDOFDownsamplePass(Renderer, Graph.Resolve(SceneCopy), Graph.Resolve(LightingHDR), Graph.Resolve(CoC)); })) return false;
 
 		FRenderGraphRasterPassDesc Gather{};
 		Gather.Name = "DOFGather";
@@ -1149,11 +1181,7 @@ bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Re
 			{ HalfNear, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } }
 		};
 		if (!Graph.AddRasterPass(std::move(Gather), [this, Renderer, &Graph, HalfRes]
-			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
-				if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
-					DOF->RenderGather(View, Graph.Resolve(HalfRes));
-			})) return false;
+			{ ExecuteDOFGatherPass(Renderer, Graph.Resolve(HalfRes)); })) return false;
 
 		FRenderGraphRasterPassDesc PostFilter{};
 		PostFilter.Name = "DOFPostFilter";
@@ -1162,20 +1190,15 @@ bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Re
 			{ HalfFarFiltered, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } },
 			{ HalfNearFiltered, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } }
 		};
-		if (!Graph.AddRasterPass(std::move(PostFilter), [Renderer, &Graph, HalfFar, HalfNear]
-			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
-				if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
-					DOF->RenderPostFilter(Graph.Resolve(HalfFar), Graph.Resolve(HalfNear));
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(PostFilter), [this, Renderer, &Graph, HalfFar, HalfNear]
+			{ ExecuteDOFPostFilterPass(Renderer, Graph.Resolve(HalfFar), Graph.Resolve(HalfNear)); })) return false;
 
 		FRenderGraphRasterPassDesc Composite = MakeViewportPass("DOFComposite", LightingHDR);
 		Composite.ReadTextures = { SceneCopy, CoC, HalfFarFiltered, HalfNearFiltered };
-		if (!Graph.AddRasterPass(std::move(Composite), [Renderer, &Graph, SceneCopy, CoC, HalfFarFiltered, HalfNearFiltered]
+		if (!Graph.AddRasterPass(std::move(Composite), [this, Renderer, &Graph, SceneCopy, CoC, HalfFarFiltered, HalfNearFiltered]
 			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
-				if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
-					DOF->RenderComposite(Graph.Resolve(SceneCopy), Graph.Resolve(CoC), Graph.Resolve(HalfFarFiltered), Graph.Resolve(HalfNearFiltered));
+				ExecuteDOFCompositePass(Renderer, Graph.Resolve(SceneCopy), Graph.Resolve(CoC),
+					Graph.Resolve(HalfFarFiltered), Graph.Resolve(HalfNearFiltered));
 			})) return false;
 	}
 
@@ -1209,58 +1232,40 @@ bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Re
 		BrightPass.ReadTextures = { LightingHDR };
 		BrightPass.ColorAttachments = { { Bright, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
 		if (!Graph.AddRasterPass(std::move(BrightPass), [this, Renderer, &Graph, LightingHDR]
-			{
-				if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
-					Flare->RenderBrightPass(View, Graph.Resolve(LightingHDR));
-			})) return false;
+			{ ExecuteLensFlareBrightPass(Renderer, Graph.Resolve(LightingHDR)); })) return false;
 
 		FRenderGraphRasterPassDesc BokehPass{};
 		BokehPass.Name = "LensFlareBokeh";
 		BokehPass.ReadTextures = { Bright };
 		BokehPass.ColorAttachments = { { Shaped, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
 		if (!Graph.AddRasterPass(std::move(BokehPass), [this, Renderer, &Graph, Bright]
-			{
-				if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
-					Flare->RenderBokeh(View, Graph.Resolve(Bright));
-			})) return false;
+			{ ExecuteLensFlareBokehPass(Renderer, Graph.Resolve(Bright)); })) return false;
 
 		FRenderGraphRasterPassDesc GhostPass{};
 		GhostPass.Name = "LensFlareGhost";
 		GhostPass.ReadTextures = { Shaped, Bright };
 		GhostPass.ColorAttachments = { { Ghost, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
 		if (!Graph.AddRasterPass(std::move(GhostPass), [this, Renderer, &Graph, Shaped, Bright]
-			{
-				if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
-					Flare->RenderGhosts(View, Graph.Resolve(Shaped), Graph.Resolve(Bright));
-			})) return false;
+			{ ExecuteLensFlareGhostPass(Renderer, Graph.Resolve(Shaped), Graph.Resolve(Bright)); })) return false;
 
 		FRenderGraphRasterPassDesc BlurHPass{};
 		BlurHPass.Name = "LensFlareBlurH";
 		BlurHPass.ReadTextures = { Ghost };
 		BlurHPass.ColorAttachments = { { BlurTemp, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
-		if (!Graph.AddRasterPass(std::move(BlurHPass), [Renderer, &Graph, Ghost]
-			{
-				if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
-					Flare->RenderBlur(Graph.Resolve(Ghost), 1.0f, 0.0f);
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(BlurHPass), [this, Renderer, &Graph, Ghost]
+			{ ExecuteLensFlareBlurPass(Renderer, Graph.Resolve(Ghost), 1.0f, 0.0f); })) return false;
 
 		FRenderGraphRasterPassDesc BlurVPass{};
 		BlurVPass.Name = "LensFlareBlurV";
 		BlurVPass.ReadTextures = { BlurTemp };
 		BlurVPass.ColorAttachments = { { Blurred, ERenderGraphLoadAction::Clear, { 0.0f, 0.0f, 0.0f, 0.0f } } };
-		if (!Graph.AddRasterPass(std::move(BlurVPass), [Renderer, &Graph, BlurTemp]
-			{
-				if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
-					Flare->RenderBlur(Graph.Resolve(BlurTemp), 0.0f, 1.0f);
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(BlurVPass), [this, Renderer, &Graph, BlurTemp]
+			{ ExecuteLensFlareBlurPass(Renderer, Graph.Resolve(BlurTemp), 0.0f, 1.0f); })) return false;
 
 		FRenderGraphRasterPassDesc Composite = MakeViewportPass("LensFlareComposite", LightingHDR);
 		Composite.ReadTextures = { Blurred };
 		if (!Graph.AddRasterPass(std::move(Composite), [this, Renderer, &Graph, Blurred]
-			{
-				if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
-					Flare->RenderComposite(View, Graph.Resolve(Blurred));
-			})) return false;
+			{ ExecuteLensFlareCompositePass(Renderer, Graph.Resolve(Blurred)); })) return false;
 	}
 
 	// 단일 노출·톤매핑 패스 (LightingHDR -> SceneColor)
@@ -1275,14 +1280,8 @@ bool FSceneRenderer::AddViewportPasses(FRenderGraphBuilder& Graph, FRenderer* Re
 
 		FRenderGraphRasterPassDesc Visualize = MakeViewportPass("DOFVisualize", SceneColor);
 		Visualize.ReadTextures = { CoC, SceneCopy };
-		if (!Graph.AddRasterPass(std::move(Visualize), [Renderer, &Graph, CoC, SceneCopy, SceneColorTarget = Targets.SceneColor.get()]
-			{
-				SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
-				FTexture2D* Copy = Graph.Resolve(SceneCopy);
-				RenderCommand::CopyTexture(Copy, SceneColorTarget);
-				if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
-					DOF->RenderVisualize(Graph.Resolve(CoC), Copy);
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(Visualize), [this, Renderer, &Graph, CoC, SceneCopy, SceneColorTarget = Targets.SceneColor.get()]
+			{ ExecuteDOFVisualizePass(Renderer, Graph.Resolve(CoC), Graph.Resolve(SceneCopy), SceneColorTarget); })) return false;
 	}
 
 	// 씬을 다 그린 뒤 화면 전체에 적용하는 처리. FXAA를 거치면 FinalColor가 FXAA 결과 텍스처로 바뀐다.
@@ -1318,9 +1317,7 @@ bool FSceneRenderer::RenderFog(FRenderGraphBuilder& Graph, FRenderer* Renderer, 
 	Pass.ReadTextures = { Depth };
 	if (!Graph.AddRasterPass(std::move(Pass),
 		[this, Renderer, DepthTarget = Targets.Depth.get(), ColorTarget = Targets.SceneColor.get()]
-		{
-			bHasFog = RenderHeightFog(Renderer, DepthTarget, ColorTarget);
-		})) return false;
+		{ bHasFog = RenderHeightFog(Renderer, DepthTarget, ColorTarget); })) return false;
 	return true;
 }
 
@@ -1331,12 +1328,14 @@ bool FSceneRenderer::RenderTranslucency(FRenderGraphBuilder& Graph, FRenderer* R
 {
 	const bool bBeforeDOF = Pass == EMeshPassType::TranslucentBeforeDOF;
 	return Graph.AddRasterPass(MakeViewportPass(bBeforeDOF ? "Translucent.BeforeDOF" : "Translucent", SceneColor, Depth),
-		[this, Renderer, Pass, bBeforeDOF]
-		{
-			if (bBeforeDOF && !bCorePassSucceeded) return;
-			FHeightFogRenderer* Fog = Renderer->GetHeightFog();
-			RenderTranslucent(Renderer, Fog ? Fog->GetTranslucentFogConstants(bHasFog) : nullptr, Pass);
-		});
+		[this, Renderer, Pass, bBeforeDOF] { ExecuteTranslucencyPass(Renderer, Pass, bBeforeDOF); });
+}
+
+void FSceneRenderer::ExecuteTranslucencyPass(FRenderer* Renderer, EMeshPassType Pass, bool bBeforeDOF)
+{
+	if (bBeforeDOF && !bCorePassSucceeded) return;
+	FHeightFogRenderer* Fog = Renderer->GetHeightFog();
+	RenderTranslucent(Renderer, Fog ? Fog->GetTranslucentFogConstants(bHasFog) : nullptr, Pass);
 }
 
 // 씬을 다 그린 뒤 화면 전체에 적용하는 처리를 순서대로 등록한다. UE의 AddPostProcessingPasses와 같은 자리다.
@@ -1361,10 +1360,7 @@ bool FSceneRenderer::AddPostProcessingPasses(FRenderGraphBuilder& Graph, FRender
 		if (!Graph.AddRasterPass(MakeViewportPass("CameraOverlay", SceneColor),
 			[this, Renderer, Width, Height,
 			bVignette = ViewFamily.EngineShowFlags.Vignette, bOverlay = ViewFamily.EngineShowFlags.CameraOverlay]
-			{
-				if (FCameraOverlayRenderer* Overlay = Renderer->GetCameraOverlay())
-					Overlay->OnRender(View, Width, Height, bVignette, bOverlay);
-			})) return false;
+			{ ExecuteCameraOverlayPass(Renderer, Width, Height, bVignette, bOverlay); })) return false;
 	}
 
 	FinalColor = SceneColor;
@@ -1381,35 +1377,14 @@ bool FSceneRenderer::AddPostProcessingPasses(FRenderGraphBuilder& Graph, FRender
 		FRenderGraphRasterPassDesc Pass = MakeViewportPass("FXAA", FinalColor);
 		Pass.ReadTextures = { SceneColor };
 		if (!Graph.AddRasterPass(std::move(Pass), [this, FXAA, ColorTarget]
-			{
-				bFXAAPassSucceeded = FXAA->OnRender(ColorTarget);
-			})) return false;
+			{ bFXAAPassSucceeded = FXAA->OnRender(ColorTarget); })) return false;
 	}
 
 	if (ViewFamily.ViewMode == VMI_LightCulling && ViewFamily.EngineShowFlags.Rendering)
 	{
 		FRenderGraphRasterPassDesc Debug = MakeViewportPass("LightCullingDebug", FinalColor);
 		Debug.ReadTextures = { Depth };
-		if (!Graph.AddRasterPass(std::move(Debug), [this, Renderer, &Graph, Depth]
-			{
-				if (!bCorePassSucceeded) return;
-				FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::LightCullingDebug);
-				if (!Pipeline || !Pipeline->Shader || !Pipeline->Shader->VertexShader || !Pipeline->Shader->PixelShader)
-				{
-					bCorePassSucceeded = false;
-					return;
-				}
-				FForwardLightTileGrid& Tiles = RenderData.ViewLightResources.GetTiles();
-				Tiles.PreparePixelShader(Renderer, bTilesBuilt);
-				RenderCommand::BindConstantBuffer(3, Tiles.GetPixelConstants(), EShaderBindFlagBits::Pixel);
-				RenderCommand::BindShaderResource(9, Tiles.GetPixelResources()[0], EShaderBindFlagBits::Pixel);
-				RenderCommand::BindPipelineState(*Pipeline);
-				RenderCommand::BindVertexBuffer(nullptr);
-				RenderCommand::Draw(3);
-				RenderCommand::UnbindShaderResources(9, 1, EShaderBindFlagBits::Pixel);
-				RenderCommand::BindConstantBuffer(3, nullptr, EShaderBindFlagBits::Pixel);
-				Tiles.ResetPixelState();
-			})) return false;
+		if (!Graph.AddRasterPass(std::move(Debug), [this, Renderer] { ExecuteLightCullingDebugPass(Renderer); })) return false;
 	}
 
 	if (ViewFamily.ViewMode == VMI_Cascade && Callbacks.CascadeVisualization)
@@ -1419,6 +1394,108 @@ bool FSceneRenderer::AddPostProcessingPasses(FRenderGraphBuilder& Graph, FRender
 		if (!Graph.AddRasterPass(std::move(Pass), Callbacks.CascadeVisualization)) return false;
 	}
 	return true;
+}
+
+void FSceneRenderer::ExecuteLightCullingDebugPass(FRenderer* Renderer)
+{
+	if (!bCorePassSucceeded) return;
+	FPipelineState* Pipeline = FRenderResourceManager::GetPSO(EPSOType::LightCullingDebug);
+	if (!Pipeline || !Pipeline->Shader || !Pipeline->Shader->VertexShader || !Pipeline->Shader->PixelShader)
+	{
+		bCorePassSucceeded = false;
+		return;
+	}
+	FForwardLightTileGrid& Tiles = RenderData.ViewLightResources.GetTiles();
+	Tiles.PreparePixelShader(Renderer, bTilesBuilt);
+	RenderCommand::BindConstantBuffer(3, Tiles.GetPixelConstants(), EShaderBindFlagBits::Pixel);
+	RenderCommand::BindShaderResource(9, Tiles.GetPixelResources()[0], EShaderBindFlagBits::Pixel);
+	RenderCommand::BindPipelineState(*Pipeline);
+	RenderCommand::BindVertexBuffer(nullptr);
+	RenderCommand::Draw(3);
+	RenderCommand::UnbindShaderResources(9, 1, EShaderBindFlagBits::Pixel);
+	RenderCommand::BindConstantBuffer(3, nullptr, EShaderBindFlagBits::Pixel);
+	Tiles.ResetPixelState();
+}
+
+void FSceneRenderer::ExecuteCameraOverlayPass(FRenderer* Renderer, uint32 Width, uint32 Height, bool bVignette, bool bOverlay)
+{
+	if (FCameraOverlayRenderer* Overlay = Renderer->GetCameraOverlay())
+		Overlay->OnRender(View, Width, Height, bVignette, bOverlay);
+}
+
+void FSceneRenderer::ExecuteDOFSetupPass(FRenderer* Renderer, FTexture2D* Depth)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
+	if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
+		DOF->RenderSetup(View, Depth);
+}
+
+void FSceneRenderer::ExecuteDOFDownsamplePass(FRenderer* Renderer, FTexture2D* SceneCopy, FTexture2D* LightingHDR, FTexture2D* CoC)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
+	RenderCommand::CopyTexture(SceneCopy, LightingHDR);
+	if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
+		DOF->RenderDownsample(SceneCopy, CoC);
+}
+
+void FSceneRenderer::ExecuteDOFGatherPass(FRenderer* Renderer, FTexture2D* HalfRes)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
+	if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
+		DOF->RenderGather(View, HalfRes);
+}
+
+void FSceneRenderer::ExecuteDOFPostFilterPass(FRenderer* Renderer, FTexture2D* HalfFar, FTexture2D* HalfNear)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
+	if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
+		DOF->RenderPostFilter(HalfFar, HalfNear);
+}
+
+void FSceneRenderer::ExecuteDOFCompositePass(FRenderer* Renderer, FTexture2D* SceneCopy, FTexture2D* CoC,
+	FTexture2D* HalfFarFiltered, FTexture2D* HalfNearFiltered)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
+	if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
+		DOF->RenderComposite(SceneCopy, CoC, HalfFarFiltered, HalfNearFiltered);
+}
+
+void FSceneRenderer::ExecuteDOFVisualizePass(FRenderer* Renderer, FTexture2D* CoC, FTexture2D* SceneCopy, FTexture2D* SceneColorTarget)
+{
+	SCOPED_GPU_STAT(GPUStats::STAT_GPU_DepthOfField);
+	RenderCommand::CopyTexture(SceneCopy, SceneColorTarget);
+	if (FDepthOfFieldRenderer* DOF = Renderer->GetDepthOfField())
+		DOF->RenderVisualize(CoC, SceneCopy);
+}
+
+void FSceneRenderer::ExecuteLensFlareBrightPass(FRenderer* Renderer, FTexture2D* LightingHDR)
+{
+	if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
+		Flare->RenderBrightPass(View, LightingHDR);
+}
+
+void FSceneRenderer::ExecuteLensFlareBokehPass(FRenderer* Renderer, FTexture2D* Bright)
+{
+	if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
+		Flare->RenderBokeh(View, Bright);
+}
+
+void FSceneRenderer::ExecuteLensFlareGhostPass(FRenderer* Renderer, FTexture2D* Shaped, FTexture2D* Bright)
+{
+	if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
+		Flare->RenderGhosts(View, Shaped, Bright);
+}
+
+void FSceneRenderer::ExecuteLensFlareBlurPass(FRenderer* Renderer, FTexture2D* Source, float DirectionX, float DirectionY)
+{
+	if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
+		Flare->RenderBlur(Source, DirectionX, DirectionY);
+}
+
+void FSceneRenderer::ExecuteLensFlareCompositePass(FRenderer* Renderer, FTexture2D* Blurred)
+{
+	if (FLensFlareRenderer* Flare = Renderer->GetLensFlare())
+		Flare->RenderComposite(View, Blurred);
 }
 
 bool FSceneRenderer::Render(FRenderer* Renderer, const std::function<void(FScenePassCallbacks&)>& ExtraPasses)
