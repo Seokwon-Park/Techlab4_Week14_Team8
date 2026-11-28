@@ -19,6 +19,7 @@
 #include "Engine/Level.h"
 #include "GameFramework/Actor.h"
 #include "Asset/AssetManager.h"
+#include "Debug/DrawDebugHelpers.h"
 
 FLevelEditorViewportClient* GCurrentLevelEditingViewportClient = nullptr;
 
@@ -192,7 +193,16 @@ void FLevelEditorViewportClient::Draw(const FSceneView* View, FScenePassCallback
 					}
 				}
 
+				// [B] DrawDebug*로 쌓인 선 + NavMesh 오버레이(Navigation 플래그). 이 뷰포트의 Show 플래그로 거른다.
+				DrawWorldDebugToLineBatcher(GetWorld(), *LineBatcher, EngineShowFlags, EDebugDepthPriority::World);
 				LineBatcher->OnRender(SceneView.ViewProjectionMatrix);
+
+				// [B] Foreground(경로, 점)는 깊이 테스트를 끄고 한 번 더 그려 지형에 가려지지 않게 한다.
+				LineBatcher->BeginFrame();
+				DrawWorldDebugToLineBatcher(GetWorld(), *LineBatcher, EngineShowFlags, EDebugDepthPriority::Foreground);
+				LineBatcher->SetDepthTest(false);
+				LineBatcher->OnRender(SceneView.ViewProjectionMatrix);
+				LineBatcher->SetDepthTest(true);
 			};
 	}
 	if (EngineShowFlags.Grid)

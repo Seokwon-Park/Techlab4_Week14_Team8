@@ -16,6 +16,8 @@
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGraph.h"
 #include "GameFramework/GameplayInfoActors.h"
+#include "GameFramework/PlayerStart.h"
+#include "Terrain/Terrain.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Input/InputSystem.h"
 
@@ -145,6 +147,10 @@ bool UWorld::Init()
 	LineBatcher = MakeUnique<FLineBatcher>();
 	LineBatcher->Init(nullptr, this);
 
+	// 등록된 서브시스템 객체를 만든다. 여기서는 포인터·설정만 잡고 무거운 자원은 만들지 않는다.
+	// 자원 생성은 레벨 파일을 다 읽은 뒤 NotifyLevelLoaded -> OnLevelLoad에서 한다.
+	Subsystems.Initialize(*this);
+
 	return true;
 }
 
@@ -174,7 +180,7 @@ AActor* UWorld::SpawnActor(UClass* Class, FName InName, const FTransform* Transf
 	{
 		NewActor->GetRootComponent()->SetTransform(SpawnTransform);
 	}
-	
+
 	// 4. Level->Actors에 등록한 뒤 컴포넌트를 월드에 연결한다.
 	PersistentLevel->AddActor(NewActor);
 	NewActor->RegisterAllComponents();
@@ -207,6 +213,11 @@ void UWorld::Tick(float RealDeltaTime)
 	const float DeltaTime = RealDeltaTime * GetEffectiveTimeDilation();
 	RealTimeSeconds += RealDeltaTime;
 
+	// 서브시스템 Tick을 액터 Tick보다 먼저 부른다.
+	// 디버그 드로우 서브시스템이 "지난 프레임에 한 번만 그릴 선"을 여기서 지워야,
+	// 이번 프레임 액터 Tick이 새로 그린 선이 렌더까지 살아남는다.
+	Subsystems.Tick(RealDeltaTime);
+
 	// World 시간 흐름
 	if (!bIsPaused)
 	{
@@ -228,7 +239,7 @@ void UWorld::Tick(float RealDeltaTime)
 	{
 		EditorWorldTick(DeltaTime);
 	}
-	
+
 	if (WorldType == EWorldType::EditorPreview)
 	{
 		PreviewWorldTick(DeltaTime);
@@ -393,6 +404,13 @@ void UWorld::PreviewWorldTick(float DeltaTime)
 
 void UWorld::ClearWorld()
 {
+	// 액터를 지우기 "전에" 서브시스템 자원을 먼저 놓는다 (OnLevelUnload: 400 → 300 → 200 → 100).
+	// 이 시점에는 액터와 PxScene이 아직 살아 있으므로, C는 하이트필드 액터를 씬에서 안전하게 뺄 수 있다.
+	// ClearWorld는 월드 삭제(UEngine::DestroyWorld), 씬 다시 읽기(FJsonArchive::LoadWorldFromBytes),
+	// 에디터 새 씬이 모두 거치는 한 곳이라 여기 한 번만 넣으면 모든 경로가 언로드를 먼저 하게 된다.
+	Subsystems.UnloadLevel();
+	LoadedMapPath.clear();
+
 	EndPlay();
 
 	// BeginPlay 대기 중인 Actor 제거
@@ -400,7 +418,7 @@ void UWorld::ClearWorld()
 	{
 		BeginPlayList.Dequeue();
 	}
-	
+
 	for (ULevel* Level : Levels)
 	{
 		for (AActor* Actor : Level->Actors)
@@ -777,6 +795,7 @@ bool UWorld::SweepSingle(const FRay& WorldRay, float MaxDistance, float Radius, 
 	return bPhysicsHit || bLegacyHit;
 }
 
+
 // 다른 World의 객체를 제외하고 Component 교차 중 최근접 결과를 선택한다.
 bool UWorld::SweepSingleLegacy(const FRay& WorldRay, float MaxDistance, float Radius, FHitResult& OutHit, AActor* IgnoreActor,
 	bool bBlockingOnly, bool bSkipPhysicsBodies)
@@ -1030,11 +1049,11 @@ void UWorld::BeginPlay()
 		UClass* PawnClass = ADefaultPawn::StaticClass();
 		if (GameMode)
 			PawnClass = GameMode->DefaultPawnClass.empty()
-				? ASpectatorPawn::StaticClass()
-				: AGameModeBase::ResolveClass(GameMode->DefaultPawnClass, APawn::StaticClass(), ADefaultPawn::StaticClass());
+			? ASpectatorPawn::StaticClass()
+			: AGameModeBase::ResolveClass(GameMode->DefaultPawnClass, APawn::StaticClass(), ADefaultPawn::StaticClass());
 		PlayerPawn = Cast<APawn>(SpawnActor(PawnClass, NAME_None, &Transform));
 	}
-	if (!PlayerController) 
+	if (!PlayerController)
 		PlayerController = Cast<APlayerController>(SpawnActor(GameMode
 			? AGameModeBase::ResolveClass(GameMode->PlayerControllerClass, APlayerController::StaticClass(), AMyPlayerController::StaticClass())
 			: AMyPlayerController::StaticClass()));
@@ -1043,10 +1062,10 @@ void UWorld::BeginPlay()
 			APlayerState::StaticClass(), APlayerState::StaticClass())));
 	if (GameMode && !HUD)
 		HUD = Cast<AHUD>(SpawnActor(AGameModeBase::ResolveClass(GameMode->HUDClass, AHUD::StaticClass(), AHUD::StaticClass())));
-	
+
 	if (PlayerController)
 		PlayerController->SpawnPlayerCameraManager();
-	
+
 	if (PlayerController && PlayerPawn) PlayerController->Possess(PlayerPawn);
 
 	if (!MyParticleEventManager)
@@ -1070,6 +1089,92 @@ void UWorld::BeginPlay()
 		BeginPlayList.Dequeue();
 		if (Actor) Actor->BeginPlay();
 	}
+
+	// 액터가 다 시작한 뒤 서브시스템 BeginPlay. C는 여기서 캐릭터를 Player Start로 옮긴다.
+	Subsystems.BeginPlay(*this);
+}
+
+void UWorld::NotifyLevelLoaded(const FString& MapPath)
+{
+	LoadedMapPath = MapPath;
+	const FLevelLoadContext Context = BuildLevelLoadContext(MapPath);
+	Subsystems.LoadLevel(Context);
+}
+
+FLevelLoadContext UWorld::BuildLevelLoadContext(const FString& MapPath)
+{
+	FLevelLoadContext Context;
+	Context.World = this;
+	Context.MapPath = MapPath;
+
+	auto AddNavBounds = [&Context](const FBox& Box)
+		{
+			if (!Context.bHasNavBounds)
+			{
+				Context.NavBounds = Box;
+				Context.bHasNavBounds = true;
+			}
+			else
+			{
+				Context.NavBounds.Expand(Box);
+			}
+		};
+
+	for (ULevel* Level : Levels)
+	{
+		if (!Level) continue;
+		for (AActor* Actor : Level->GetActors())
+		{
+			if (!Actor) continue;
+
+			// 지형은 레벨당 하나라고 정했다. 여러 개면 첫 번째만 쓰고 경고한다.
+			if (ATerrain* Terrain = Cast<ATerrain>(Actor))
+			{
+				if (!Context.Terrain)
+				{
+					Context.Terrain = Terrain;
+					// 지형 범위: 그리드 크기 × 셀 크기. 높이(Z)는 실제 높이 배열에서 최소·최대를 구한다.
+					const FTerrainCoordinates& Coords = Terrain->GetCoordinates();
+					const TArray<uint16>& Heights = Terrain->GetHeights();
+					float MinZ = Coords.Origin.Z;
+					float MaxZ = Coords.Origin.Z;
+					for (uint16 Raw : Heights)
+					{
+						const float Z = Coords.DecodeHeight(Raw);
+						MinZ = FMath::Min(MinZ, Z);
+						MaxZ = FMath::Max(MaxZ, Z);
+					}
+					if (Coords.SizeX > 1 && Coords.SizeY > 1)
+					{
+						const FVector Min(Coords.Origin.X, Coords.Origin.Y, MinZ);
+						const FVector Max(Coords.Origin.X + (Coords.SizeX - 1) * Coords.CellSize,
+							Coords.Origin.Y + (Coords.SizeY - 1) * Coords.CellSize, MaxZ);
+						AddNavBounds(FBox{ Min,Max });
+					}
+				}
+				else
+				{
+					HTR_LOG(Warning, "Level has more than one ATerrain. Only '{}' is used.", Context.Terrain->GetName());
+				}
+				continue;
+			}
+
+			if (APlayerStart* Start = Cast<APlayerStart>(Actor))
+			{
+				Context.PlayerStarts.Add(Start);
+				continue;
+			}
+
+			// 정적 스태틱 메시(물리 시뮬레이션을 하지 않는 것)는 NavMesh 입력이므로 범위에 넣는다.
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Component);
+				if (!Mesh || Mesh->bSimulatePhysics) continue;
+				AddNavBounds(Mesh->CalcBounds());
+			}
+		}
+	}
+	return Context;
 }
 
 void UWorld::EndPlay()
@@ -1098,7 +1203,7 @@ void UWorld::EndPlay()
 UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWorld, FName WorldName)
 {
 	UWorld* NewWorld = NewObject<UWorld>(nullptr, WorldName);
-	if (!NewWorld){ return nullptr; }
+	if (!NewWorld) { return nullptr; }
 
 	NewWorld->SetFlags(EObjectFlags::RF_Transactional);
 	NewWorld->WorldType = InWorldType;
@@ -1112,7 +1217,7 @@ UWorld* UWorld::CreateWorld(const EWorldType InWorldType, bool bInformEngineOfWo
 	return NewWorld;
 }
 
-UWorld* UWorld::GetDuplicatedWorldForPIE(UWorld * InWorld)
+UWorld* UWorld::GetDuplicatedWorldForPIE(UWorld* InWorld)
 {
 	if (!InWorld)
 	{
@@ -1130,6 +1235,10 @@ UWorld* UWorld::GetDuplicatedWorldForPIE(UWorld * InWorld)
 	Params.PortFlags = EPropertyPortFlags::PPF_DuplicateForPIE;
 
 	StaticDuplicateObjectEx(Params);
+	
+	// PIE 월드는 파일이 아니라 에디터 월드를 복제해서 만들므로 LoadWorld를 거치지 않는다.
+	// 그래서 여기서 직접 레벨 로드를 알린다. 이게 없으면 PIE에서 지형·충돌·NavMesh가 하나도 만들어지지 않는다.
+	PIEWorld->NotifyLevelLoaded(InWorld->GetLoadedMapPath());
 	return PIEWorld;
 }
 

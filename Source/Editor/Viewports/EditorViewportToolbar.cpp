@@ -313,6 +313,15 @@ namespace EditorViewportUI
 				{ "Root Bone (PIE)", EEditorIcon::SkeletalMesh,  &Flags.RootBone },
 			};
 
+			const FFlagRow TerrainNavRows[] =
+			{
+				{"Terrain Wireframe", EEditorIcon::TerrainWireframe, &Flags.TerrainWireframe},
+				{"Terrain LOD Color", EEditorIcon::TerrainLODColor, &Flags.TerrainLODColor},
+				{"Terrain Chunk Bounds", EEditorIcon::TerrainBounds, &Flags.TerrainBounds},
+				{"Navigation (P)", EEditorIcon::NavMesh, &Flags.Navigation},
+				{"Navigation Path", EEditorIcon::NavPath, &Flags.NavPath},
+			};
+
 			if (ShowSearch[0] != '\0')
 			{
 				auto DrawFiltered = [&](const FFlagRow* Rows, size_t Count)
@@ -331,6 +340,7 @@ namespace EditorViewportUI
 				// Collision은 CommonRows에 이미 있으므로 PhysicsBodies, Constraints만 추가 검색
 				DrawFiltered(PhysicsRows + 1, IM_ARRAYSIZE(PhysicsRows) - 1);
 				DrawFiltered(DeveloperRows, IM_ARRAYSIZE(DeveloperRows));
+				DrawFiltered(TerrainNavRows, IM_ARRAYSIZE(TerrainNavRows));
 			}
 			else
 			{
@@ -364,6 +374,15 @@ namespace EditorViewportUI
 				if (ImGui::BeginMenu("Developer"))
 				{
 					for (const FFlagRow& Row : DeveloperRows)
+					{
+						if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
+							*Row.Value = !*Row.Value;
+					}
+					ImGui::EndMenu();
+				}
+				if (ImGui::BeginMenu("Terrain & Navigation"))
+				{
+					for (const FFlagRow& Row : TerrainNavRows)
 					{
 						if (EditorIcons::MenuRow(Row.Label, Row.Icon, *Row.Value, true, true))
 							*Row.Value = !*Row.Value;

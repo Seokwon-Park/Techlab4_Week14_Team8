@@ -193,8 +193,18 @@ public:
 	template <class T>
 	T* GetSubsystem() const { return Subsystems.GetSubsystem<T>(); }
 
+	// 레벨 파일을 다 읽은 뒤 한 번 부른다. 액터 목록에서 지형·Player Start·내비 범위를 모아
+	// FLevelLoadContext를 만들고 서브시스템의 OnLevelLoad를 순서대로 부른다
+	// 부르는 곳: UEngine::LoadMap, UGameInstance::InitializeStandalone, PIE 복제, 에디터 씬 열기/새 씬/실행 취소.
+	void NotifyLevelLoaded(const FString& MapPath);
+	// 지금 월드에 들어 있는 레벨 파일 경로. PIE 복제 월드는 원본 에디터 월드의 경로를 이어받는다.
+	const FString& GetLoadedMapPath() const { return LoadedMapPath; }
 private:
+	// NotifyLevelLoaded가 서브시스템에 넘길 정보를 액터 목록에서 모은다.
+	FLevelLoadContext BuildLevelLoadContext(const FString& MapPath);
+
 	FWorldSubsystemCollection Subsystems;
+	FString LoadedMapPath;
 
 	bool SweepSingleLegacy(const FRay& WorldRay, float MaxDistance, float Radius, FHitResult& OutHit, AActor* IgnoreActor,
 		bool bBlockingOnly, bool bSkipPhysicsBodies);
