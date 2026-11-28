@@ -9,6 +9,15 @@
 #include "DetourNavMeshBuilder.h"
 #include "DetourAlloc.h"
 
+#include "Terrain/Terrain.h"
+#include "Terrain/TerrainSubsystem.h"
+
+#include "Components/StaticMeshComponent.h"
+#include "Engine/Level.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "Render/Mesh.h"
+
 namespace
 {
 	rcConfig MakeRecastConfig(const float* Vertices, int VertexCount)
@@ -38,6 +47,125 @@ namespace
 		rcCalcGridSize(Config.bmin, Config.bmax, Config.cs, &Config.width, &Config.height);
 		return Config;
 	}
+
+	void CollectStaticMeshGeometry(const UWorld& World, TArray<float>& OutVertices, TArray<int>& OutIndices)
+	{
+		for (const ULevel* Level : World.GetLevels())
+		{
+			if (!Level)
+			{
+				continue;
+			}
+
+			for (AActor* Actor : Level->GetActors())
+			{
+				if (!Actor || Cast<APawn>(Actor))
+				{
+					continue;
+				}
+
+				for (UActorComponent* Component : Actor->GetComponents())
+				{
+					const UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(Component);
+					if (!MeshComponent || MeshComponent->IsEditorIcon() || MeshComponent->bSimulatePhysics || !MeshComponent->bBlockComponent)
+					{
+						continue;
+					}
+
+					const UStaticMesh* Mesh = MeshComponent->GetStaticMesh();
+					if (!Mesh)
+					{
+						continue;
+					}
+
+					const FStaticMeshData& LOD0 = Mesh->GetMeshData(0);
+					if (LOD0.Vertices.Num() == 0 || LOD0.Indices.Num() == 0 || LOD0.Indices.Num() % 3 != 0)
+					{
+						continue;
+					}
+
+					const FMatrix WorldMatrix = MeshComponent->GetWorldMatrix();
+					const float Determinant = WorldMatrix.Determinant();
+					if (!std::isfinite(Determinant) || Determinant == 0.0f)
+					{
+						continue;
+					}
+
+					const bool bReverseWinding = Determinant > 0.0f;
+					const int VertexBase = static_cast<int>(OutVertices.Num() / 3);
+					const uint32 VertexCount = static_cast<uint32>(LOD0.Vertices.Num());
+					const auto GetIndex = [&LOD0, VertexBase](int Index)
+					{
+						return VertexBase + static_cast<int>(LOD0.Indices[Index]);
+					};
+
+					const auto FirstTriangleIndex = OutIndices.Num();
+					for (int Index = 0; Index < LOD0.Indices.Num(); Index += 3)
+					{
+						if (LOD0.Indices[Index] >= VertexCount || LOD0.Indices[Index + 1] >= VertexCount || LOD0.Indices[Index + 2] >= VertexCount)
+						{
+							continue;
+						}
+
+						OutIndices.Add(GetIndex(Index));
+						OutIndices.Add(GetIndex(Index + (bReverseWinding ? 2 : 1)));
+						OutIndices.Add(GetIndex(Index + (bReverseWinding ? 1 : 2)));
+					}
+
+					if (OutIndices.Num() == FirstTriangleIndex)
+					{
+						continue;
+					}
+
+					for (const FVertex& Vertex : LOD0.Vertices)
+					{
+						const FVector Position = Unreal2RecastPoint(WorldMatrix.TransformPosition(Vertex.Position));
+						OutVertices.Add(Position.X);
+						OutVertices.Add(Position.Y);
+						OutVertices.Add(Position.Z);
+					}
+				}
+			}
+		}
+	}
+
+	void AppendTerrainGeometry(const ATerrain& Terrain, TArray<float>& OutVertices, TArray<int>& OutIndices)
+	{
+		TArray<FVector> TerrainVertices;
+		TArray<uint32> TerrainIndices;
+		Terrain.GetLOD0Geometry(TerrainVertices, TerrainIndices);
+
+		if (TerrainVertices.Num() == 0 || TerrainIndices.Num() == 0 || TerrainIndices.Num() % 3 != 0)
+		{
+			HTR_LOG(Warning, "Navigation terrain input is empty or invalid.");
+			return;
+		}
+
+		const uint32 VertexCount = static_cast<uint32>(TerrainVertices.Num());
+		for (uint32 Index : TerrainIndices)
+		{
+			if (Index >= VertexCount)
+			{
+				return;
+			}
+		}
+
+		const int VertexBase = static_cast<int>(OutVertices.Num() / 3);
+		for (const FVector& Vertex : TerrainVertices)
+		{
+			const FVector Position = Unreal2RecastPoint(Vertex);
+			OutVertices.Add(Position.X);
+			OutVertices.Add(Position.Y);
+			OutVertices.Add(Position.Z);
+		}
+
+		for (int Index = 0; Index < TerrainIndices.Num(); Index += 3)
+		{
+			OutIndices.Add(VertexBase + static_cast<int>(TerrainIndices[Index]));
+			OutIndices.Add(VertexBase + static_cast<int>(TerrainIndices[Index + 2]));
+			OutIndices.Add(VertexBase + static_cast<int>(TerrainIndices[Index + 1]));
+		}
+	}
 }
 
 
@@ -58,28 +186,38 @@ void FNavigationSubsystem::BuildNavigation()
 {
 	ClearNavigation();
 
-	// 임시
-	const FVector WorldVertices[] = {
-		FVector(0.0f, 0.0f, 0.0f),
-		FVector(12.0f, 0.0f, 0.0f),
-		FVector(12.0f, 12.0f, 0.0f),
-		FVector(0.0f, 12.0f, 0.0f),
-	};
-
-	float Vertices[12]{};
-	for (int Index = 0; Index < 4; ++Index)
+	const UWorld* World = GetWorld();
+	if (!World)
 	{
-		const FVector Position = Unreal2RecastPoint(WorldVertices[Index]);
-		Vertices[Index * 3] = Position.X;
-		Vertices[Index * 3 + 1] = Position.Y;
-		Vertices[Index * 3 + 2] = Position.Z;
+		return;
 	}
 
-	const int Indices[] = { 0, 2, 1, 0, 3, 2 };
-	const rcConfig Config = MakeRecastConfig(Vertices, 4);
+	TArray<float> Vertices;
+	TArray<int> Indices;
+	CollectStaticMeshGeometry(*World, Vertices, Indices);
+
+	if (const FTerrainSubsystem* TerrainSubsystem = World->GetSubsystem<FTerrainSubsystem>())
+	{
+		if (const ATerrain* Terrain = TerrainSubsystem->GetTerrain())
+		{
+			AppendTerrainGeometry(*Terrain, Vertices, Indices);
+		}
+	}
+
+	if (Indices.Num() == 0)
+	{
+		HTR_LOG(Info, "Navigation build skipped. No input triangles.");
+		return;
+	}
+
+	const int VertexCount = static_cast<int>(Vertices.Num() / 3);
+	const int TriangleCount = static_cast<int>(Indices.Num() / 3);
+	const rcConfig Config = MakeRecastConfig(Vertices.GetData(), VertexCount);
+
+	HTR_LOG(Info, "Navigation input: {} vertices, {} triangles, grid {} x {}", VertexCount, TriangleCount, Config.width, Config.height);
 
 	rcContext Context;
-	unsigned char TriangleAreas[2]{};
+	std::vector<unsigned char> TriangleAreas(TriangleCount, RC_NULL_AREA);
 
 	const auto Fail = [](const char* Stage)
 	{
@@ -95,8 +233,9 @@ void FNavigationSubsystem::BuildNavigation()
 		return;
 	}
 
-	rcMarkWalkableTriangles(&Context, Config.walkableSlopeAngle, Vertices, 4, Indices, 2, TriangleAreas);
-	if (!rcRasterizeTriangles(&Context, Vertices, 4, Indices, TriangleAreas, 2, *Heightfield, Config.walkableClimb))
+	rcMarkWalkableTriangles(&Context, Config.walkableSlopeAngle, Vertices.GetData(), VertexCount, Indices.GetData(), TriangleCount, TriangleAreas.data());
+	if (!rcRasterizeTriangles(&Context, Vertices.GetData(), VertexCount, Indices.GetData(), TriangleAreas.data(), 
+		TriangleCount, *Heightfield, Config.walkableClimb))
 	{
 		Fail("Rasterization");
 		return;
