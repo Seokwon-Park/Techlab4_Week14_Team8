@@ -5,7 +5,7 @@
 
 namespace
 {
-	// REGISTER_WOLRD_SUBSYSTEM 한줄이 남기는 정보, 클래스당 한개
+	// REGISTER_WORLD_SUBSYSTEM 한 줄이 남기는 정보. 클래스당 한 개
 	struct FWorldSubsystemRegistration
 	{
 		const char* ClassName;

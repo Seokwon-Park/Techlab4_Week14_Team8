@@ -544,6 +544,34 @@ function Hitori.DefineEngineProjects(Ctx)
 	Hitori.EditorCoreProject(Ctx)
 end
 
+-- 아래 Visualizers/Rules 프로젝트는 프로젝트 솔루션(ProjectSolution.lua)만 쓴다. 엔진 솔루션은 그대로 둔다.
+
+-- 디버거 시각화 파일 (언리얼의 Visualizers 폴더). TArray/TMap/TSet을 안쪽 std 컨테이너처럼 펼쳐 보여 준다.
+-- 프로젝트 솔루션의 실행 파일 프로젝트에도 넣어 PDB에 포함되게 한다 (EditorApp/GameApp).
+Hitori.NatvisFiles = { E("Setup/Visualizers/Hitori.natvis"), E("Source/ThirdParty/ImGui/misc/debuggers/imgui.natvis") }
+
+function Hitori.VisualizersProject(Ctx)
+	project "Visualizers"
+		location (Ctx.ProjectsDir)
+		kind     "Utility"
+		files (Hitori.NatvisFiles)
+		vpaths { ["*"] = { E("Setup/Visualizers/**"), E("Source/ThirdParty/ImGui/misc/debuggers/**") } }
+end
+
+-- 빌드 규칙 보기 전용 프로젝트 (언리얼의 Rules 폴더에 *.Build.cs가 보이는 것과 같은 자리).
+-- 솔루션 생성·컴파일·패키징 스크립트를 VS에서 바로 열 수 있다. ExtraFiles는 프로젝트 솔루션의 .hproject 등.
+function Hitori.RulesProject(Ctx, Name, ExtraFiles)
+	project (Name)
+		location (Ctx.ProjectsDir)
+		kind     "Utility"
+		files { E("Setup/Build/*.lua"), E("Setup/Build/*.bat"), E("Setup/Build/*.ps1"), E("Setup/Packaging/*.bat"), E("Setup/Packaging/*.txt") }
+		vpaths { ["Engine/*"] = E("Setup/**") }
+		if ExtraFiles then
+			files (ExtraFiles)
+			vpaths { ["Project/*"] = ExtraFiles }
+		end
+end
+
 
 -- 사용자 C++ 모듈 (UE의 게임 모듈). SourceDir의 .h/.cpp를 정적 라이브러리로 만든다.
 -- 엔진 헤더를 그대로 include하고 엔진 클래스를 상속할 수 있다. 에디터 헤더는 쓸 수 없다(게임 exe에도 들어가므로).
@@ -632,6 +660,7 @@ function Hitori.EditorApp(Ctx, Name, Opts)
 			E("Source/Runtime/Launch/HitoriApp.manifest"),
 		}
 		files (Opts.Files or {})
+		if not Ctx.IsEngineSolution then files (Hitori.NatvisFiles) end   -- 프로젝트 솔루션만: 디버거 시각화를 PDB에 넣는다
 		if Opts.DebugArgs then debugargs (Opts.DebugArgs) end
 		if Opts.TargetName then targetname (Opts.TargetName) end
 
@@ -689,6 +718,7 @@ function Hitori.GameApp(Ctx, Name, Opts)
 			E("Source/Runtime/Launch/HitoriApp.manifest"),   -- 에디터와 같은 이유 (UTF-8 코드 페이지)
 		}
 		files (Opts.Files or {})
+		if not Ctx.IsEngineSolution then files (Hitori.NatvisFiles) end   -- 프로젝트 솔루션만: 디버거 시각화를 PDB에 넣는다
 		if Opts.DebugArgs then debugargs (Opts.DebugArgs) end
 		if Opts.TargetName then targetname (Opts.TargetName) end
 

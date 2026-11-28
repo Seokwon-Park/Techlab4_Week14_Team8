@@ -11,6 +11,9 @@
 #include "GameFramework/DefaultPawn.h"
 #include "Components/StaticMeshComponent.h"
 #include "UObject/UObjectIterator.h"
+#include "Render/Renderer.h"
+#include "Engine/Engine.h"
+#include "Launch/LaunchEngineLoop.h"
 
 // 종료 시 렌더·에디터·뷰포트 설정을 함께 저장한다.
 FSettingsPanel::~FSettingsPanel()
@@ -76,6 +79,26 @@ void FSettingsPanel::DrawContents()
 	ImGui::Indent();
 	ImGui::Checkbox("Use OBBTree", &Settings.bDecalOBBTree);
 	ImGui::Unindent();
+
+	// GPU 오클루전 (실행 중 설정. 저장하지 않는다). 통계는 마지막으로 그린 뷰포트 기준이다.
+	if (FRenderer* Renderer = GEngine ? GEngine->GetEngineLoop().GetRenderer() : nullptr)
+	{
+		FGPUOcclusion& GPUOcclusion = Renderer->GetGPUOcclusion();
+		FGPUOcclusionSettings& Occlusion = GPUOcclusion.GetSettings();
+		ImGui::Checkbox("GPU Occlusion Culling", &Occlusion.bEnabled);
+		if (Occlusion.bEnabled)
+		{
+			ImGui::Indent();
+			ImGui::Checkbox("Async Readback", &Occlusion.bAsyncReadback);
+			ImGui::SameLine();
+			ImGui::Checkbox("Cull", &Occlusion.bCull);
+			const FGPUOcclusionStats& OS = GPUOcclusion.GetStats();
+			ImGui::Text("Occluded %u / %u, GPU wait %.3f ms", OS.Occluded, OS.Tested, OS.WaitMs);
+			ImGui::Text("Result %s, latency %u, dropped %u, skipped %u",
+				OS.bUsedResult ? "applied" : "none", OS.LatencyFrames, OS.DroppedCameraMoved, OS.SkippedNoFreeSlot);
+			ImGui::Unindent();
+		}
+	}
 
 	const char* RenderingPaths[] = { "Forward", "Deferred" };
 	int RenderingPathIndex = static_cast<int>(Settings.RenderingPath);

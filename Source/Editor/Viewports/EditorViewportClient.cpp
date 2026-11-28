@@ -228,6 +228,7 @@ FVector FEditorViewportClient::GetViewForward() const {
 FSceneView FEditorViewportClient::CalcSceneView(const FRect &InViewRect) const {
     FSceneView OutView;
     OutView.ViewIndex = ViewIndex;
+    OutView.ViewStateKey = reinterpret_cast<uint64>(this);
     OutView.ViewLocation = ViewLocation;
     OutView.ViewRotation = ViewRotation;
     OutView.ViewForward = GetViewForward();

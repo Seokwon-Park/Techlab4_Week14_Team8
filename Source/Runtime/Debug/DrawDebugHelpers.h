@@ -14,7 +14,7 @@ struct FNavPathResult;
 enum class EDebugDepthPriority : uint8 { World = 0, Foreground = 1 };
 
 // LifeTime < 0 이고 bPersistent == false 이면 이번 프레임만 그린다 (UE와 같은 의미)
-// TODO(B): 아래 함수들 구현 필요
+// 구현: DrawDebugHelpers.cpp. 도형은 월드의 FDebugDrawSubsystem 대기열에 쌓이고 뷰포트가 그릴 때 꺼내 간다.
 void DrawDebugLine(const UWorld* World, const FVector& Start, const FVector& End, const FVector4& Color,
 	bool bPersistent = false, float LifeTime = -1.f, EDebugDepthPriority Depth = EDebugDepthPriority::World);
 void DrawDebugSphere(const UWorld* World, const FVector& Center, float Radius, int32 Segments, const FVector4& Color,
@@ -28,7 +28,7 @@ void DrawDebugDirectionalArrow(const UWorld* World, const FVector& Start, const 
 // 우리 엔진 추가: 경로 폴리라인 (FLineBatcher::AddPath 래핑)
 void DrawDebugPath(const UWorld* World, const TArray<FVector>& Points, const FVector4& Color,
 	bool bPersistent = false, float LifeTime = -1.f);
-// 반투명 삼각현 한 장. NavMesh 미리보기, 영역 표시용
+// 반투명 삼각형 한 장. NavMesh 미리보기, 영역 표시용
 void DrawDebugSolidTriangle(const UWorld* World, const FVector& A, const FVector& B, const FVector& C, const FVector4& Color,
 	bool bPersistent = false, float LifeTime = -1.f);
 
