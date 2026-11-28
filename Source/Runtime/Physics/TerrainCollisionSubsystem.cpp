@@ -6,6 +6,8 @@
 #include "Terrain/TerrainSubsystem.h"
 #include "Terrain/TerrainTypes.h"
 
+#include "Components/TerrainCollisionComponent.h"
+
 #include <cmath>
 
 namespace
@@ -96,20 +98,32 @@ namespace
 	}
 }
 
-// TODO(C)
 void FTerrainCollisionSubsystem::OnLevelLoad(const FLevelLoadContext& Context)
 {
-}
-
-void FTerrainCollisionSubsystem::OnWorldBeginPlay(UWorld& World)
-{
+	if (!Context.Terrain)
+		return;
+	if (UTerrainCollisionComponent* Collision = Context.Terrain->GetCollisionComponent())
+		Collision->RecreatePhysicsState();
 }
 
 void FTerrainCollisionSubsystem::OnLevelUnload()
 {
+	UWorld* World = GetWorld();
+	FTerrainSubsystem* TerrainSubsystem = World ? World->GetSubsystem<FTerrainSubsystem>() : nullptr;
+	ATerrain* Terrain = TerrainSubsystem ? TerrainSubsystem->GetTerrain() : nullptr;
+	if (Terrain && Terrain->GetCollisionComponent())
+		Terrain->GetCollisionComponent()->DestroyPhysicsState();
 }
 
 void FTerrainCollisionSubsystem::GetStats(FWorldSubsystemStats& Out) const
+{
+	const ATerrain* Terrain = FindTerrain();
+	const UTerrainCollisionComponent* Collision = Terrain ? Terrain->GetCollisionComponent() : nullptr;
+	if (Collision && Collision->HasValidPhysicsBody())
+		Out.PhysXActors += 1;
+}
+
+void FTerrainCollisionSubsystem::OnWorldBeginPlay(UWorld& World)
 {
 }
 

@@ -7,11 +7,16 @@
 #include "Terrain/TerrainTypes.h"
 #include "Terrain.generated.h"
 
+class UTerrainCollisionComponent;
+
 UCLASS()
 class ATerrain : public AActor
 {
 	GENERATED_BODY()
 public:
+	ATerrain();
+	UTerrainCollisionComponent* GetCollisionComponent() const { return CollisionComponent; }
+
 	// 월드 ↔ 그리드 변환. C·D는 이 값만 쓰고 따로 계산하지 않는다.
 	FTerrainCoordinates GetCoordinates() const 
 	{
@@ -41,4 +46,5 @@ protected:
 	UPROPERTY(EditAnywhere) FString HeightmapPath;            // 역직렬화는 경로와 Coordinates만 읽는다 (GPU 자원 생성 금지)
 	UPROPERTY(EditAnywhere) FTerrainCoordinates Coordinates;
 	TArray<uint16> Heights;
+	UTerrainCollisionComponent* CollisionComponent = nullptr;
 };

@@ -1,6 +1,13 @@
 #include "EnginePCH.h"
 #include "Terrain/Terrain.h"
 #include "Terrain/HeightmapImporter.h"
+#include "Components/TerrainCollisionComponent.h"
+
+ATerrain::ATerrain()
+{
+	CollisionComponent = CreateDefaultSubobject<UTerrainCollisionComponent>("CollisionComponent");
+	CollisionComponent->SetupAttachment(GetRootComponent());
+}
 
 void ATerrain::GetLOD0Geometry(TArray<FVector>& OutVertices, TArray<uint32>& OutIndices) const
 {
@@ -88,6 +95,8 @@ void ATerrain::PostEditChangeProperty(const FProperty& Property)
 	if (Property.Name == "HeightmapPath" || Property.Name == "Coordinates")
 	{
 		LoadHeightmap();
+		if (CollisionComponent)
+			CollisionComponent->RecreatePhysicsState();
 		// TODO(A, 2단계): 성공하면 청크 메시를 다시 만든다
 	}
 }
