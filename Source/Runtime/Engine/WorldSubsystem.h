@@ -51,7 +51,7 @@ public:
 
     // 매 프레임 월드 Tick 맨 앞에서 호출, 에디터 월드에서도 호출
     // 디버그 라인 수명 관리, 비동기 NavMesh 빌드완료 확인과 같은 프레임마다 할 일을 둔다.
-    virtual void Tick(float DeltaTime) {};
+    virtual void Tick(float DeltaTime) {}
 
     // = OnLevelUnload. UE Deinitialize. 역순으로 호출되며, 이때 액터와 PxScene은 아직 살아 있다.
     virtual void OnLevelUnload() {}
@@ -83,7 +83,7 @@ const void* GetWorldSubsystemTypeKey()
     return &Key;
 }
 
-// TODO(B): 구현 필요. 받은 팩토리를 전역 목록에 쌓고, FWorldSubsystemCollection::Initialize가 그 목록으로 생성한다.
+// 받은 팩토리를 전역 목록에 쌓는다. FWorldSubsystemCollection::Initialize가 이 목록으로 서브시스템을 만든다.
 void RegisterWorldSubsystemClass(const char* ClassName, const void* TypeKey, FWorldSubsystemFactory Factory);
 
 #define REGISTER_WORLD_SUBSYSTEM(ClassName) \
@@ -92,7 +92,7 @@ void RegisterWorldSubsystemClass(const char* ClassName, const void* TypeKey, FWo
             []() -> FWorldSubsystem* { return new ClassName(); }), true)
 
 // UWorld 안에 하나. UE FSubsystemCollection 축소판.
-// TODO(B): 아래 멤버 함수 구현 필요 (지금은 WorldSubsystem.cpp의 빈 스텁)
+// 구현: WorldSubsystem.cpp. 로드는 GetLoadOrder 오름차순, 언로드는 내림차순.
 class FWorldSubsystemCollection
 {
 public:

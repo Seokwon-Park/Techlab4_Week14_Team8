@@ -463,6 +463,7 @@ Tools/SnowMountain/build_snow_mountain.py
 /HitoriProject/Saved/
 
 # PhysX SDK 배포 바이너리
+!/Source/Runtime/Debug/
 !/Source/ThirdParty/PhysX/lib/debug/
 !/Source/ThirdParty/PhysX/lib/release/
 !/Source/ThirdParty/PhysX/bin/debug/

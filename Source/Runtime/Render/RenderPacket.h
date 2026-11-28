@@ -68,6 +68,7 @@ inline float ComputeScreenSizeClampScale(const FVector& WorldPos, const FVector&
 struct FViewContext
 {
 	int32 ViewIndex = 0;
+	uint64 ViewStateKey = 0;   // FSceneView::ViewStateKey
 	uint32 Width = 0;
 	uint32 Height = 0;
 	FVector CameraPosition = FVector::ZeroVector;

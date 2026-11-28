@@ -35,7 +35,7 @@ namespace
 	}
 
 	// 목적지에 그리는 X 표시. 경로가 없을 때도 "어디를 요청했는지"는 보여야 하기 때문이다.
-	void AddCross(FDebugDrawSubsystem& Queue, const FVector& At, float Size, const FVector4 Color, float LifeTime)
+	void AddCross(FDebugDrawSubsystem& Queue, const FVector& At, float Size, const FVector4& Color, float LifeTime)
 	{
 		Queue.AddLine(At + FVector(-Size, -Size, 0.0f), At + FVector(Size, Size, 0.0f), Color, false, LifeTime, EDebugDepthPriority::Foreground);
 		Queue.AddLine(At + FVector(-Size, Size, 0.0f), At + FVector(Size, -Size, 0.0f), Color, false, LifeTime, EDebugDepthPriority::Foreground);
@@ -119,7 +119,7 @@ void DrawDebugBox(const UWorld* World, const FBox& Box, const FVector4& Color,
 			return FVector((Bits & 1) ? Box.Max.X : Box.Min.X, (Bits & 2) ? Box.Max.Y : Box.Min.Y, (Bits & 4) ? Box.Max.Z : Box.Min.Z);
 		};
 	// 모서리 12개 = 한 비트만 다른 꼭짓점 쌍
-	static const int32 Edges[12][2] = { {0,1},{2,3},{4,5},{6,7}, {0,2},{1,3},{4,6},{3,7} };
+	static const int32 Edges[12][2] = { {0,1},{2,3},{4,5},{6,7}, {0,2},{1,3},{4,6},{5,7}, {0,4},{1,5},{2,6},{3,7} };
 	for (const auto& Edge :Edges)
 	{
 		Queue->AddLine(Corner(Edge[0]), Corner(Edge[1]), Color, bPersistent, LifeTime, Depth);

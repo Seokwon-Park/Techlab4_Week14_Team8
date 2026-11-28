@@ -546,10 +546,15 @@ void UBenchmarkEngine::DrawProfileOverlay()
 			ImGui::SameLine();
 			// 끄면 판정만 하고 그대로 그린다. 이 상태에서 Measure Occlusion을 누르면 잘못 가린 수를 검증한다.
 			ImGui::Checkbox("Cull", &Occlusion.bCull);
+			ImGui::SameLine();
+			// 끄면 같은 프레임에 결과를 기다려 읽는다 (정확하지만 CPU가 GPU를 기다린다)
+			ImGui::Checkbox("Async Readback", &Occlusion.bAsyncReadback);
 			const FGPUOcclusionStats& OS = GPUOcclusion.GetStats();
 			ImGui::Text("Occluders: %u (%.2f M tris, coverage %.1f screens)", OS.Occluders, OS.OccluderTriangles / 1'000'000.0, OS.Coverage);
 			ImGui::Text("Occluded: %u / %u (%.1f %%), GPU wait: %.3f ms", OS.Occluded, OS.Tested,
 				OS.Tested ? 100.0 * OS.Occluded / OS.Tested : 0.0, OS.WaitMs);
+			ImGui::Text("Result: %s, latency %u frame(s), dropped (camera moved) %u, skipped (no slot) %u",
+				OS.bUsedResult ? "applied" : "none", OS.LatencyFrames, OS.DroppedCameraMoved, OS.SkippedNoFreeSlot);
 			ImGui::SetNextItemWidth(200.0f);
 			ImGui::SliderFloat("Occluder Coverage", &Occlusion.OccluderCoverage, 0.5f, 64.0f, "%.1f screens", ImGuiSliderFlags_Logarithmic);
 			int MaxOccluders = static_cast<int>(Occlusion.MaxOccluders);

@@ -29,6 +29,8 @@ public:
 	void OnMeshDestroyed();
 
 	UPrimitiveComponent* GetComponent() const { return Component; }
+	// FScene::PrimitiveSceneProxies 안의 위치. 다른 프록시가 지워지면 바뀔 수 있다.
+	int32 GetPackedIndex() const { return PackedIndex; }
 	const FAABB& GetBounds() const { return Bounds; }
 	const FMatrix& GetLocalToWorld() const { return LocalToWorld; }
 	const FMatrix& GetWorldToLocal() const { return WorldToLocal; }

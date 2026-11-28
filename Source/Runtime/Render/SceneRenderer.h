@@ -17,6 +17,11 @@ class FRenderer;
 class FConstantBuffer;
 class FTexture2D;
 class FSkyboxRenderer;
+class FExposureMeterRenderer;
+class FTexture2DArray;
+class FStructuredBuffer;
+struct FPipelineState;
+class FShaderProgram;
 struct FSceneViewTargets;
 struct FLightSceneInfo;
 class UDecalComponent;
@@ -146,6 +151,45 @@ private:
 	bool AddPostProcessingPasses(FRenderGraphBuilder& Graph, FRenderer* Renderer, FSceneViewTargets& Targets,
 		const FSceneRenderOptions& Options, const FScenePassCallbacks& Callbacks,
 		FRenderGraphTextureRef SceneColor, FRenderGraphTextureRef Depth, FRenderGraphTextureRef& FinalColor);
+	// Deferred 조명 패스 하나를 등록한다 (RenderLights가 쓴다).
+	bool AddDeferredLightPass(FRenderGraphBuilder& Graph, FRenderer* Renderer, const FSceneTextures& SceneTextures,
+		FRenderGraphTextureRef ShadowMask, const char* Name, int32 SingleLightIndex);
+
+	// ---- 패스 본문 ----
+	// 위의 Add*/Render* 함수가 패스를 그래프에 등록하고, 그래프가 Execute할 때 아래 함수가 불려 실제로 그린다.
+	// 그래프 텍스처는 람다 안에서 Graph.Resolve로 바꿔 넘긴다.
+	void ExecuteWorldNormalPass(FRenderer* Renderer, bool bDrawPrimitives);
+	void ExecuteSkyboxPass(FSkyboxRenderer* Skybox);
+	void ExecuteShadowDepthsPass(FRenderer* Renderer, FTexture2DArray* Atlas);
+	void ExecuteShadowMaskVisualizePass();
+	void ExecuteGBufferPass(FRenderer* Renderer);
+	void ExecuteForwardOpaquePass(FRenderer* Renderer, const FSceneRenderOptions& LightingOptions, bool bUseDepthPrepass, FTexture2D* ShadowMask);
+	void ExecuteDeferredLightPass(FRenderer* Renderer, uint32 Width, uint32 Height, int32 SingleLightIndex);
+	void ExecuteDeferredShadowProjectionPass(int32 LightId, uint32 Width, uint32 Height);
+	void ExecuteDepthPrepass(FRenderer* Renderer, FPipelineState* DepthPipeline);
+	void ExecuteForwardShadowProjectionPass(uint32 Width, uint32 Height);
+	void ExecuteLightGridPass(FRenderer* Renderer, FTexture2D* DepthTexture, FStructuredBuffer* SceneLights);
+	void ExecuteDecalPass(FRenderer* Renderer, bool bDecalCulling, bool bDecalNarrowCulling,
+		bool bDecalBVHCulling, bool bDecalOBBTree, bool bDeferred);
+	void ExecuteTireMarksPass(const FScene& Scene, FShaderProgram* Shader, FConstantBuffer* ViewBuffer,
+		FStructuredBuffer* MarkBuffer, FIntPoint Extent);
+	void ExecuteExposureMeterPass(FExposureMeterRenderer* Meter, FTexture2D* LightingHDR);
+	void ExecuteToneMapPass(FRenderer* Renderer, bool bGamma, float DisplayGamma, float ExposureEV, float CameraExposure);
+	void ExecuteTranslucencyPass(FRenderer* Renderer, EMeshPassType Pass, bool bBeforeDOF);
+	void ExecuteDOFSetupPass(FRenderer* Renderer, FTexture2D* Depth);
+	void ExecuteDOFDownsamplePass(FRenderer* Renderer, FTexture2D* SceneCopy, FTexture2D* LightingHDR, FTexture2D* CoC);
+	void ExecuteDOFGatherPass(FRenderer* Renderer, FTexture2D* HalfRes);
+	void ExecuteDOFPostFilterPass(FRenderer* Renderer, FTexture2D* HalfFar, FTexture2D* HalfNear);
+	void ExecuteDOFCompositePass(FRenderer* Renderer, FTexture2D* SceneCopy, FTexture2D* CoC,
+		FTexture2D* HalfFarFiltered, FTexture2D* HalfNearFiltered);
+	void ExecuteDOFVisualizePass(FRenderer* Renderer, FTexture2D* CoC, FTexture2D* SceneCopy, FTexture2D* SceneColorTarget);
+	void ExecuteLensFlareBrightPass(FRenderer* Renderer, FTexture2D* LightingHDR);
+	void ExecuteLensFlareBokehPass(FRenderer* Renderer, FTexture2D* Bright);
+	void ExecuteLensFlareGhostPass(FRenderer* Renderer, FTexture2D* Shaped, FTexture2D* Bright);
+	void ExecuteLensFlareBlurPass(FRenderer* Renderer, FTexture2D* Source, float DirectionX, float DirectionY);
+	void ExecuteLensFlareCompositePass(FRenderer* Renderer, FTexture2D* Blurred);
+	void ExecuteCameraOverlayPass(FRenderer* Renderer, uint32 Width, uint32 Height, bool bVignette, bool bOverlay);
+	void ExecuteLightCullingDebugPass(FRenderer* Renderer);
 
 	// SingleLightIndex < 0: 그림자 없는 광원 전부 + Ambient/Sky. 0 이상: VisibleLights[SingleLightIndex] 하나만 ScreenShadowMask를 곱해 더한다.
 	bool BindDeferredLighting(FRenderer* Renderer, uint32 Width, uint32 Height, int32 SingleLightIndex);
