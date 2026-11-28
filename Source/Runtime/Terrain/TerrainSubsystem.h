@@ -19,4 +19,7 @@ public:
 	// 모든 지형 접근은 이 한 함수를 통한다. 결과를 캐시하지 말고 매번 받는다.
 	// ★ nullptr 가능 (던전 레벨)
 	ATerrain* GetTerrain() const;
+
+private:
+	ATerrain* Terrain = nullptr;   // 수명은 UWorld 소유. OnLevelUnload에서 끊는다
 };

@@ -50,6 +50,7 @@
 #include "Engine/Blueprint.h"
 #include "Editor/Details/PropertyEditor.h"
 #include "GameFramework/GameModeBase.h"
+#include "Terrain/Terrain.h"
 #include "GameFramework/GameplayInfoActors.h"
 #include "GameFramework/PlayerController.h"
 #include "UObject/UObjectHash.h"
@@ -277,6 +278,9 @@ void UEditorEngine::InitPanels()
 		FPropertyEditor::RegisterClassPicker(GameMode, "PlayerStateClass", APlayerState::StaticClass());
 		FPropertyEditor::RegisterClassPicker(GameMode, "SpectatorClass", ASpectatorPawn::StaticClass());
 	}
+
+	// 지형 하이트맵 경로는 Content 아래 16bit 하이트맵 파일 중에서 고른다
+	FPropertyEditor::RegisterFilePicker(ATerrain::StaticClass(), "HeightmapPath", { ".r16", ".raw", ".png" }, "Terrain");
 
 	EditorControlsPanel = LevelEditorTab->AddPanel<FEditorControlsPanel>();
 	ViewportsPanel = LevelEditorTab->AddPanel<FViewportsPanel>();
