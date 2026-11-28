@@ -68,11 +68,23 @@ workspace (ProjectName)
 		ProjectFile     = ProjectFile,
 	})
 
+	-- 솔루션 탐색기 폴더: Engine(+ThirdParty) / Games/<Name> / Programs / Rules / Visualizers (언리얼 솔루션과 같은 배치)
+	-- 엔진 솔루션(premake5.lua)은 폴더 없이 그대로 둔다. 그래서 DefineEngineProjects 대신 프로젝트를 하나씩 폴더에 넣는다.
+	group "Engine/ThirdParty"
+		Hitori.ImGuiProject(Ctx)
+		Hitori.LuaProject(Ctx)
+		Hitori.RecastProject(Ctx)
+		Hitori.DetourProject(Ctx)
+
+	group "Programs"
+		Hitori.HeaderToolProject(Ctx)
+
 	group "Engine"
-		Hitori.DefineEngineProjects(Ctx)
+		Hitori.EngineProject(Ctx)
+		Hitori.EditorCoreProject(Ctx)
 		Hitori.ShadersProject(Ctx)
 
-	group "Game"
+	group ("Games/" .. ProjectName)
 		for _, ModuleName in ipairs(Modules) do
 			Hitori.ModuleProject(Ctx, ModuleName, path.join(ProjectDir, "Source", ModuleName))
 		end
@@ -81,5 +93,12 @@ workspace (ProjectName)
 		Hitori.EditorApp(Ctx, ProjectName .. "Editor", { Modules = Modules, DebugArgs = DebugArgs })
 		-- 모듈 프로젝트와 이름이 겹치지 않게 프로젝트는 <Name>Game, 파일은 <Name>.exe
 		Hitori.GameApp(Ctx, ProjectName .. "Game", { Modules = Modules, DebugArgs = DebugArgs, TargetName = ProjectName })
+
+	group "Rules"
+		-- 엔진 빌드 스크립트 + 이 프로젝트의 .hproject와 설정 파일
+		Hitori.RulesProject(Ctx, ProjectName .. "Rules", { ProjectFile, path.join(ProjectDir, "Config/*.ini") })
+
+	group "Visualizers"
+		Hitori.VisualizersProject(Ctx)
 
 	group ""
