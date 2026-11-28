@@ -66,6 +66,8 @@ namespace
 			{ "Details",          EEditorIcon::Details },
 			{ "Outliner",         EEditorIcon::Outliner },
 			{ "Hierarchy",        EEditorIcon::Outliner },
+			{ "Palette",          EEditorIcon::WidgetCanvasPanel },
+			{ "Designer",         EEditorIcon::Designer },
 			{ "Bone Hierarchy",   EEditorIcon::Outliner },
 			{ "World Settings",   EEditorIcon::World },
 			{ "Output Log",       EEditorIcon::OutputLog },

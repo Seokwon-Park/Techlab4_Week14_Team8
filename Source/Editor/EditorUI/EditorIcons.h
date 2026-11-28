@@ -146,6 +146,20 @@ enum class EEditorIcon : uint8
 	RangeEnd,
 	TrackArea,
 
+	// UI(위젯) 에디터
+	WidgetButton,
+	WidgetImage,
+	WidgetText,
+	WidgetProgressBar,
+	WidgetCanvasPanel,
+	WidgetVerticalBox,
+	Undo,
+	Redo,
+	Designer,
+	ZoomFit,
+	Anchor,
+	Grid,
+
 	Count
 };
 

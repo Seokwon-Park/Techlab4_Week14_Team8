@@ -17,6 +17,7 @@ public:
 
 private:
 	void BuildDefaultLayout(ImGuiID InDockSpaceId, const ImVec2& Size);
+	void DrawToolbar();
 
 	FUIEditor& UIEditor;
 	// 도킹과 분리 판정은 에디터 타입과 무관하므로 공통 베이스 포인터로 들고 있습니다.
