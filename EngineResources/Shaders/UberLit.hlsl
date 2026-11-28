@@ -80,12 +80,11 @@ struct VS_OUT
 #endif
 };
 
+// Forward 패스는 LightingHDR 하나만 묶으므로 출력도 하나만 둔다.
+// (노멀·러프니스는 Deferred GBuffer 셰이더가 쓴다)
 struct FUberOutput
 {
     float4 LitColor : SV_Target0;
-#if !VIEW_MODE_WORLD_NORMAL
-    float4 NormalRoughness : SV_Target1;
-#endif
 };
 
 // 광원의 그림자 (1 = 빛 받음). 채널이 없거나 이 물체의 bReceiveShadow가 꺼져 있으면 1.
@@ -433,7 +432,6 @@ FUberOutput Uber_PS(VS_OUT Input)
     if (ShadowFlags.y > 0.5f)
     {
         Output.LitColor = float4(Input.Color.rgb, 1.0f);
-        Output.NormalRoughness = float4(ShadingNormal, 0.8f); // SV_Target1도 반드시 채운다
         return Output;
     }
     float4 SurfaceColor;
@@ -471,7 +469,6 @@ FUberOutput Uber_PS(VS_OUT Input)
 
     Output.LitColor = float4(Albedo * Diffuse + Specular + Emissive.rgb,
         SurfaceColor.a * BaseColor.a);
-    Output.NormalRoughness = float4(ShadingNormal, 0.8f);
 #endif
     return Output;
 }
