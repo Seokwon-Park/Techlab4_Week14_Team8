@@ -43,6 +43,7 @@
 #include "Text/TextRenderer.h"
 
 #include "Editor/HitoriEd/GamePackager.h"
+#include "Editor/HitoriEd/ProjectCompiler.h"
 #include "Editor/HitoriEd/LevelUndoHistory.h"
 #include "Editor/HitoriEd/EditorUndo.h"
 
@@ -275,6 +276,7 @@ private:
 	bool bPIEWindowRendered = false;
 
 	FGamePackager Packager;
+	FProjectCompiler Compiler;   // 상태 표시줄 Compile 버튼
 
 	FEditorCommand Save;
 	FEditorCommand SaveAs;

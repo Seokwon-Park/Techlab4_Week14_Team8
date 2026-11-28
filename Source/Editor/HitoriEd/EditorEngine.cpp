@@ -189,6 +189,8 @@ void UEditorEngine::InitLevelEditorTab()
 	LevelEditorTab->OnImportFbx.Add([this](EFbxImportMode Mode) { FEditorFileUtils::ImportFbx(Mode); });
 	LevelEditorTab->OnPackageGame.Add([this]() { Packager.Start("Release"); });
 	LevelEditorTab->SetIsPackagingQuery([this]() { return Packager.IsRunning(); });
+	LevelEditorTab->SetProjectCompiler(&Compiler);
+	FProjectCompiler::CleanupStaleBinaries();
 
 	OutputLogPanel = LevelEditorTab->AddPanel<FOutputLogPanel>();
 	FLog::AddSink(OutputLogPanel);
@@ -645,6 +647,7 @@ void UEditorEngine::Tick(const float DeltaTime)
 
 	// 패키징 진행, 통계 표시, 패널에 넘길 DeltaTime을 갱신하고 Delete 키를 처리한다.
 	Packager.Tick();
+	Compiler.Tick();
 	FStatOverlay::Tick(DeltaTime);
 
 	if (!ImGui::GetIO().WantTextInput && FInputSystem::IsKeyPressed(EKeyCode::Delete))

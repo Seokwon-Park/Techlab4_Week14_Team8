@@ -8,6 +8,7 @@
 #include "Editor/EditorUI/EditorStyle.h"
 #include "Editor/HitoriEd/Editor.h"
 #include "Editor/HitoriEd/EditorEngine.h"
+#include "Editor/HitoriEd/ProjectCompiler.h"
 #include "Editor/Settings/SettingsPanel.h"
 
 #include "Engine/World.h"
@@ -167,6 +168,16 @@ void FLevelEditorTab::DrawMenuBar()
 
 		ImGui::Separator();
 
+		if (bCanCompile)
+		{
+			const bool bCompiling = Compiler->IsCompiling();
+			if (ImGui::MenuItem("Compile", nullptr, false, !bCompiling)) StartCompile();
+			ImGui::SetItemTooltip("Builds this project's C++ code (<Name>Editor.exe). Restart the editor afterwards to use it.");
+			if (ImGui::MenuItem("Restart Editor", nullptr, false, Compiler->GetState() == FProjectCompiler::EState::Succeeded))
+				bOpenRestartPopup = true;
+			ImGui::Separator();
+		}
+
 		const bool bCanPackage = !IsPackaging || !IsPackaging();
 		if (ImGui::MenuItem("Package Game (Release)", nullptr, false, bCanPackage)) { OnPackageGame.Broadcast(); }
 		ImGui::EndMenu();
@@ -282,6 +293,81 @@ void FLevelEditorTab::SetStatusBarPanels(FContentDrawerPanel* InContentDrawer, F
 		});
 }
 
+void FLevelEditorTab::SetProjectCompiler(FProjectCompiler* InCompiler)
+{
+	Compiler = InCompiler;
+	// 프로젝트는 에디터가 떠 있는 동안 바뀌지 않으므로 한 번만 확인한다
+	bCanCompile = Compiler && FProjectCompiler::CanCompile();
+}
+
+void FLevelEditorTab::StartCompile()
+{
+	if (!Compiler || !Compiler->Start()) return;
+	// UE처럼 빌드 출력을 바로 볼 수 있게 Output Log를 연다
+	if (OutputLog && !OutputLog->IsDrawerOpen() && !OutputLog->IsDocked())
+		ToggleOutputLog();
+}
+
+// 상태 표시줄 오른쪽의 Compile 버튼. 빌드가 끝나면 새 exe로 다시 띄우는 Restart 버튼이 붙는다.
+void FLevelEditorTab::DrawCompileControls()
+{
+	const FProjectCompiler::EState State = Compiler->GetState();
+	const bool bCompiling = State == FProjectCompiler::EState::Compiling;
+
+	// 실패하면 아이콘을 빨갛게, 성공하면 초록으로 남겨 결과를 알 수 있게 한다
+	ImU32 IconColor = ImGui::GetColorU32(ImGuiCol_Text, 0.8f);
+	if (State == FProjectCompiler::EState::Failed) IconColor = IM_COL32(230, 80, 70, 255);
+	if (State == FProjectCompiler::EState::Succeeded) IconColor = IM_COL32(90, 200, 90, 255);
+
+	static const char* const Dots[] = { "Compiling", "Compiling.", "Compiling..", "Compiling..." };
+	const char* Label = bCompiling ? Dots[static_cast<int>(ImGui::GetTime() * 3.0) % 4] : "Compile";
+
+	ImGui::BeginDisabled(bCompiling);
+	if (EditorIcons::Button("##StatusCompile", EEditorIcon::Wrench, IconColor, Label, false, false, ImGui::GetFrameHeight()))
+		StartCompile();
+	ImGui::EndDisabled();
+	ImGui::SetItemTooltip(State == FProjectCompiler::EState::Failed
+		? "Last compile failed. See the Output Log."
+		: "Build this project's C++ code. The editor restarts to use the new build.");
+
+	if (State == FProjectCompiler::EState::Succeeded)
+	{
+		ImGui::SameLine();
+		if (EditorIcons::Button("##StatusRestart", EEditorIcon::Reset, IM_COL32(90, 200, 90, 255), "Restart to Apply", false, false,
+			ImGui::GetFrameHeight()))
+			bOpenRestartPopup = true;
+	}
+
+	if (bOpenRestartPopup)
+	{
+		ImGui::OpenPopup("Restart Editor##Compile");
+		bOpenRestartPopup = false;
+	}
+	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	if (ImGui::BeginPopupModal("Restart Editor##Compile", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::TextUnformatted("Restart the editor with the new build?");
+		ImGui::TextDisabled("Unsaved changes to the current level will be lost unless you save first.");
+		ImGui::Spacing();
+		if (ImGui::Button("Save and Restart"))
+		{
+			OnSaveScene.Broadcast();
+			Compiler->RestartEditor();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Restart"))
+		{
+			Compiler->RestartEditor();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+			ImGui::CloseCurrentPopup();
+		ImGui::EndPopup();
+	}
+}
+
 void FLevelEditorTab::ToggleContentDrawer()
 {
 	if (!ContentDrawer)
@@ -351,6 +437,24 @@ void FLevelEditorTab::DrawStatusBar()
 			ImGui::SameLine();
 			OutputLog->RenderCommandInput("##StatusBarCmd", CommandBuffer, IM_COUNTOF(CommandBuffer),
 				ImMin(320.0f, ImGui::GetContentRegionAvail().x), false, false);
+		}
+
+		if (bCanCompile)
+		{
+			// 오른쪽 끝에 붙인다. 버튼 폭은 아이콘 + 글자 + 여백으로 어림한다.
+			const FProjectCompiler::EState State = Compiler->GetState();
+			const float H = ImGui::GetFrameHeight();
+			const float CompileWidth = H + ImGui::CalcTextSize("Compiling...").x + 16.0f;
+			const float RestartWidth = State == FProjectCompiler::EState::Succeeded
+				? H + ImGui::CalcTextSize("Restart to Apply").x + 16.0f + ImGui::GetStyle().ItemSpacing.x : 0.0f;
+			ImGui::SameLine();
+			const float Right = ImGui::GetWindowContentRegionMax().x;
+			ImGui::SetCursorPosX(ImMax(ImGui::GetCursorPosX(), Right - CompileWidth - RestartWidth));
+			DrawCompileControls();
+		}
+		else if (bOpenRestartPopup)
+		{
+			bOpenRestartPopup = false;
 		}
 	}
 
