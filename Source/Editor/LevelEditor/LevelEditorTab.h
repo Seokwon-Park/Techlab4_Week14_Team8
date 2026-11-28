@@ -7,7 +7,6 @@
 
 class FContentDrawerPanel;
 class FOutputLogPanel;
-class FProjectCompiler;
 
 class FLevelEditorTab : public IEditorTab
 {
@@ -58,9 +57,6 @@ public:
 	// 툴바의 Browse to Level 버튼도 같은 Content Drawer에 연결한다.
 	void SetStatusBarPanels(FContentDrawerPanel* InContentDrawer, FOutputLogPanel* InOutputLog);
 
-	// 상태 표시줄 Compile 버튼과 Build 메뉴가 쓴다. C++ 프로젝트가 아니면 버튼을 숨긴다.
-	void SetProjectCompiler(FProjectCompiler* InCompiler);
-
 	void ToggleContentDrawer();
 	void ToggleOutputLog();
 
@@ -70,15 +66,10 @@ private:
 	// UE5 기본 배치: 가운데 뷰포트, 오른쪽 위 Outliner, 오른쪽 아래 Details, 아래 Output Log.
 	void BuildDefaultLayout(ImGuiID DockSpaceId, const ImVec2& Size);
 	void DrawStatusBar();
-	void DrawCompileControls();
-	void StartCompile();
 	float GetStatusBarHeight() const;
 
 	FContentDrawerPanel* ContentDrawer = nullptr;
 	FOutputLogPanel* OutputLog = nullptr;
-	FProjectCompiler* Compiler = nullptr;
-	bool bCanCompile = false;
-	bool bOpenRestartPopup = false;
 	char CommandBuffer[256] = {};
 	bool bResetLayoutRequested = false;
 
