@@ -35,6 +35,12 @@ struct FTerrainCoordinates
     float GetWorldCellSize() const { return CellSize * CmToWorld; }
     float GetWorldHeightScale() const { return ZScale * TERRAIN_ZSCALE * CmToWorld; }
 
+    int32 GetChunkCountX() const { return ChunkQuads > 0 ? (SizeX - 1) / ChunkQuads : 0; }
+    int32 GetChunkCountY() const { return ChunkQuads > 0 ? (SizeY - 1) / ChunkQuads : 0; }
+    int32 GetChunkVertsPerSide() const { return ChunkQuads + 1; }
+    // 청크 VB 안의 정점 번호 (청크 로컬 좌표). 공유 IB도 이 번호로 정점을 가리킨다.
+    int32 ChunkVertexIndex(int32 LocalX, int32 LocalY) const { return LocalY * GetChunkVertsPerSide() + LocalX; }
+
     // 16bit 원본 값 → 월드 Z
     float DecodeHeight(uint16 Raw) const
     {
