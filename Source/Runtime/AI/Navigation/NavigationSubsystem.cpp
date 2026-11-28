@@ -44,7 +44,30 @@ namespace
 		rcCalcBounds(Vertices, VertexCount, Config.bmin, Config.bmax);
 		Config.bmin[1] -= Config.ch;
 		Config.bmax[1] += (Config.walkableHeight + 1) * Config.ch;
+		
+		constexpr double MaxGridAxis = 8192.0;
+		constexpr int64 MaxGridCells = 8'000'000;
+
+		const double GridWidth = (static_cast<double>(Config.bmax[0]) - Config.bmin[0]) / Config.cs;
+		const double GridHeight = (static_cast<double>(Config.bmax[2]) - Config.bmin[2]) / Config.cs;
+
+		if (!std::isfinite(GridWidth) || !std::isfinite(GridHeight) ||
+			GridWidth < 0.5 || GridHeight < 0.5 || GridWidth > MaxGridAxis || GridHeight > MaxGridAxis)
+		{
+			HTR_LOG(Warning, "Navigation grid dimensions out of range: {} x {}", GridWidth, GridHeight);
+			return Config;
+		}
+
 		rcCalcGridSize(Config.bmin, Config.bmax, Config.cs, &Config.width, &Config.height);
+
+		const int64 GridCells = static_cast<int64>(Config.width) * Config.height;
+		if (GridCells > MaxGridCells)
+		{
+			HTR_LOG(Warning, "Navigation grid exceeds cell limit: {} x {} ({} cells)", Config.width, Config.height, GridCells);
+			Config.width = 0;
+			Config.height = 0;
+		}
+
 		return Config;
 	}
 
@@ -171,6 +194,10 @@ namespace
 
 void FNavigationSubsystem::OnLevelLoad(const FLevelLoadContext& Context)
 {
+	if (Context.bHasNavBounds)
+	{
+		BuildNavigation();
+	}
 }
 
 void FNavigationSubsystem::OnLevelUnload()
@@ -180,6 +207,7 @@ void FNavigationSubsystem::OnLevelUnload()
 
 void FNavigationSubsystem::GetStats(FWorldSubsystemStats& Out) const
 {
+	Out.NavMeshBytes += NavMeshDataBytes;
 }
 
 void FNavigationSubsystem::BuildNavigation()
@@ -213,6 +241,11 @@ void FNavigationSubsystem::BuildNavigation()
 	const int VertexCount = static_cast<int>(Vertices.Num() / 3);
 	const int TriangleCount = static_cast<int>(Indices.Num() / 3);
 	const rcConfig Config = MakeRecastConfig(Vertices.GetData(), VertexCount);
+
+	if (Config.width <= 0 || Config.height <= 0)
+	{
+		return;
+	}
 
 	HTR_LOG(Info, "Navigation input: {} vertices, {} triangles, grid {} x {}", VertexCount, TriangleCount, Config.width, Config.height);
 
@@ -391,6 +424,7 @@ void FNavigationSubsystem::BuildNavigation()
 
 	NavMesh.reset(Mesh.release());
 	NavQuery.reset(Query.release());
+	NavMeshDataBytes = static_cast<uint64>(DataSize);
 
 	HTR_LOG(Info, "Built test NavMesh: {} polygons, {} bytes", Polygons->npolys, DataSize);
 }
@@ -465,7 +499,9 @@ FNavPathResult FNavigationSubsystem::FindPath(const FVector& Start, const FVecto
 	const dtStatus StraightStatus 
 		= NavQuery->findStraightPath(NearestStart, PathEnd, Corridor, CorridorCount, StraightPoints, nullptr, nullptr, &StraightCount, MaxStraightPoints);
 
-	if (dtStatusFailed(StraightStatus) || dtStatusDetail(StraightStatus, DT_BUFFER_TOO_SMALL) || StraightCount == 0)
+	if (dtStatusFailed(StraightStatus) || StraightCount == 0 || 
+		dtStatusDetail(StraightStatus, DT_BUFFER_TOO_SMALL) ||
+		dtStatusDetail(StraightStatus, DT_PARTIAL_RESULT))
 	{
 		return Result;
 	}
@@ -498,6 +534,7 @@ void FNavigationSubsystem::ClearNavigation()
 {
 	NavQuery.reset();
 	NavMesh.reset();
+	NavMeshDataBytes = 0;
 
 	const uint32 NextRevision = DebugGeometry.Revision + 1;
 	DebugGeometry = {};

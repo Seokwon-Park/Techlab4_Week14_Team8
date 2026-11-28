@@ -27,6 +27,8 @@ public:
 	// B가 오버레이로 그린다. NavMesh가 없으면 nullptr
 	const FNavMeshDebugGeometry* GetDebugGeometry() const;
 
+	uint32 GetNavigationRevision() const { return DebugGeometry.Revision; }
+
 private:
 	static void FreeNavMesh(dtNavMesh* Mesh);
 	static void FreeNavQuery(dtNavMeshQuery* Query);
@@ -36,4 +38,6 @@ private:
 	std::unique_ptr<dtNavMesh, void (*)(dtNavMesh*)> NavMesh{ nullptr, &FNavigationSubsystem::FreeNavMesh };
 	std::unique_ptr<dtNavMeshQuery, void (*)(dtNavMeshQuery*)> NavQuery{ nullptr, &FNavigationSubsystem::FreeNavQuery };
 	FNavMeshDebugGeometry DebugGeometry;
+
+	uint64 NavMeshDataBytes = 0;
 };
