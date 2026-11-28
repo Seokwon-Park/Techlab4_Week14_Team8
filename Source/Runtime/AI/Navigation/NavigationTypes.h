@@ -21,9 +21,7 @@ struct FNavMeshResolution
     float CellHeight = 10.0f;
 };
 
-// UNavigationSystemV1::SupportedAgents 자리. Config/DefaultGame.ini [Navigation]에서 읽는다.
 // C와 D는 이 함수 하나로만 값을 얻는다. 각자 상수를 두지 않는다.
-// TODO(D): 구현 필요
 const FNavAgentProperties& GetDefaultNavAgent();
 const FNavMeshResolution&  GetDefaultNavResolution();
 
@@ -35,6 +33,7 @@ enum class ENavPathStatus : uint8
     NoNavMesh,          // NavMesh가 없음 (던전에 빌드할 지오메트리가 없거나 아직 빌드 전)
     StartNotOnNavMesh,  // findNearestPoly 실패 (시작점)
     GoalNotOnNavMesh,   // findNearestPoly 실패 (목적지)
+    QueryFailed,        // 버퍼 부족이나 Detour 오류 등
 };
 
 struct FNavPathResult

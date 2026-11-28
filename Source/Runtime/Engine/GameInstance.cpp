@@ -58,6 +58,9 @@ bool UGameInstance::InitializeStandalone(const FString& MapPath)
 		HTR_LOG(Error, "Failed to load startup map: {}", MapPath);
 		return false;
 	}
+
+	// 패키징된 게임의 첫 맵. LoadMap을 거치지 않으므로 여기서 레벨 로드를 알린다.
+	World->NotifyLevelLoaded(MapPath);
 	Init();
 	return true;
 }

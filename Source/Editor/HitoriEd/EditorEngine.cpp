@@ -98,6 +98,9 @@ namespace
 #include "GameFramework/Actor/WindDirectionalSource.h"
 #include "GameFramework/Character.h"
 #include "LevelSequence/LevelSequenceActor.h"
+#include "Debug/DrawDebugHelpers.h"
+#include "Editor/Viewports/LevelEditorViewport.h"
+#include "Render/ShowFlags.h"
 
 // 에디터 엔진을 가리키는 전역 포인터. UE의 GEditor와 같다. Init에서 채우고 PreExit에서 비운다.
 UEditorEngine* GEditor = nullptr;
@@ -165,6 +168,10 @@ bool UEditorEngine::InitEditor()
 	FWorldContext& InitialWorldContext = CreateNewWorldContext(EWorldType::Editor);
 	InitialWorldContext.SetCurrentWorld(NewEditorWorld);
 	EditorWorld = NewEditorWorld;
+
+	//  에디터가 빈 월드로 시작해도 "빈 레벨이 로드된 상태"로 맞춘다.
+	NewEditorWorld->NotifyLevelLoaded(FString());
+
 	return true;
 }
 
@@ -420,6 +427,16 @@ void UEditorEngine::InitCommands()
 	NewScene.CanExecute = [this]()->bool {return !PlayWorld; };
 	NewScene.Execute = [this]() { CreateNewScene(); };
 
+	// [B] UE처럼 P 키로 지금 쓰는 레벨 뷰포트의 NavMesh 오버레이(Navigation Show Flag)를 켜고 끈다.
+// 수식키 없는 P라 Alt+P(Play)와 겹치지 않는다. PIE 중에는 P가 게임 입력일 수 있으므로 끈다.
+	ToggleNavigationCommand = { "Toggle Navigation", "Show or hide the NavMesh overlay in the active viewport", nullptr, White, { EKeyCode::P } };
+	ToggleNavigationCommand.CanExecute = [this]() { return !PlayWorld && GCurrentLevelEditingViewportClient != nullptr; };
+	ToggleNavigationCommand.Execute = []()
+		{
+			FEngineShowFlags& Flags = GCurrentLevelEditingViewportClient->GetEngineShowFlags();
+			Flags.Navigation = !Flags.Navigation;
+		};
+
 	OpenSceneCommand = { "Open Scene", "Load an existing scene", nullptr, White, { EKeyCode::O, true } };
 
 	OpenSceneCommand.CanExecute = [this]()->bool {return !PlayWorld; };
@@ -616,7 +633,7 @@ void UEditorEngine::Tick(const float DeltaTime)
 	// 에셋 에디터 탭도 Ctrl+Z, Ctrl+S를 쓰므로 레벨 에디터 탭에 포커스가 있을 때만 레벨을 저장하고 되돌린다.
 	{
 		if (IsLevelEditorFocused())
-			EditorCommandUI::ProcessShortcuts({ &Save, &SaveAs, &UndoCommand, &RedoCommand, &CopyCommand, &PasteCommand, &DuplicateCommand });
+			EditorCommandUI::ProcessShortcuts({ &Save, &SaveAs, &UndoCommand, &RedoCommand, &CopyCommand, &PasteCommand, &DuplicateCommand, &ToggleNavigationCommand });
 	}
 
 	if (bRequestEndPlayMapQueued) { bRequestEndPlayMapQueued = false; EndPlayMap(); }
@@ -1778,6 +1795,9 @@ void UEditorEngine::ApplyLevelSnapshot(const TArray<uint8>& Snapshot)
 		return;
 	}
 
+	// 실행 취소는 월드를 통째로 다시 읽는다(ClearWorld → 언로드). 지형·NavMesh를 다시 만들게 알린다.
+	EditorWorld->NotifyLevelLoaded(FEditorFileUtils::CurrentScenePath);
+
 	if (ActorName.empty())
 		return;
 
@@ -1883,7 +1903,16 @@ void UEditorEngine::DrawPIEDebug(UWorld* World, const FMatrix& ViewProjection)
 	LineBatcher->BeginFrame();
 	if (Settings.ShowFlags.Collision)
 		DrawCollisionShapes(World, LineBatcher, nullptr);
+
+	// [B] PIE 화면에도 DrawDebug* 선과 NavMesh 오버레이를 그린다. 켜고 끄는 값은 Settings > Debug Draw (PIE)에 있다.
+	DrawWorldDebugToLineBatcher(World, *LineBatcher, Settings.ShowFlags, EDebugDepthPriority::World);
 	LineBatcher->OnRender(ViewProjection);
+
+	LineBatcher->BeginFrame();
+	DrawWorldDebugToLineBatcher(World, *LineBatcher, Settings.ShowFlags, EDebugDepthPriority::Foreground);
+	LineBatcher->SetDepthTest(false);
+	LineBatcher->OnRender(ViewProjection);
+	LineBatcher->SetDepthTest(true);
 
 	// root는 바닥 높이라 가려지기 쉬우므로 깊이 테스트 없이 따로 그린다 (항상 위에 보임)
 	if (Settings.ShowFlags.RootBone)

@@ -1,7 +1,7 @@
 #include "EnginePCH.h"
 #include "Editor/LevelEditor/LevelEditorTab.h"
+
 #include "Editor/HitoriEd/EditorFileUtils.h"
-#include "Asset/FbxImporter/FbxMeshBake.h"
 #include "Editor/ContentDrawer/ContentDrawerPanel.h"
 #include "Editor/OutputLog/OutputLogPanel.h"
 #include "Editor/EditorUI/EditorIcons.h"
@@ -9,6 +9,12 @@
 #include "Editor/HitoriEd/Editor.h"
 #include "Editor/HitoriEd/EditorEngine.h"
 #include "Editor/Settings/SettingsPanel.h"
+
+#include "Engine/World.h"
+
+#include "Asset/FbxImporter/FbxMeshBake.h"
+#include "AI/Navigation/NavigationSubsystem.h"
+
 #include <filesystem>
 
 namespace
@@ -152,6 +158,15 @@ void FLevelEditorTab::DrawMenuBar()
 
 	if (ImGui::BeginMenu("Build"))
 	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorld() : nullptr;
+		FNavigationSubsystem* Navigation = World ? World->GetSubsystem<FNavigationSubsystem>() : nullptr;
+		if (ImGui::MenuItem("Build Navigation", nullptr, false, Navigation != nullptr))
+		{
+			Navigation->BuildNavigation();
+		}
+
+		ImGui::Separator();
+
 		const bool bCanPackage = !IsPackaging || !IsPackaging();
 		if (ImGui::MenuItem("Package Game (Release)", nullptr, false, bCanPackage)) { OnPackageGame.Broadcast(); }
 		ImGui::EndMenu();
