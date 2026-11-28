@@ -343,11 +343,21 @@ function Hitori.EditorCompileSettings(Ctx)
 end
 
 
+-- .vcxproj 위치. 엔진 솔루션에서는 소스 폴더에 둔다.
+-- Solution Explorer의 "모든 파일 표시"는 .vcxproj가 있는 폴더를 기준으로 디스크 구조를 보여 주므로,
+-- Build/Projects에 두면 소스 폴더 구조가 보이지 않는다. (.vcxproj는 .gitignore 대상이라 커밋되지 않는다)
+-- 사용자 프로젝트 솔루션은 엔진 소스 폴더의 .vcxproj와 겹치지 않게 Ctx.ProjectsDir에 둔다.
+local function Location(Ctx, InSource)
+	if Ctx.IsEngineSolution then return E(InSource) end
+	return Ctx.ProjectsDir
+end
+
+
 -- 외부 라이브러리. 별도 프로젝트로 두면 에디터의 소스 루트가 Source/Editor 하나로 좁혀져
 -- Solution Explorer의 "모든 파일 표시"에서 폴더 구조가 그대로 보인다.
 function Hitori.ImGuiProject(Ctx)
 	project "ImGui"
-		location (Ctx.ProjectsDir)
+		location (Location(Ctx, "Source/ThirdParty/ImGui"))
 		kind     "StaticLib"
 		Hitori.CommonSettings(Ctx)
 
@@ -375,7 +385,7 @@ end
 -- Lua 5.4. C로 컴파일한다. lua.c·luac.c는 main이 있는 단독 실행 파일용이라 뺀다.
 function Hitori.LuaProject(Ctx)
 	project "Lua"
-		location (Ctx.ProjectsDir)
+		location (Location(Ctx, "Source/ThirdParty/lua"))
 		kind     "StaticLib"
 		Hitori.CommonSettings(Ctx)
 		language "C"   -- CommonSettings의 C++를 덮어쓴다
@@ -408,7 +418,7 @@ end
 -- 헤더 툴. 엔진 코드에 의존하지 않고 std만 쓴다.
 function Hitori.HeaderToolProject(Ctx)
 	project "HitoriHeaderTool"
-		location (Ctx.ProjectsDir)
+		location (Location(Ctx, "Source/Programs/HitoriHeaderTool"))
 		kind     "ConsoleApp"
 		Hitori.CommonSettings(Ctx)
 
@@ -422,7 +432,7 @@ end
 -- 런타임. 에디터를 모른다. include 경로에 Source/Editor가 없는 것이 그 방벽이다.
 function Hitori.EngineProject(Ctx)
 	project "HitoriEngine"
-		location (Ctx.ProjectsDir)
+		location (Location(Ctx, "Source/Runtime"))
 		kind     "StaticLib"
 		Hitori.CommonSettings(Ctx)
 
@@ -486,7 +496,7 @@ end
 -- ObjViewer/Benchmark 구성에서 쓰는 Programs 코드도 여기 들어간다.
 function Hitori.EditorCoreProject(Ctx)
 	project "HitoriEditorCore"
-		location (Ctx.ProjectsDir)
+		location (Location(Ctx, "Source/Editor"))
 		kind     "StaticLib"
 		Hitori.CommonSettings(Ctx)
 
@@ -599,6 +609,8 @@ end
 
 -- 에디터 실행 파일. Opts:
 --   Location : .vcxproj 폴더 (기본값 Ctx.ProjectsDir = <Root>/Build/Projects)
+--              진입점 파일 몇 개만 담는 프로젝트라 소스 폴더에 두지 않는다. 같은 폴더의 HitoriEditorCore와
+--              "모든 파일 표시"가 겹쳐 보이지 않게 한다.
 --   Modules  : 함께 링크할 사용자 모듈(Hitori.ModuleProject) 이름 목록. /WHOLEARCHIVE로 링크한다.
 --   TargetName: exe 파일 이름 (기본값: 프로젝트 이름)
 --   Files    : 추가로 컴파일할 파일

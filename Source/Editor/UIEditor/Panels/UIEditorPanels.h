@@ -14,6 +14,10 @@ public:
 
 protected:
 	void DrawContent() override;
+
+private:
+	char Search[64] = "";
+	bool bCollapsed[4] = {};   // 카테고리별 접힘 (Common, Panel, Misc)
 };
 
 // 위젯 트리입니다. 끌어서 다른 패널 아래로 옮길 수 있습니다.
@@ -26,10 +30,13 @@ protected:
 	void DrawContent() override;
 
 private:
-	void DrawNode(UWidget* Widget);
+	void DrawNode(UWidget* Widget, int32 Depth);
+	bool MatchesSearch(const UWidget* Widget) const;
+
+	char Search[64] = "";
 };
 
-// 미리보기 텍스처를 보여 주고 클릭 선택, 이동, 크기 조절을 처리합니다.
+// UE UMG Designer처럼 눈금자·격자 위에 미리보기 텍스처를 보여 주고 줌/팬, 클릭 선택, 이동, 크기 조절을 처리합니다.
 class FUICanvasPanel : public FUIEditorPanel
 {
 public:
@@ -46,12 +53,20 @@ private:
 	UWidget* PickWidget(UWidget* Widget, float X, float Y) const;
 	bool IsOverResizeHandle(float X, float Y) const;
 	void ApplyDrag(float DX, float DY);
+	void DrawRulers(const ImVec2& Origin, const ImVec2& AreaMin, const ImVec2& AreaMax, float RulerSize);
+	// 오른쪽 위에 겹쳐 그리는 툴바 (격자, 화면에 맞춤, Screen Size)
+	void DrawOverlayToolbar(const ImVec2& AreaMin, const ImVec2& AreaMax);
 
 	// 디자인 좌표를 화면 좌표로 바꿉니다.
 	ImVec2 ToScreen(float X, float Y) const { return ImVec2(CanvasMin.x + X * ViewScale, CanvasMin.y + Y * ViewScale); }
 
 	ImVec2 CanvasMin;
 	float ViewScale = 1.0f;
+	ImVec2 Pan = ImVec2(0.0f, 0.0f);   // 캔버스 영역 왼쪽 위에서 디자인 원점까지 (화면 px)
+	int32 ZoomIndex = 7;               // ZoomLevels 인덱스 (7 = 1:1)
+	bool bFitPending = true;
+	bool bShowGrid = true;
+	FVector2 LastPreviewSize = FVector2(0.0f, 0.0f);
 
 	EDragMode DragMode = EDragMode::None;
 	float DragStartX = 0.0f, DragStartY = 0.0f;

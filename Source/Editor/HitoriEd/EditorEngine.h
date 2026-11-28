@@ -285,6 +285,7 @@ private:
 	FEditorCommand CopyCommand;
 	FEditorCommand PasteCommand;
 	FEditorCommand DuplicateCommand;
+	FEditorCommand ToggleNavigationCommand;   // [B] P 키: NavMesh 오버레이
 
 	FEditorCommand Play;
 	FEditorCommand Pause;

@@ -183,11 +183,18 @@ bool UEngine::LoadMap(FWorldContext& Context, const FString& MapPath)
 		Context.GameViewport->SetWorld(nullptr);
 	}
 	
+	// 옛 월드를 지운다. DestroyWorld -> ClearWorld가 맨 처음 서브시스템 OnLevelUnload(400→100)를 부르므로
+	// 옛 레벨의 GPU 버퍼·PhysX 하이트필드·NavMesh가 여기서 모두 사라진다.
+	// 새 월드는 위에서 액터 역직렬화만 했고 무거운 자원은 아직 만들지 않았으므로 두 레벨 자원이 겹치지 않는다.
 	DestroyWorld(Context.World());
 
 	Context.SetCurrentWorld(NewWorld);
 	if (Context.GameViewport)
 		Context.GameViewport->SetWorld(NewWorld);
+
+	// 옛 월드가 완전히 사라진 뒤에 새 레벨 자원을 만든다 (OnLevelLoad: 100→400).
+	NewWorld->NotifyLevelLoaded(MapPath);
+	// OnWorldBeginPlay까지 여기서 불린다.
 	NewWorld->BeginPlay();
 	PostLoadMap(Context);
 
