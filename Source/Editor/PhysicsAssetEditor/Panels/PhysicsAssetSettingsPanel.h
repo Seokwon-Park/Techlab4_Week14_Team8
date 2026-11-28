@@ -7,7 +7,7 @@ class FPhysicsAssetSettingsPanel : public TAssetEditorPanel<FPhysicsAssetEditor>
 {
 public:
 	explicit FPhysicsAssetSettingsPanel(FPhysicsAssetEditor& InEditor)
-		: TAssetEditorPanel<FPhysicsAssetEditor>(InEditor, "Settings", "PhysicsAssetPanel")
+		: TAssetEditorPanel<FPhysicsAssetEditor>(InEditor, "Preview Scene Settings", "PhysicsAssetPanel")
 	{
 	}
 

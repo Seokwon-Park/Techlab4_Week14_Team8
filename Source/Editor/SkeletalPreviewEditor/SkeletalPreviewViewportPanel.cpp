@@ -19,6 +19,7 @@ void FSkeletalPreviewViewportPanel::DrawContent()
     {
         ImGui::GetWindowDrawList()->AddImage(Target->GetSRV(), Origin, ViewMax);
     }
+    Editor.DrawViewportOverlay(Origin, ViewMax);
 
     // UE5식 뷰포트 툴바(기즈모 도구, 뷰 종류, 카메라, 뷰 모드, 쇼 플래그)와 왼쪽 아래 축 표시.
     // 입력 영역보다 먼저 그려야 툴바 버튼이 마우스를 먼저 받는다. 툴바 위에서는 뷰포트 입력을 막는다.

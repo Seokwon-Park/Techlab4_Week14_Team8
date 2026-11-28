@@ -78,7 +78,8 @@ public:
 	// 바디와 Constraint는 두고 Shape만 본 정점으로 다시 만든다
 	void RegenerateBody(int32 BodyIndex);
 	// 확인 후 바디와 Constraint를 모두 지우고 에셋을 처음 만들 때와 같은 설정으로 다시 만든다
-	void RegenerateAllBodies();
+	// bConfirm이면 확인 창을 띄운다. 바디 생성 설정은 CreateParams를 쓴다
+	void RegenerateAllBodies(bool bConfirm = true);
 	// ChildBodyIndex 본 원점에 놓이는 Constraint로 두 바디를 잇는다. 이미 이어져 있으면 아무것도 하지 않는다
 	void MakeNewConstraint(int32 ChildBodyIndex, int32 ParentBodyIndex);
 	bool HasConstraintBetween(int32 BodyIndexA, int32 BodyIndexB) const;
@@ -86,6 +87,20 @@ public:
 	void AddShape(int32 BodyIndex, EAggCollisionShape::Type ShapeType);
 	// 마지막 Shape면 바디도 지운다
 	void DeleteShape(int32 BodyIndex, EAggCollisionShape::Type ShapeType, int32 ShapeIndex);
+
+	// 선택한 바디와 다른 모든 바디 사이의 충돌을 켜거나 끈다 (UE의 Enable/Disable Collision All)
+	bool CanEditSelectedBodyCollision() const;
+	void SetSelectedBodyCollisionWithAll(bool bEnable);
+	// 시뮬레이션 중이 아니면 프리뷰 포즈를 바인드 포즈로 되돌린다
+	void ResetPreviewPose();
+	// 같은 메시의 스켈레탈 메시 에디터를 연다
+	void OpenMeshEditor();
+
+	// 뷰포트 왼쪽 위 바디·Shape·Constraint 통계
+	void DrawViewportOverlay(const ImVec2& ViewMin, const ImVec2& ViewMax) override;
+
+	// Tools 패널의 Body Creation 설정. 바디를 새로 만들거나 다시 만들 때 쓴다
+	FPhysAssetCreateParams CreateParams;
 
 	bool bShowBodies = true;
 	bool bShowConstraints = true;
@@ -107,7 +122,9 @@ private:
 	// 바인드 박스 대각선이 이보다 크면 cm 값으로 본다. 사람 크기 메시는 cm면 200 안팎, m면 2 안팎이다
 	static constexpr float CentimeterMeshMinSize = 10.0f;
 
-	FPhysAssetCreateParams MakeCreateParams() const;
+	const FPhysAssetCreateParams& MakeCreateParams() const { return CreateParams; }
+	// 메시 크기에 맞춘 기본 바디 생성 설정
+	FPhysAssetCreateParams MakeDefaultCreateParams() const;
 	void UpdatePhysicsPicking();
 	USkeletalBodySetup* GetSelectedBodySetup() const;
 	// 선택한 Shape. 바디만 선택했으면 첫 Shape (Sphyl, Box, Sphere 순)

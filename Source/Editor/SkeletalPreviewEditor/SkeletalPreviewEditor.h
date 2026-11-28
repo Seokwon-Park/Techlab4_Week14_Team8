@@ -3,6 +3,7 @@
 #include "Editor/AssetEditor/AssetEditor.h"
 #include "Editor/UnrealWidgetFwd.h"
 #include "Camera/ViewportCameraMovement.h"
+#include <imgui.h>
 
 class USkeletalMesh;                                 
 class USkeletalMeshComponent;
@@ -55,6 +56,8 @@ public:
 	virtual void SetGizmoMode(UE::Widget::EWidgetMode Mode) {}
 	virtual bool IsGizmoDragging() const { return false; }
 	virtual bool IsViewportInteractionBusy() const { return false; }
+	// 뷰포트 이미지를 그린 직후 불린다. 에디터별 통계 글자 등을 덮어 그린다
+	virtual void DrawViewportOverlay(const ImVec2& ViewMin, const ImVec2& ViewMax) {}
 
 	USkeletalMesh* GetMesh() const { return Mesh; }
 	USkeletalMeshComponent* GetMeshComponent() const { return MeshComponent; }

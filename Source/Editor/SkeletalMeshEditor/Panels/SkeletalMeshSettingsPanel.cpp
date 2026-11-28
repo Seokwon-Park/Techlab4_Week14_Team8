@@ -3,7 +3,7 @@
 #include "Editor/SkeletalMeshEditor/SkeletalMeshEditor.h"
 
 FSkeletalMeshSettingsPanel::FSkeletalMeshSettingsPanel(FSkeletalMeshEditor& InEditor)
-	: FSkeletalMeshEditorPanel(InEditor, "Settings")
+	: FSkeletalMeshEditorPanel(InEditor, "Preview Scene Settings")
 {
 }
 

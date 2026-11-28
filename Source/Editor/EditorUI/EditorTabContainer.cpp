@@ -89,6 +89,10 @@ namespace
 			{ "Canvas",           EEditorIcon::Widget },
 			{ "Emitters",         EEditorIcon::Particle },
 			{ "Skeleton Tree",    EEditorIcon::SkeletalMesh },
+			{ "Asset Details",    EEditorIcon::Details },
+			{ "Editing Tools",    EEditorIcon::Wrench },
+			{ "Tools",            EEditorIcon::Wrench },
+			{ "Preview Scene Settings", EEditorIcon::Settings },
 			{ "Editor Controls",  EEditorIcon::Keyboard },
 		};
 		for (const FEntry& Entry : Table)
