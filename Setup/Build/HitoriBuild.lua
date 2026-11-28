@@ -58,6 +58,8 @@ IncludeDir["nanosvg"]         = E("Source/ThirdParty/nanosvg")
 IncludeDir["PhysX"]           = E("Source/ThirdParty/PhysX/include")
 IncludeDir["PxShared"]        = E("Source/ThirdParty/PhysX/pxshared/include")
 IncludeDir["NvCloth"]         = E("Source/ThirdParty/NvCloth/include")
+IncludeDir["Recast"]          = E("Source/ThirdParty/RecastNavigation/Recast/Include")
+IncludeDir["Detour"]          = E("Source/ThirdParty/RecastNavigation/Detour/Include")
 Hitori.IncludeDir = IncludeDir
 
 
@@ -383,6 +385,26 @@ function Hitori.LuaProject(Ctx)
 		includedirs { IncludeDir.lua }
 end
 
+function Hitori.RecastProject(Ctx)
+	project "Recast"
+		location (Ctx.ProjectsDir)
+		kind "StaticLib"
+		Hitori.CommonSettings(Ctx)
+
+		files { IncludeDir.Recast .. "/*.h", E("Source/ThirdParty/RecastNavigation/Recast/Source/*.cpp") }
+		includedirs { IncludeDir.Recast }
+end
+
+function Hitori.DetourProject(Ctx)
+	project "Detour"
+		location (Ctx.ProjectsDir)
+		kind "StaticLib"
+		Hitori.CommonSettings(Ctx)
+
+		files { IncludeDir.Detour .. "/*.h", E("Source/ThirdParty/RecastNavigation/Detour/Source/*.cpp") }
+		includedirs { IncludeDir.Detour }
+end
+
 -- 헤더 툴. 엔진 코드에 의존하지 않고 std만 쓴다.
 function Hitori.HeaderToolProject(Ctx)
 	project "HitoriHeaderTool"
@@ -429,10 +451,12 @@ function Hitori.EngineProject(Ctx)
 			IncludeDir.PhysX,
 			IncludeDir.PxShared,
 			IncludeDir.NvCloth,
+			IncludeDir.Recast,
+			IncludeDir.Detour,
 		}
 		BuildConfigIncludeDirs(Ctx)
 
-		links { "Lua" }
+		links { "Lua", "Recast", "Detour" }
 
 		dependson { "HitoriHeaderTool" }
 		prebuildcommands { Hitori.HeaderToolCommand(Ctx, "Runtime", { E("Source/Runtime") }) }
@@ -503,6 +527,8 @@ end
 function Hitori.DefineEngineProjects(Ctx)
 	Hitori.ImGuiProject(Ctx)
 	Hitori.LuaProject(Ctx)
+	Hitori.RecastProject(Ctx)
+	Hitori.DetourProject(Ctx)
 	Hitori.HeaderToolProject(Ctx)
 	Hitori.EngineProject(Ctx)
 	Hitori.EditorCoreProject(Ctx)
@@ -601,7 +627,7 @@ function Hitori.EditorApp(Ctx, Name, Opts)
 		Hitori.EditorCompileSettings(Ctx)
 
 		links (Modules)
-		links { "HitoriEditorCore", "HitoriEngine", "ImGui", "Lua" }
+		links { "HitoriEditorCore", "HitoriEngine", "ImGui", "Lua", "Recast", "Detour" }
 		for _, Module in ipairs(Modules) do Hitori.WholeArchive({ Hitori.ModuleLibName(Module) }) end
 		Hitori.WholeArchive({ "HitoriEditorCore", "HitoriEngine" })
 
@@ -657,7 +683,7 @@ function Hitori.GameApp(Ctx, Name, Opts)
 		Hitori.RuntimeIncludeDirs(Ctx)
 
 		links (Modules)
-		links { "HitoriEngine", "Lua" }
+		links { "HitoriEngine", "Lua", "Recast", "Detour" }
 		-- 에디터와 같은 이유. 게임 코드는 라이트 액터 등을 직접 참조하지 않아 특히 빠지기 쉽다.
 		for _, Module in ipairs(Modules) do Hitori.WholeArchive({ Hitori.ModuleLibName(Module) }) end
 		Hitori.WholeArchive({ "HitoriEngine" })
