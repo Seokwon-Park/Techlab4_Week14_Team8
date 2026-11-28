@@ -1,5 +1,7 @@
 #include "EnginePCH.h"
 #include "PhysicsAssetTreePanel.h"
+#include "Editor/EditorUI/EditorIcons.h"
+#include "Editor/EditorUI/EditorStyle.h"
 #include "Physics/PhysicsAsset.h"
 #include "Render/SkeletalMesh.h"
 
@@ -28,8 +30,30 @@ void FPhysicsAssetTreePanel::DrawContent()
 		return;
 	}
 
-	ImGui::Checkbox("Show All Bones", &bShowAllBones);
-	ImGui::Separator();
+	// UE5처럼 열 이름 머리줄 오른쪽 끝에 보기 옵션(톱니) 메뉴를 둔다
+	const ImGuiStyle& Style = ImGui::GetStyle();
+	const ImVec2 Min = ImGui::GetCursorScreenPos();
+	const float HeaderHeight = ImGui::GetFrameHeight();
+	const float Width = ImGui::GetContentRegionAvail().x;
+	ImGui::GetWindowDrawList()->AddRectFilled(Min, ImVec2(Min.x + Width, Min.y + HeaderHeight), EditorColor::BgHeader);
+	ImGui::SetCursorScreenPos(ImVec2(Min.x + Style.FramePadding.x, Min.y + Style.FramePadding.y));
+	ImGui::TextUnformatted("Name");
+	const float GearWidth = EditorIcons::CalcButtonWidth(true, nullptr, true, HeaderHeight);
+	ImGui::SetCursorScreenPos(ImVec2(Min.x + Width - GearWidth, Min.y));
+	if (EditorIcons::Button("##TreeOptions", EEditorIcon::Settings, EditorColor::TextPrimary, nullptr, true, false, HeaderHeight))
+	{
+		ImGui::OpenPopup("PhysicsTreeOptions");
+	}
+	if (ImGui::BeginPopup("PhysicsTreeOptions"))
+	{
+		if (EditorIcons::MenuRow("Show All Bones", EEditorIcon::Outliner, bShowAllBones, true, true))
+		{
+			bShowAllBones = !bShowAllBones;
+		}
+		EditorIcons::MenuNote("Off: only bones with bodies and their parents are listed.");
+		ImGui::EndPopup();
+	}
+	ImGui::SetCursorScreenPos(ImVec2(Min.x, Min.y + HeaderHeight + Style.ItemSpacing.y * 0.5f));
 
 	if (ImGui::BeginChild("PhysicsAssetTreeChild", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar))
 	{

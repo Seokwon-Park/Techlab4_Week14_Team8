@@ -2,7 +2,7 @@
 
 #include "SkeletalMeshEditorPanel.h"
 
-// 원본 애셋의 식별 정보와 메시 통계를 읽기 전용으로 표시합니다.
+// UE5 Asset Details처럼 머티리얼 슬롯, LOD, 섹션, 메시 통계, Physics Asset을 분류별로 표시합니다.
 class FSkeletalMeshInfoPanel : public FSkeletalMeshEditorPanel
 {
 public:
@@ -10,4 +10,7 @@ public:
 
 protected:
 	void DrawContent() override;
+
+private:
+	char SearchBuffer[128] = {};
 };

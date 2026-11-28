@@ -2,7 +2,7 @@
 
 #include "SkeletalMeshEditorPanel.h"
 
-// 메시 상세 정보 UI를 확장하기 위한 패널 골격입니다.
+// 선택한 본의 프리뷰 로컬 변환을 UE5 Details처럼 이름/값 두 칸으로 편집합니다.
 class FSkeletalMeshDetailsPanel : public FSkeletalMeshEditorPanel
 {
 public:
@@ -10,14 +10,4 @@ public:
 
 protected:
 	void DrawContent() override;
-
-private:
-	// 물리 단계별 확인용 (임시). C의 Physics Asset 에디터가 생기면 지운다
-	void DrawPhysicsDebug();
-	void DrawClothBinding();
-
-	FString ClothBindingMessage;
-	class UPhysicsAsset* DebugPhysicsAsset = nullptr;
-	float DebugMinBoneSize = 20.0f;
-	FString DebugMessage;
 };

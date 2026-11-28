@@ -3,6 +3,7 @@
 #include "Physics/PhysicsLock.h"
 #include "Core/Misc/Paths.h"
 #include "PhysicsAssetEditorTab.h"
+#include "Editor/AssetEditor/EditorManager.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Physics/PhysicsAsset.h"
@@ -12,6 +13,7 @@
 #include "Render/SkeletalMesh.h"
 #include "Render/LineBatcher.h"
 #include "Render/SceneView.h"
+#include "Editor/Viewports/EditorViewportToolbar.h"
 #include "Collision/Ray.h"
 #include "Engine/World.h"
 #include "Physics/PhysicsScene.h"
@@ -76,6 +78,7 @@ bool FPhysicsAssetEditor::InitializeResources()
 	{
 		return false;
 	}
+	CreateParams = MakeDefaultCreateParams();
 
 	DebugRenderer = MakeUnique<FPhysicsAssetDebugRenderer>();
 
@@ -112,7 +115,7 @@ bool FPhysicsAssetEditor::InitializeResources()
 	return true;
 }
 
-FPhysAssetCreateParams FPhysicsAssetEditor::MakeCreateParams() const
+FPhysAssetCreateParams FPhysicsAssetEditor::MakeDefaultCreateParams() const
 {
 	FPhysAssetCreateParams Params;
 	// 20cm = 사람 메시 대각선(약 256)의 8%. 작게 import된 메시는 같은 비율로 낮춘다
@@ -472,14 +475,14 @@ void FPhysicsAssetEditor::RegenerateBody(int32 BodyIndex)
 	MarkDirty();
 }
 
-void FPhysicsAssetEditor::RegenerateAllBodies()
+void FPhysicsAssetEditor::RegenerateAllBodies(bool bConfirm)
 {
 	if (bSimulating || !PhysicsAsset)
 	{
 		return;
 	}
 
-	const int Result = MessageBoxW(GetActiveWindow(),
+	const int Result = !bConfirm ? IDOK : MessageBoxW(GetActiveWindow(),
 		L"Delete all bodies and constraints and generate them again?\nShape, constraint and collision edits will be lost.",
 		L"Physics Asset", MB_OKCANCEL | MB_ICONWARNING);
 	if (Result != IDOK)
@@ -1542,4 +1545,104 @@ bool FPhysicsAssetEditor::PickBody(const FRay& Ray, int32& OutBodyIndex, EAggCol
 
 	OutT = NearestT;
 	return OutBodyIndex != INDEX_NONE;
+}
+
+bool FPhysicsAssetEditor::CanEditSelectedBodyCollision() const
+{
+	return !bSimulating && PhysicsAsset && GetSelectedBodyIndex() != INDEX_NONE
+		&& PhysicsAsset->SkeletalBodySetups.Num() > 1;
+}
+
+void FPhysicsAssetEditor::SetSelectedBodyCollisionWithAll(bool bEnable)
+{
+	if (!CanEditSelectedBodyCollision())
+	{
+		return;
+	}
+
+	const int32 Selected = GetSelectedBodyIndex();
+	for (int32 Other = 0; Other < PhysicsAsset->SkeletalBodySetups.Num(); ++Other)
+	{
+		if (Other == Selected)
+		{
+			continue;
+		}
+		if (bEnable) PhysicsAsset->EnableCollision(Selected, Other);
+		else         PhysicsAsset->DisableCollision(Selected, Other);
+	}
+	MarkDirty();
+}
+
+void FPhysicsAssetEditor::ResetPreviewPose()
+{
+	if (bSimulating || !MeshComponent)
+	{
+		return;
+	}
+	CancelViewportInteraction();
+	MeshComponent->ResetPose();
+	SyncPhysicsGizmo();
+}
+
+void FPhysicsAssetEditor::OpenMeshEditor()
+{
+	EditorManager.OpenEditor(MeshPath);
+}
+
+void FPhysicsAssetEditor::DrawViewportOverlay(const ImVec2& ViewMin, const ImVec2& ViewMax)
+{
+	if (!PhysicsAsset)
+	{
+		return;
+	}
+
+	// UE5 Physics Asset 에디터 왼쪽 위 통계: 바디, Shape 종류별 개수, Constraint, 꺼진 충돌 쌍
+	int32 Spheres = 0, Boxes = 0, Capsules = 0;
+	for (const USkeletalBodySetup* Setup : PhysicsAsset->SkeletalBodySetups)
+	{
+		if (!Setup) continue;
+		Spheres += Setup->AggGeom.SphereElems.Num();
+		Boxes += Setup->AggGeom.BoxElems.Num();
+		Capsules += Setup->AggGeom.SphylElems.Num();
+	}
+
+	FString Kinds;
+	const auto AddKind = [&Kinds](int32 Count, const char* Name)
+	{
+		if (Count <= 0) return;
+		Kinds += Kinds.empty() ? "" : ", ";
+		Kinds += std::format("{} {}", Count, Name);
+	};
+	AddKind(Capsules, Capsules == 1 ? "Capsule" : "Capsules");
+	AddKind(Boxes, Boxes == 1 ? "Box" : "Boxes");
+	AddKind(Spheres, Spheres == 1 ? "Sphere" : "Spheres");
+
+	const int32 Bodies = PhysicsAsset->SkeletalBodySetups.Num();
+	const FString Lines[] = {
+		std::format("{} Bodies", Bodies),
+		std::format("{} Primitives{}", Spheres + Boxes + Capsules, Kinds.empty() ? FString() : " (" + Kinds + ")"),
+		std::format("{} Constraints", PhysicsAsset->ConstraintSetup.Num()),
+		std::format("{} Disabled Collision Pairs", PhysicsAsset->CollisionDisableTable.Num()),
+	};
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+	DrawList->PushClipRect(ViewMin, ViewMax, true);
+	const float Scale = ImGui::GetStyle().FontScaleDpi > 0.0f ? ImGui::GetStyle().FontScaleDpi : 1.0f;
+	const float LineHeight = ImGui::GetTextLineHeight() + 2.0f * Scale;
+	ImVec2 Pos(ViewMin.x + 8.0f * Scale, ViewMin.y + EditorViewportUI::GetToolbarHeight() + 8.0f * Scale);
+	const auto Text = [DrawList](const ImVec2& At, ImU32 Color, const char* Str)
+	{
+		DrawList->AddText(ImVec2(At.x + 1.0f, At.y + 1.0f), IM_COL32(0, 0, 0, 200), Str);
+		DrawList->AddText(At, Color, Str);
+	};
+	for (const FString& Line : Lines)
+	{
+		Text(Pos, IM_COL32(246, 244, 244, 255), Line.c_str());
+		Pos.y += LineHeight;
+	}
+	if (bSimulating)
+	{
+		Text(Pos, IM_COL32(112, 196, 124, 255), "Simulating (Ctrl/Shift + RMB drag to grab)");
+	}
+	DrawList->PopClipRect();
 }
