@@ -7,7 +7,7 @@
 
 LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
 
-IDI_ICON2 ICON "../../../EngineResources/Icons/Logo/Hitori.ico"
+IDI_ICON2 ICON "../../../EngineResources/Icons/Logo/hitori-icon-3.ico"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION HITORI_VERSION_TUPLE
