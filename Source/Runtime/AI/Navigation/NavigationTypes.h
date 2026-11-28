@@ -33,6 +33,7 @@ enum class ENavPathStatus : uint8
     NoNavMesh,          // NavMesh가 없음 (던전에 빌드할 지오메트리가 없거나 아직 빌드 전)
     StartNotOnNavMesh,  // findNearestPoly 실패 (시작점)
     GoalNotOnNavMesh,   // findNearestPoly 실패 (목적지)
+    QueryFailed,        // 버퍼 부족이나 Detour 오류 등
 };
 
 struct FNavPathResult

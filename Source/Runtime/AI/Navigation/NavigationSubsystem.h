@@ -1,11 +1,12 @@
-// Source/Runtime/AI/Navigation/NavigationSubsystem.h   (담당: D)
-// 공유 계약 4, 순서 300. UE UNavigationSystemV1 자리.
 #pragma once
 
-#include "Engine/WorldSubsystem.h"
-#include "AI/Navigation/NavigationTypes.h"
+#include "NavigationTypes.h"
+#include "NavMeshDebugGeometry.h"
 
-struct FNavMeshDebugGeometry;
+#include "Engine/WorldSubsystem.h"
+
+class dtNavMesh;
+class dtNavMeshQuery;
 
 class FNavigationSubsystem : public FWorldSubsystem
 {
@@ -25,4 +26,14 @@ public:
 
 	// B가 오버레이로 그린다. NavMesh가 없으면 nullptr
 	const FNavMeshDebugGeometry* GetDebugGeometry() const;
+
+private:
+	static void FreeNavMesh(dtNavMesh* Mesh);
+	static void FreeNavQuery(dtNavMeshQuery* Query);
+	void ClearNavigation();
+
+private:
+	std::unique_ptr<dtNavMesh, void (*)(dtNavMesh*)> NavMesh{ nullptr, &FNavigationSubsystem::FreeNavMesh };
+	std::unique_ptr<dtNavMeshQuery, void (*)(dtNavMeshQuery*)> NavQuery{ nullptr, &FNavigationSubsystem::FreeNavQuery };
+	FNavMeshDebugGeometry DebugGeometry;
 };
