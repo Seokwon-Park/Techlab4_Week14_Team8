@@ -428,7 +428,7 @@ void UEditorEngine::InitCommands()
 	NewScene.Execute = [this]() { CreateNewScene(); };
 
 	// [B] UE처럼 P 키로 지금 쓰는 레벨 뷰포트의 NavMesh 오버레이(Navigation Show Flag)를 켜고 끈다.
-// 수식키 없는 P라 Alt+P(Play)와 겹치지 않는다. PIE 중에는 P가 게임 입력일 수 있으므로 끈다.
+	// 수식키 없는 P라 Alt+P(Play)와 겹치지 않는다. PIE 중에는 P가 게임 입력일 수 있으므로 끈다.
 	ToggleNavigationCommand = { "Toggle Navigation", "Show or hide the NavMesh overlay in the active viewport", nullptr, White, { EKeyCode::P } };
 	ToggleNavigationCommand.CanExecute = [this]() { return !PlayWorld && GCurrentLevelEditingViewportClient != nullptr; };
 	ToggleNavigationCommand.Execute = []()
